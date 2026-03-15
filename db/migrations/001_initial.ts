@@ -1,0 +1,73 @@
+import { type SQLiteDatabase } from 'expo-sqlite';
+
+export async function up(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      initial_balance REAL NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'USD',
+      color TEXT,
+      icon TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+      color TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      is_default INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      amount REAL NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+      category_id INTEGER NOT NULL REFERENCES categories(id),
+      account_id INTEGER NOT NULL REFERENCES accounts(id),
+      note TEXT,
+      date TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS transfers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      from_account_id INTEGER NOT NULL REFERENCES accounts(id),
+      to_account_id INTEGER NOT NULL REFERENCES accounts(id),
+      amount REAL NOT NULL,
+      note TEXT,
+      date TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS budgets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_id INTEGER NOT NULL REFERENCES categories(id),
+      amount REAL NOT NULL,
+      period TEXT NOT NULL DEFAULT 'monthly' CHECK(period IN ('monthly', 'weekly', 'yearly')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Seed default categories
+    INSERT INTO categories (name, type, color, icon, is_default) VALUES
+      ('Food & Drinks', 'expense', '#FF6B6B', 'restaurant', 1),
+      ('Transport', 'expense', '#4ECDC4', 'directions-car', 1),
+      ('Shopping', 'expense', '#45B7D1', 'shopping-cart', 1),
+      ('Entertainment', 'expense', '#96CEB4', 'movie', 1),
+      ('Health', 'expense', '#FFEAA7', 'local-hospital', 1),
+      ('Bills & Utilities', 'expense', '#DDA0DD', 'receipt', 1),
+      ('Housing', 'expense', '#98D8C8', 'home', 1),
+      ('Other Expense', 'expense', '#B0B0B0', 'more-horiz', 1),
+      ('Salary', 'income', '#55A3FF', 'work', 1),
+      ('Freelance', 'income', '#FF9F43', 'laptop', 1),
+      ('Investment', 'income', '#48DBFB', 'trending-up', 1),
+      ('Gift', 'income', '#FF6B9D', 'card-giftcard', 1),
+      ('Other Income', 'income', '#B0B0B0', 'more-horiz', 1);
+
+    -- Seed a default account
+    INSERT INTO accounts (name, initial_balance, currency, color, icon)
+    VALUES ('Cash', 0, 'USD', '#55A3FF', 'account-balance-wallet');
+  `);
+}
