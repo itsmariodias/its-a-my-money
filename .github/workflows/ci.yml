@@ -32,7 +32,7 @@ jobs:
         run: pnpm lint
 
       - name: Type-check
-        run: pnpm tsc --noEmit
+        run: pnpm tsc
 
       # Tests will be added here later
       # - name: Test
