@@ -65,7 +65,10 @@ jobs:
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
 
+      - name: Rename APK
+        run: mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/its-a-my-money.apk
+
       - name: Upload APK to release
         uses: softprops/action-gh-release@v2
         with:
-          files: android/app/build/outputs/apk/release/app-release.apk
+          files: android/app/build/outputs/apk/release/its-a-my-money.apk
