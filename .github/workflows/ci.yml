@@ -1,13 +1,14 @@
-name: Build Android APK
+name: CI
 
 on:
-  release:
-    types:
-      - published
+  push:
+    branches:
+      - main
+  pull_request:
 
 jobs:
-  build:
-    name: Build APK (EAS)
+  check:
+    name: Lint & type-check
     runs-on: ubuntu-latest
 
     steps:
@@ -27,11 +28,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Setup EAS
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Lint
+        run: pnpm lint
 
-      - name: Build Android APK
-        run: eas build --platform android --profile preview --non-interactive
+      - name: Type-check
+        run: pnpm tsc --noEmit
+
+      # Tests will be added here later
+      # - name: Test
+      #   run: pnpm test
