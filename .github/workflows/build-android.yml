@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build APK (EAS)
+    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
@@ -27,11 +27,27 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Setup EAS
-        uses: expo/expo-github-action@v8
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          distribution: temurin
+          java-version: 17
 
-      - name: Build Android APK
-        run: eas build --platform android --profile preview --non-interactive
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --clean
+
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
+
+      - name: Build signed APK
+        run: |
+          cd android && ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$(pwd)/app/release.keystore \
+            -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload APK to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/app-release.apk
