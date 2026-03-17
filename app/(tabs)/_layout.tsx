@@ -1,6 +1,7 @@
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { PanResponder, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Tabs, useSegments } from 'expo-router';
+import { Tabs, useRouter, useSegments } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/components/useColorScheme';
@@ -21,12 +22,35 @@ export default function TabLayout() {
   const closeAddTx = useUIStore((s) => s.closeAddTx);
   const insets = useSafeAreaInsets();
   const fabBottom = 49 + insets.bottom + 12;
+  const router = useRouter();
   const segments = useSegments();
   const currentTab = segments[segments.length - 1];
   const showFab = currentTab !== 'settings';
 
+  const TAB_ROUTES = ['index', 'transactions', 'accounts', 'settings'];
+  const TAB_HREFS = ['/', '/transactions', '/accounts', '/settings'];
+  const currentTabIdxRef = useRef(0);
+  useEffect(() => {
+    currentTabIdxRef.current = TAB_ROUTES.indexOf(currentTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTab]);
+
+  const swipePan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, g) =>
+      Math.abs(g.dx) > 30 && Math.abs(g.dx) > Math.abs(g.dy) * 2.5,
+    onPanResponderRelease: (_, g) => {
+      const idx = currentTabIdxRef.current;
+      if (g.vx < -0.4 && idx < TAB_ROUTES.length - 1) {
+        router.navigate(TAB_HREFS[idx + 1] as any);
+      } else if (g.vx > 0.4 && idx > 0) {
+        router.navigate(TAB_HREFS[idx - 1] as any);
+      }
+    },
+  })).current;
+
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1 }} {...swipePan.panHandlers}>
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: accentColor,
@@ -41,7 +65,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: "It's a My Money",
+            title: "It's a My Money!",
             tabBarIcon: ({ color }) => <MaterialIcons name="pie-chart" size={26} color={color} />,
           }}
         />

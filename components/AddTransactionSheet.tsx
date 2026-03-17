@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -165,6 +167,33 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   const inputBg = isDark ? '#0f3460' : '#f0f4f8';
   const borderColor = isDark ? '#2a3a5e' : '#e2e8f0';
 
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (isOpen) sheetTranslateY.setValue(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  const dragPan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, g) => g.dy > 5 && g.dy > Math.abs(g.dx),
+    onPanResponderMove: (_, g) => {
+      if (g.dy > 0) sheetTranslateY.setValue(g.dy);
+    },
+    onPanResponderRelease: (_, g) => {
+      if (g.dy > 100 || g.vy > 0.5) {
+        Animated.timing(sheetTranslateY, { toValue: 600, duration: 180, useNativeDriver: true }).start(() => {
+          onCloseRef.current();
+          sheetTranslateY.setValue(0);
+        });
+      } else {
+        Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true }).start();
+      }
+    },
+  })).current;
+
   const dateValue = new Date(date + 'T00:00:00');
 
   return (
@@ -180,16 +209,18 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
         style={styles.kvContainer}
         pointerEvents="box-none"
       >
-        <View style={[styles.sheet, { backgroundColor: bg }]}>
-          <View style={[styles.handle, { backgroundColor: borderColor }]} />
+        <Animated.View style={[styles.sheet, { backgroundColor: bg, transform: [{ translateY: sheetTranslateY }] }]}>
+          <View {...dragPan.panHandlers}>
+            <View style={[styles.handle, { backgroundColor: borderColor }]} />
 
-          <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: textColor }]}>
-              {transaction ? 'Edit Transaction' : 'Add Transaction'}
-            </Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <MaterialIcons name="close" size={24} color={subTextColor} />
-            </TouchableOpacity>
+            <View style={styles.header}>
+              <Text style={[styles.headerTitle, { color: textColor }]}>
+                {transaction ? 'Edit Transaction' : 'Add Transaction'}
+              </Text>
+              <TouchableOpacity onPress={onClose} hitSlop={8}>
+                <MaterialIcons name="close" size={24} color={subTextColor} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -347,7 +378,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
               </Text>
             </TouchableOpacity>
           </ScrollView>
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );

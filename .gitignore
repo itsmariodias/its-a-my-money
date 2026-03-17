@@ -42,3 +42,6 @@ yarn-error.*
 
 # keystore files
 *.keystore
+
+# Monefy backups
+monefy_*

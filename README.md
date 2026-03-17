@@ -1,4 +1,4 @@
-# It's a My Money 💰
+# It's a My Money! 💰
 
 A personal finance app for iOS and Android built with Expo. Track your income, expenses, and account balances — fully offline, no accounts, no cloud, no nonsense.
 
