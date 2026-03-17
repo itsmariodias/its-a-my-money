@@ -24,7 +24,7 @@ const PRESET_COLORS = [
   '#98D8C8', '#FF6B9D', '#48DBFB', '#B0B0B0',
 ];
 
-const PRESET_ICONS: Array<keyof typeof MaterialIcons.glyphMap> = [
+const PRESET_ICONS: (keyof typeof MaterialIcons.glyphMap)[] = [
   'restaurant', 'directions-car', 'shopping-cart', 'movie',
   'local-hospital', 'receipt', 'home', 'flight',
   'fitness-center', 'local-cafe', 'school', 'pets',

@@ -24,7 +24,7 @@ const PRESET_COLORS = [
   '#96CEB4', '#F4A261', '#DDA0DD', '#A8E063',
 ];
 
-const PRESET_ICONS: Array<keyof typeof MaterialIcons.glyphMap> = [
+const PRESET_ICONS: (keyof typeof MaterialIcons.glyphMap)[] = [
   'account-balance-wallet',
   'account-balance',
   'credit-card',

@@ -287,6 +287,7 @@ function SwipeableAccountCard({
   useEffect(() => {
     offsetX.current = 0;
     Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetSignal]);
 
   const { cardBg, textColor, subColor } = getColors(isDark);
@@ -372,6 +373,7 @@ export default function AccountsScreen() {
       });
       // Reset all card swipes when leaving the tab
       return () => setResetSignal((s) => s + 1);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
 
@@ -416,9 +418,10 @@ export default function AccountsScreen() {
     const [accs, txns] = await Promise.all([accountsDb.getAll(), transactionsDb.getAll()]);
     setAccounts(accs);
     setTransactions(txns);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deletingAccount]);
 
-  const { bg, cardBg, textColor, subColor, borderColor } = getColors(isDark);
+  const { bg, subColor, borderColor } = getColors(isDark);
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>

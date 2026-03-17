@@ -63,6 +63,7 @@ export default function DashboardScreen() {
         setTransactions(all);
         setAccounts(accs);
       });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
 
@@ -125,6 +126,7 @@ export default function DashboardScreen() {
   }, [periodTransactions]);
 
   // Reset selected slice when period/data changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useMemo(() => { setSelectedSliceIdx(null); }, [pieData]);
 
   // Dim non-selected slices; selected slice stays full opacity
@@ -174,6 +176,7 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       ),
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAccount, textColor, subTextColor, accentColor]);
 
   return (

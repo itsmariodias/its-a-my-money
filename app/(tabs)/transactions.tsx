@@ -295,6 +295,7 @@ function SwipeableTransactionRow({
   useEffect(() => {
     offsetX.current = 0;
     Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetSignal]);
 
   const numberFormat = useSettingsStore((s) => s.numberFormat);
@@ -438,6 +439,7 @@ export default function TransactionsScreen() {
         setAccounts(accs);
       });
       return () => setResetSignal((s) => s + 1);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
 
@@ -486,6 +488,7 @@ export default function TransactionsScreen() {
     await transactionsDb.remove(id);
     const txns = await transactionsDb.getAll();
     setTransactions(txns);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deletingTx]);
 
   const selectedAccount = accounts.find((a) => a.id === selectedId) ?? null;
@@ -515,6 +518,7 @@ export default function TransactionsScreen() {
         </TouchableOpacity>
       ),
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAccount, textColor, subTextColor, accentColor]);
 
   return (

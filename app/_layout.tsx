@@ -63,6 +63,7 @@ function RootLayoutNav() {
     settingsDb.get('currency').then((row) => {
       if (row) setCurrency(row.value);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

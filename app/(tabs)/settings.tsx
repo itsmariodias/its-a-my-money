@@ -175,7 +175,7 @@ export default function SettingsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const { bg, cardBg, inputBg, textColor, subColor, borderColor } = getColors(isDark);
+  const { bg, cardBg, textColor, subColor, borderColor } = getColors(isDark);
 
   const settingsDb = useSettingsDb();
   const categoriesDb = useCategoriesDb();
@@ -220,6 +220,7 @@ export default function SettingsScreen() {
     ]);
     setExpenseCategories(expense);
     setIncomeCategories(income);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useFocusEffect(
@@ -228,6 +229,7 @@ export default function SettingsScreen() {
       settingsDb.get('accent_color').then((row) => { if (row) setAccentColor(row.value); });
       settingsDb.get('number_format').then((row) => { if (row) setNumberFormat(row.value); });
       loadCategories();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
 
