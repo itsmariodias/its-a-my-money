@@ -19,9 +19,10 @@ import {
   periodNavLabel,
   type PeriodMode,
 } from '@/components/PeriodSelector';
-import { useAccountsDb, useTransactionsDb } from '@/db';
+import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/store/useAccountsStore';
 import { useTransactionsStore } from '@/store/useTransactionsStore';
+import { useTransfersStore } from '@/store/useTransfersStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
@@ -269,18 +270,22 @@ export default function AccountsScreen() {
   const setAccounts = useAccountsStore((s) => s.setAccounts);
   const transactions = useTransactionsStore((s) => s.transactions);
   const setTransactions = useTransactionsStore((s) => s.setTransactions);
+  const transfers = useTransfersStore((s) => s.transfers);
+  const setTransfers = useTransfersStore((s) => s.setTransfers);
 
   const accountsDb = useAccountsDb();
   const transactionsDb = useTransactionsDb();
+  const transfersDb = useTransfersDb();
   const currency = useSettingsStore((s) => s.currency);
   const accentColor = useSettingsStore((s) => s.accentColor);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([accountsDb.getAll(), transactionsDb.getAll()]).then(([accs, txns]) => {
+      Promise.all([accountsDb.getAll(), transactionsDb.getAll(), transfersDb.getAll()]).then(([accs, txns, tfrs]) => {
         setAccounts(accs);
         setTransactions(txns);
+        setTransfers(tfrs);
       });
       return () => {};
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -292,13 +297,20 @@ export default function AccountsScreen() {
   const balanceMap = useMemo<Record<number, number>>(() => {
     const map: Record<number, number> = {};
     for (const acc of accounts) {
-      const net = transactions
+      const txNet = transactions
         .filter((t) => t.account_id === acc.id && t.date <= dateRange.end)
         .reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
-      map[acc.id] = acc.initial_balance + net;
+      const transferNet = transfers
+        .filter((t) => t.date <= dateRange.end)
+        .reduce((sum, t) => {
+          if (t.from_account_id === acc.id) return sum - t.amount;
+          if (t.to_account_id === acc.id) return sum + t.amount;
+          return sum;
+        }, 0);
+      map[acc.id] = acc.initial_balance + txNet + transferNet;
     }
     return map;
-  }, [accounts, transactions, dateRange]);
+  }, [accounts, transactions, transfers, dateRange]);
 
   const totalBalance = useMemo(
     () => Object.values(balanceMap).reduce((s, v) => s + v, 0),
@@ -322,11 +334,13 @@ export default function AccountsScreen() {
     if (!deletingAccount) return;
     const account = deletingAccount;
     setDeletingAccount(null);
+    await transfersDb.removeByAccount(account.id);
     await transactionsDb.removeByAccount(account.id);
     await accountsDb.remove(account.id);
-    const [accs, txns] = await Promise.all([accountsDb.getAll(), transactionsDb.getAll()]);
+    const [accs, txns, tfrs] = await Promise.all([accountsDb.getAll(), transactionsDb.getAll(), transfersDb.getAll()]);
     setAccounts(accs);
     setTransactions(txns);
+    setTransfers(tfrs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deletingAccount]);
 

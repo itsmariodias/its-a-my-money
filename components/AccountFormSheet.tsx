@@ -3,10 +3,8 @@ import {
   Alert,
   Animated,
   Dimensions,
-  KeyboardAvoidingView,
   Modal,
   PanResponder,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -121,11 +119,8 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
   useEffect(() => {
     if (isOpen) {
       sheetTranslateY.setValue(SCREEN_HEIGHT);
-      backdropOpacity.setValue(0);
-      Animated.parallel([
-        Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14 }),
-        Animated.timing(backdropOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
-      ]).start();
+      backdropOpacity.setValue(1);
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14 }).start();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -134,17 +129,15 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
   triggerCloseRef.current = () => {
     sheetTranslateY.stopAnimation();
     backdropOpacity.stopAnimation();
-    Animated.parallel([
-      Animated.timing(sheetTranslateY, { toValue: SCREEN_HEIGHT, duration: 220, useNativeDriver: true }),
-      Animated.timing(backdropOpacity, { toValue: 0, duration: 220, useNativeDriver: true }),
-    ]).start(() => { onCloseRef.current(); });
+    Animated.timing(sheetTranslateY, { toValue: SCREEN_HEIGHT, duration: 220, useNativeDriver: true })
+      .start(() => {
+        Animated.timing(backdropOpacity, { toValue: 0, duration: 150, useNativeDriver: true })
+          .start(() => { onCloseRef.current(); });
+      });
   };
 
   const snapBack = () => {
-    Animated.parallel([
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }),
-      Animated.timing(backdropOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
-    ]).start();
+    Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }).start();
   };
 
   const handlePan = useRef(PanResponder.create({
@@ -152,10 +145,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: () => sheetTranslateY.stopAnimation(),
     onPanResponderMove: (_, g) => {
-      if (g.dy > 0) {
-        sheetTranslateY.setValue(g.dy);
-        backdropOpacity.setValue(Math.max(0, 1 - g.dy / 380));
-      }
+      if (g.dy > 0) sheetTranslateY.setValue(g.dy);
     },
     onPanResponderRelease: (_, g) => {
       if (g.dy > 120 || g.vy > 0.3) triggerCloseRef.current();
@@ -171,9 +161,9 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
         transparent
         onRequestClose={() => triggerCloseRef.current()}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kvContainer}>
-          <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-            <Pressable style={{ flex: 1 }} onPress={() => triggerCloseRef.current()} />
+        <View style={styles.kvContainer}>
+          <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: backdropOpacity }]}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => triggerCloseRef.current()} />
           </Animated.View>
 
           <Animated.View style={[styles.sheet, { backgroundColor: bg, transform: [{ translateY: sheetTranslateY }] }]}>
@@ -190,7 +180,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
               {/* Name */}
               <Text style={[styles.label, { color: attempted && !name.trim() ? '#ef4444' : subTextColor }]}>
                 {attempted && !name.trim() ? 'Account Name — required' : 'Account Name'}
@@ -264,14 +254,14 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
               )}
             </ScrollView>
           </Animated.View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  kvContainer: { flex: 1 },
+  backdrop: { backgroundColor: 'rgba(0,0,0,0.4)' },
+  kvContainer: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,

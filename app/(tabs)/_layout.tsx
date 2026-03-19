@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Animated, BackHandler, Dimensions, PanResponder, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useSegments, withLayoutContext } from 'expo-router';
@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/components/useColorScheme';
 import AccountIcon from '@/components/AccountIcon';
 import AddTransactionSheet from '@/components/AddTransactionSheet';
+import TransferSheet from '@/components/TransferSheet';
 import SettingsScreen from '@/components/SettingsScreen';
 import { useUIStore } from '@/store/useUIStore';
 import { useAccountsStore } from '@/store/useAccountsStore';
@@ -161,6 +162,9 @@ export default function TabLayout() {
   const openAddTx = useUIStore((s) => s.openAddTx);
   const isAddTxOpen = useUIStore((s) => s.isAddTxOpen);
   const closeAddTx = useUIStore((s) => s.closeAddTx);
+  const openTransfer = useUIStore((s) => s.openTransfer);
+  const isTransferOpen = useUIStore((s) => s.isTransferOpen);
+  const closeTransfer = useUIStore((s) => s.closeTransfer);
   const selectedAccountId = useUIStore((s) => s.selectedAccountId);
   const setSelectedAccountId = useUIStore((s) => s.setSelectedAccountId);
   const accounts = useAccountsStore((s) => s.accounts);
@@ -194,6 +198,37 @@ export default function TabLayout() {
     });
     return () => sub.remove();
   }, []);
+
+  const [fabExpanded, setFabExpanded] = useState(false);
+  const fabRotation = useRef(new Animated.Value(0)).current;
+  const fabBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const item1Translate = useRef(new Animated.Value(0)).current;
+  const item1Opacity = useRef(new Animated.Value(0)).current;
+  const item2Translate = useRef(new Animated.Value(0)).current;
+  const item2Opacity = useRef(new Animated.Value(0)).current;
+
+  const expandFab = useCallback(() => {
+    setFabExpanded(true);
+    Animated.parallel([
+      Animated.spring(fabRotation, { toValue: 1, useNativeDriver: true, tension: 120, friction: 10 }),
+      Animated.timing(fabBackdropOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.spring(item1Translate, { toValue: 1, useNativeDriver: true, tension: 120, friction: 12 }),
+      Animated.timing(item1Opacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.spring(item2Translate, { toValue: 1, useNativeDriver: true, tension: 100, friction: 12, delay: 40 }),
+      Animated.timing(item2Opacity, { toValue: 1, duration: 150, delay: 40, useNativeDriver: true }),
+    ]).start();
+  }, [fabRotation, fabBackdropOpacity, item1Translate, item1Opacity, item2Translate, item2Opacity]);
+
+  const collapseFab = useCallback(() => {
+    Animated.parallel([
+      Animated.spring(fabRotation, { toValue: 0, useNativeDriver: true, tension: 120, friction: 10 }),
+      Animated.timing(fabBackdropOpacity, { toValue: 0, duration: 150, useNativeDriver: true }),
+      Animated.timing(item1Translate, { toValue: 0, duration: 180, useNativeDriver: true }),
+      Animated.timing(item1Opacity, { toValue: 0, duration: 130, useNativeDriver: true }),
+      Animated.timing(item2Translate, { toValue: 0, duration: 150, useNativeDriver: true }),
+      Animated.timing(item2Opacity, { toValue: 0, duration: 110, useNativeDriver: true }),
+    ]).start(() => setFabExpanded(false));
+  }, [fabRotation, fabBackdropOpacity, item1Translate, item1Opacity, item2Translate, item2Opacity]);
 
   const showFab = !settingsOpen;
   const fabBottom = TAB_BAR_HEIGHT + insets.bottom + 12;
@@ -233,8 +268,8 @@ export default function TabLayout() {
       {/* Account dropdown */}
       {accountDropdownOpen && (
         <>
-          <Pressable style={[StyleSheet.absoluteFill, { zIndex: 40, top: HEADER_HEIGHT }]} onPress={() => setAccountDropdownOpen(false)} />
-          <View style={[styles.accountDropdown, { backgroundColor: bg, borderColor, zIndex: 50, top: HEADER_HEIGHT }]}>
+          <Pressable style={[StyleSheet.absoluteFill, { zIndex: 40, top: insets.top + HEADER_HEIGHT }]} onPress={() => setAccountDropdownOpen(false)} />
+          <View style={[styles.accountDropdown, { backgroundColor: bg, borderColor, zIndex: 50, top: insets.top + HEADER_HEIGHT }]}>
             <TouchableOpacity
               style={[styles.accountDropdownItem, { borderBottomColor: borderColor }]}
               onPress={() => { setSelectedAccountId(null); setAccountDropdownOpen(false); }}
@@ -293,16 +328,71 @@ export default function TabLayout() {
         })}
       </View>}
 
+      {showFab && fabExpanded && (
+        <Animated.View style={[StyleSheet.absoluteFill, styles.fabBackdrop, { opacity: fabBackdropOpacity }]} pointerEvents="box-none">
+          <Pressable style={{ flex: 1 }} onPress={collapseFab} />
+        </Animated.View>
+      )}
       {showFab && (
-        <TouchableOpacity
-          style={[styles.fab, { bottom: fabBottom, backgroundColor: accentColor }]}
-          onPress={openAddTx}
-          activeOpacity={0.85}
-        >
-          <MaterialIcons name="add" size={28} color="#fff" />
-        </TouchableOpacity>
+        <>
+          {/* Speed-dial item 2: Transfer (top) */}
+          <Animated.View
+            style={[
+              styles.fabSpeedItem,
+              { bottom: fabBottom + 132 },
+              {
+                opacity: item2Opacity,
+                transform: [{ translateY: item2Translate.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+              },
+            ]}
+            pointerEvents={fabExpanded ? 'auto' : 'none'}
+          >
+            <Text style={[styles.fabSpeedLabel, { backgroundColor: bg, color: textColor, borderColor }]}>Transfer</Text>
+            <TouchableOpacity
+              style={[styles.fabSpeedBtn, { backgroundColor: bg, borderColor }]}
+              onPress={() => { collapseFab(); openTransfer(); }}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="swap-horiz" size={22} color={accentColor} />
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Speed-dial item 1: Transaction */}
+          <Animated.View
+            style={[
+              styles.fabSpeedItem,
+              { bottom: fabBottom + 72 },
+              {
+                opacity: item1Opacity,
+                transform: [{ translateY: item1Translate.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+              },
+            ]}
+            pointerEvents={fabExpanded ? 'auto' : 'none'}
+          >
+            <Text style={[styles.fabSpeedLabel, { backgroundColor: bg, color: textColor, borderColor }]}>Transaction</Text>
+            <TouchableOpacity
+              style={[styles.fabSpeedBtn, { backgroundColor: bg, borderColor }]}
+              onPress={() => { collapseFab(); openAddTx(); }}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="add" size={22} color={accentColor} />
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Main FAB */}
+          <TouchableOpacity
+            style={[styles.fab, { bottom: fabBottom, backgroundColor: accentColor }]}
+            onPress={fabExpanded ? collapseFab : expandFab}
+            activeOpacity={0.85}
+          >
+            <Animated.View style={{ transform: [{ rotate: fabRotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) }] }}>
+              <MaterialIcons name="add" size={28} color="#fff" />
+            </Animated.View>
+          </TouchableOpacity>
+        </>
       )}
       <AddTransactionSheet isOpen={isAddTxOpen} onClose={closeAddTx} />
+      <TransferSheet isOpen={isTransferOpen} onClose={closeTransfer} />
 
       {/* Settings overlay — slides in from the right, includes its own header */}
       <Animated.View style={[styles.settingsOverlay, { backgroundColor: bg, top: insets.top, transform: [{ translateX: settingsTranslateX }] }]}>
@@ -405,5 +495,43 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
+  },
+  fabBackdrop: {
+    zIndex: 98,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  fabSpeedItem: {
+    position: 'absolute',
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 99,
+  },
+  fabSpeedLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginRight: 10,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  fabSpeedBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
   },
 });

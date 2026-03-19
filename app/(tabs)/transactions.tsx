@@ -12,19 +12,21 @@ import { useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/components/Themed';
 import AddTransactionSheet from '@/components/AddTransactionSheet';
+import TransferSheet from '@/components/TransferSheet';
 import {
   PeriodSelector,
   getDateRange,
   type PeriodMode,
 } from '@/components/PeriodSelector';
-import { useAccountsDb, useTransactionsDb } from '@/db';
+import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/store/useAccountsStore';
 import { useTransactionsStore } from '@/store/useTransactionsStore';
+import { useTransfersStore } from '@/store/useTransfersStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useUIStore } from '@/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
-import type { TransactionWithDetails } from '@/types';
+import type { TransactionWithDetails, TransferWithDetails } from '@/types';
 
 
 function formatDateHeader(d: string): string {
@@ -275,6 +277,59 @@ function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, s
   );
 }
 
+// ─── TransferRow ──────────────────────────────────────────────────────────────
+
+interface TransferRowProps {
+  transfer: TransferWithDetails;
+  selectedAccountId: number;
+  isFirst: boolean;
+  isLast: boolean;
+  cardBg: string;
+  borderColor: string;
+  textColor: string;
+  subTextColor: string;
+  currency: string;
+  onPress: () => void;
+}
+
+function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, currency, onPress }: TransferRowProps) {
+  const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const isOutgoing = transfer.from_account_id === selectedAccountId;
+  const otherName = isOutgoing ? transfer.to_account_name : transfer.from_account_name;
+  const label = isOutgoing ? `To ${otherName}` : `From ${otherName}`;
+  const amountColor = isOutgoing ? '#ef4444' : '#22c55e';
+  const amountType = isOutgoing ? 'expense' : 'income';
+
+  return (
+    <TouchableOpacity
+      style={[
+        rowStyles.row,
+        isFirst && rowStyles.rowFirst,
+        isLast && rowStyles.rowLast,
+        { backgroundColor: cardBg },
+        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[rowStyles.icon, { backgroundColor: '#6b7280' }]}>
+        <MaterialIcons name="swap-horiz" size={18} color="#fff" />
+      </View>
+      <View style={rowStyles.info}>
+        <Text style={[rowStyles.category, { color: textColor }]}>{label}</Text>
+        {transfer.note ? (
+          <Text style={[rowStyles.sub, { color: subTextColor }]} numberOfLines={1}>
+            {transfer.note}
+          </Text>
+        ) : null}
+      </View>
+      <Text style={[rowStyles.amount, { color: amountColor }]}>
+        {formatAmount(transfer.amount, currency, amountType, numberFormat)}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 const rowStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
@@ -298,13 +353,17 @@ const rowStyles = StyleSheet.create({
   amount: { fontSize: 14, fontWeight: '600' },
 });
 
-// ─── Section type ─────────────────────────────────────────────────────────────
+// ─── List item union type ──────────────────────────────────────────────────────
+
+type ListItem =
+  | { kind: 'tx'; item: TransactionWithDetails }
+  | { kind: 'transfer'; item: TransferWithDetails };
 
 interface Section {
   title: string;
   date: string;
   net: number;
-  data: TransactionWithDetails[];
+  data: ListItem[];
 }
 
 // ─── TransactionsScreen ───────────────────────────────────────────────────────
@@ -318,22 +377,26 @@ export default function TransactionsScreen() {
   const [periodDate, setPeriodDate] = useState(new Date());
   const [editingTx, setEditingTx] = useState<TransactionWithDetails | null>(null);
   const [deletingTx, setDeletingTx] = useState<TransactionWithDetails | null>(null);
+  const [editingTransfer, setEditingTransfer] = useState<TransferWithDetails | null>(null);
 
   const transactionsDb = useTransactionsDb();
   const accountsDb = useAccountsDb();
+  const transfersDb = useTransfersDb();
   const transactions = useTransactionsStore((s) => s.transactions);
   const setTransactions = useTransactionsStore((s) => s.setTransactions);
-  const accounts = useAccountsStore((s) => s.accounts);
+  const transfers = useTransfersStore((s) => s.transfers);
+  const setTransfers = useTransfersStore((s) => s.setTransfers);
+  const removeTransfer = useTransfersStore((s) => s.removeTransfer);
   const setAccounts = useAccountsStore((s) => s.setAccounts);
   const currency = useSettingsStore((s) => s.currency);
-  const accentColor = useSettingsStore((s) => s.accentColor);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([transactionsDb.getAll(), accountsDb.getAll()]).then(([txns, accs]) => {
+      Promise.all([transactionsDb.getAll(), accountsDb.getAll(), transfersDb.getAll()]).then(([txns, accs, tfrs]) => {
         setTransactions(txns);
         setAccounts(accs);
+        setTransfers(tfrs);
       });
       return () => {};
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -342,7 +405,7 @@ export default function TransactionsScreen() {
 
   const dateRange = useMemo(() => getDateRange(periodMode, periodDate), [periodMode, periodDate]);
 
-  const filtered = useMemo(
+  const filteredTx = useMemo(
     () =>
       transactions.filter(
         (t) =>
@@ -353,21 +416,49 @@ export default function TransactionsScreen() {
     [transactions, selectedId, dateRange]
   );
 
+  const mergedItems = useMemo<ListItem[]>(() => {
+    const txItems: ListItem[] = filteredTx.map((item) => ({ kind: 'tx', item }));
+    if (selectedId === null) return txItems;
+
+    const transferItems: ListItem[] = transfers
+      .filter(
+        (t) =>
+          t.date >= dateRange.start &&
+          t.date <= dateRange.end &&
+          (t.from_account_id === selectedId || t.to_account_id === selectedId)
+      )
+      .map((item) => ({ kind: 'transfer', item }));
+
+    return [...txItems, ...transferItems].sort((a, b) => {
+      if (b.item.date !== a.item.date) return b.item.date.localeCompare(a.item.date);
+      return b.item.created_at.localeCompare(a.item.created_at);
+    });
+  }, [filteredTx, transfers, selectedId, dateRange]);
+
   const sections = useMemo<Section[]>(() => {
-    const byDate: Record<string, TransactionWithDetails[]> = {};
-    for (const tx of filtered) {
-      if (!byDate[tx.date]) byDate[tx.date] = [];
-      byDate[tx.date].push(tx);
+    const byDate: Record<string, ListItem[]> = {};
+    for (const listItem of mergedItems) {
+      const d = listItem.item.date;
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(listItem);
     }
     return Object.entries(byDate)
       .sort(([a], [b]) => b.localeCompare(a))
       .map(([date, data]) => ({
         title: formatDateHeader(date),
         date,
-        net: data.reduce((sum, tx) => sum + (tx.type === 'income' ? tx.amount : -tx.amount), 0),
+        net: data.reduce((sum, listItem) => {
+          if (listItem.kind === 'tx') {
+            return sum + (listItem.item.type === 'income' ? listItem.item.amount : -listItem.item.amount);
+          } else {
+            if (listItem.item.from_account_id === selectedId) return sum - listItem.item.amount;
+            if (listItem.item.to_account_id === selectedId) return sum + listItem.item.amount;
+            return sum;
+          }
+        }, 0),
         data,
       }));
-  }, [filtered]);
+  }, [mergedItems, selectedId]);
 
   const handleDeleteCancel = useCallback(() => {
     setDeletingTx(null);
@@ -383,6 +474,15 @@ export default function TransactionsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deletingTx]);
 
+  const handleTransferDelete = useCallback(async () => {
+    if (!editingTransfer) return;
+    const id = editingTransfer.id;
+    setEditingTransfer(null);
+    await transfersDb.remove(id);
+    removeTransfer(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingTransfer]);
+
   const { bg, cardBg, textColor, subColor: subTextColor, borderColor } = getColors(isDark);
 
   return (
@@ -397,7 +497,7 @@ export default function TransactionsScreen() {
       </View>
 
       {/* Content */}
-      {filtered.length === 0 ? (
+      {mergedItems.length === 0 ? (
         <View style={[styles.emptyContainer, { backgroundColor: bg }]}>
           <MaterialIcons name="receipt-long" size={56} color={subTextColor} />
           <Text style={[styles.emptyTitle, { color: textColor }]}>No transactions</Text>
@@ -410,7 +510,7 @@ export default function TransactionsScreen() {
           style={{ backgroundColor: bg, zIndex: 1 }}
           contentContainerStyle={[styles.listContent, { backgroundColor: bg }]}
           sections={sections}
-          keyExtractor={(item) => String(item.id)}
+          keyExtractor={(item) => `${item.kind}-${item.item.id}`}
           stickySectionHeadersEnabled
           renderSectionHeader={({ section }) => (
             <View style={[styles.sectionHeader, { backgroundColor: bg }]}>
@@ -420,19 +520,28 @@ export default function TransactionsScreen() {
               </Text>
             </View>
           )}
-          renderItem={({ item, index, section }) => (
-            <TransactionRow
-              tx={item}
-              isFirst={index === 0}
-              isLast={index === section.data.length - 1}
-              cardBg={cardBg}
-              borderColor={borderColor}
-              textColor={textColor}
-              subTextColor={subTextColor}
-              currency={currency}
-              onPress={() => setEditingTx(item)}
-            />
-          )}
+          renderItem={({ item: listItem, index, section }) => {
+            const isFirst = index === 0;
+            const isLast = index === section.data.length - 1;
+            const commonProps = { isFirst, isLast, cardBg, borderColor, textColor, subTextColor, currency };
+            if (listItem.kind === 'transfer') {
+              return (
+                <TransferRow
+                  {...commonProps}
+                  transfer={listItem.item}
+                  selectedAccountId={selectedId ?? listItem.item.from_account_id}
+                  onPress={() => setEditingTransfer(listItem.item)}
+                />
+              );
+            }
+            return (
+              <TransactionRow
+                {...commonProps}
+                tx={listItem.item}
+                onPress={() => setEditingTx(listItem.item)}
+              />
+            );
+          }}
         />
       )}
 
@@ -441,6 +550,13 @@ export default function TransactionsScreen() {
         onClose={() => setEditingTx(null)}
         transaction={editingTx}
         onDelete={() => { const tx = editingTx; setEditingTx(null); setDeletingTx(tx); }}
+      />
+
+      <TransferSheet
+        isOpen={editingTransfer !== null}
+        onClose={() => setEditingTransfer(null)}
+        transfer={editingTransfer}
+        onDelete={handleTransferDelete}
       />
 
       <DeleteTxModal

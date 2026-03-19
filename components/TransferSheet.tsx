@@ -19,13 +19,13 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/components/Themed';
 import AccountIcon from '@/components/AccountIcon';
-import { useCategoriesDb, useTransactionsDb } from '@/db';
+import { useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/store/useAccountsStore';
-import { useTransactionsStore } from '@/store/useTransactionsStore';
+import { useTransfersStore } from '@/store/useTransfersStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
-import type { Category, TransactionWithDetails } from '@/types';
+import type { TransferWithDetails } from '@/types';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -50,131 +50,107 @@ function formatDisplayDate(dateStr: string): string {
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  /** When provided the sheet opens in edit mode pre-filled with the transaction. */
-  transaction?: TransactionWithDetails | null;
+  transfer?: TransferWithDetails | null;
   onDelete?: () => void;
 }
 
-export default function AddTransactionSheet({ isOpen, onClose, transaction = null, onDelete }: Props) {
+export default function TransferSheet({ isOpen, onClose, transfer = null, onDelete }: Props) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const accentColor = useSettingsStore((s) => s.accentColor);
 
   const accounts = useAccountsStore((s) => s.accounts);
-  const addTransaction = useTransactionsStore((s) => s.addTransaction);
-  const updateTransaction = useTransactionsStore((s) => s.updateTransaction);
+  const addTransfer = useTransfersStore((s) => s.addTransfer);
+  const updateTransfer = useTransfersStore((s) => s.updateTransfer);
   const currencySymbol = getCurrencySymbol(useSettingsStore((s) => s.currency));
 
-  const categoriesDb = useCategoriesDb();
-  const transactionsDb = useTransactionsDb();
+  const transfersDb = useTransfersDb();
 
-  const [type, setType] = useState<'expense' | 'income'>('expense');
   const [amount, setAmount] = useState('');
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [fromAccountId, setFromAccountId] = useState<number | null>(null);
+  const [toAccountId, setToAccountId] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [date, setDate] = useState(today());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [attempted, setAttempted] = useState(false);
 
-  // Populate / reset fields when the sheet opens or the target transaction changes
   useEffect(() => {
     if (!isOpen) return;
-    if (transaction) {
-      setType(transaction.type);
-      setAmount(String(transaction.amount));
-      setNote(transaction.note ?? '');
-      setDate(transaction.date);
-      setSelectedAccountId(transaction.account_id);
-      categoriesDb.getByType(transaction.type).then((cats) => {
-        setCategories(cats);
-        setSelectedCategory(cats.find((c) => c.id === transaction.category_id) ?? null);
-      });
+    if (transfer) {
+      setAmount(String(transfer.amount));
+      setFromAccountId(transfer.from_account_id);
+      setToAccountId(transfer.to_account_id);
+      setNote(transfer.note ?? '');
+      setDate(transfer.date);
     } else {
-      setType('expense');
       setAmount('');
+      setFromAccountId(accounts[0]?.id ?? null);
+      setToAccountId(accounts.length > 1 ? accounts[1]?.id ?? null : null);
       setNote('');
       setDate(today());
       setShowDatePicker(false);
-      setSelectedCategory(null);
-      setSelectedAccountId(accounts[0]?.id ?? null);
-      categoriesDb.getByType('expense').then(setCategories);
     }
     setAttempted(false);
-  }, [isOpen, transaction]);
-
-  // Reload categories when type toggles (add mode only — in edit mode the
-  // initial useEffect handles it, and subsequent type changes are intentional)
-  useEffect(() => {
-    if (!isOpen) return;
-    categoriesDb.getByType(type).then((cats) => {
-      setCategories(cats);
-      // Re-select the original category if we're back on the same type in edit mode
-      if (transaction && type === transaction.type) {
-        setSelectedCategory(cats.find((c) => c.id === transaction.category_id) ?? null);
-      } else {
-        setSelectedCategory(null);
-      }
-    });
-  }, [type]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, transfer]);
 
   const handleDateChange = useCallback((_: DateTimePickerEvent, selected?: Date) => {
     if (Platform.OS === 'android') setShowDatePicker(false);
     if (selected) setDate(toLocalDateString(selected));
   }, []);
 
-  const saveTransaction = useCallback(async (parsedAmount: number) => {
-    if (transaction) {
-      await transactionsDb.update(transaction.id, {
+  const isSameAccount = fromAccountId !== null && fromAccountId === toAccountId;
+
+  const saveTransfer = useCallback(async (parsedAmount: number) => {
+    if (transfer) {
+      await transfersDb.update(transfer.id, {
         amount: parsedAmount,
-        type,
-        category_id: selectedCategory!.id,
-        account_id: selectedAccountId!,
+        from_account_id: fromAccountId!,
+        to_account_id: toAccountId!,
         note: note.trim() || null,
         date,
       });
-      const updated = await transactionsDb.getById(transaction.id);
-      if (updated) updateTransaction(updated);
+      const updated = await transfersDb.getById(transfer.id);
+      if (updated) updateTransfer(updated);
     } else {
-      const result = await transactionsDb.insert({
+      const result = await transfersDb.insert({
         amount: parsedAmount,
-        type,
-        category_id: selectedCategory!.id,
-        account_id: selectedAccountId!,
+        from_account_id: fromAccountId!,
+        to_account_id: toAccountId!,
         note: note.trim() || null,
         date,
       });
-      const tx = await transactionsDb.getById(result.lastInsertRowId);
-      if (tx) addTransaction(tx);
+      const t = await transfersDb.getById(result.lastInsertRowId);
+      if (t) addTransfer(t);
     }
-  }, [transaction, type, selectedCategory, selectedAccountId, note, date]);
+  }, [transfer, fromAccountId, toAccountId, note, date, transfersDb, updateTransfer, addTransfer]);
 
   const handleSave = useCallback(async () => {
     setAttempted(true);
     const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
+    if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || isSameAccount) return;
     try {
-      await saveTransaction(parsedAmount);
+      await saveTransfer(parsedAmount);
       triggerCloseRef.current();
     } catch {
-      Alert.alert('Error', 'Failed to save transaction.');
+      Alert.alert('Error', 'Failed to save transfer.');
     }
-  }, [amount, selectedCategory, selectedAccountId, saveTransaction]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amount, fromAccountId, toAccountId, isSameAccount, saveTransfer]);
 
   const handleSaveAndContinue = useCallback(async () => {
     setAttempted(true);
     const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
+    if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || isSameAccount) return;
     try {
-      await saveTransaction(parsedAmount);
+      await saveTransfer(parsedAmount);
       setAmount('');
       setNote('');
       setAttempted(false);
     } catch {
-      Alert.alert('Error', 'Failed to save transaction.');
+      Alert.alert('Error', 'Failed to save transfer.');
     }
-  }, [amount, selectedCategory, selectedAccountId, saveTransaction]);
+  }, [amount, fromAccountId, toAccountId, isSameAccount, saveTransfer]);
 
   const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = getColors(isDark);
 
@@ -183,14 +159,13 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
-  // Animate in on open — sheet slides in first, backdrop fades in after sheet settles
   useEffect(() => {
     if (isOpen) {
       sheetTranslateY.setValue(600);
       backdropOpacity.setValue(1);
       Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14 }).start();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const triggerCloseRef = useRef(() => {});
@@ -208,7 +183,6 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }).start();
   };
 
-  // Drag handle — claims on a clear downward move so taps on the close button pass through
   const handlePan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
@@ -243,15 +217,13 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
         <Animated.View
           style={[styles.sheet, { backgroundColor: bg, transform: [{ translateY: sheetTranslateY }] }]}
         >
-          {/* Handle pill — drag zone only, no interactive children */}
           <View {...handlePan.panHandlers} style={styles.dragArea}>
             <View style={[styles.handle, { backgroundColor: borderColor }]} />
           </View>
 
-          {/* Header — completely outside the PanResponder so close button always works */}
           <View style={styles.header}>
             <Text style={[styles.headerTitle, { color: textColor }]}>
-              {transaction ? 'Edit Transaction' : 'Add Transaction'}
+              {transfer ? 'Edit Transfer' : 'New Transfer'}
             </Text>
             <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8}>
               <MaterialIcons name="close" size={24} color={subTextColor} />
@@ -275,68 +247,15 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
                 placeholderTextColor={subTextColor}
                 keyboardType="decimal-pad"
                 returnKeyType="done"
-                autoFocus={!transaction}
+                autoFocus={!transfer}
               />
             </View>
 
-            {/* Type toggle */}
-            <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
-              <TouchableOpacity
-                style={[styles.typeBtn, type === 'expense' && { backgroundColor: '#ef4444' }]}
-                onPress={() => setType('expense')}
-              >
-                <Text style={[styles.typeBtnText, { color: type === 'expense' ? '#fff' : subTextColor }]}>
-                  Expense
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.typeBtn, type === 'income' && { backgroundColor: '#22c55e' }]}
-                onPress={() => setType('income')}
-              >
-                <Text style={[styles.typeBtnText, { color: type === 'income' ? '#fff' : subTextColor }]}>
-                  Income
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Category */}
-            <Text style={[styles.sectionLabel, { color: attempted && !selectedCategory ? '#ef4444' : subTextColor }]}>
-              {attempted && !selectedCategory ? 'Category — required' : 'Category'}
-            </Text>
-            <View style={styles.categoryGrid}>
-              {categories.map((cat) => {
-                const isSelected = selectedCategory?.id === cat.id;
-                return (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={styles.categoryItem}
-                    onPress={() => setSelectedCategory(cat)}
-                  >
-                    <View
-                      style={[
-                        styles.categoryCircle,
-                        { backgroundColor: cat.color },
-                        isSelected && styles.categoryCircleSelected,
-                      ]}
-                    >
-                      <MaterialIcons name={(cat.icon as any) || 'label'} size={20} color="#fff" />
-                    </View>
-                    <Text
-                      style={[styles.categoryLabel, { color: isSelected ? textColor : subTextColor }]}
-                      numberOfLines={1}
-                    >
-                      {cat.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Account */}
-            <Text style={[styles.sectionLabel, { color: subTextColor }]}>Account</Text>
+            {/* From account */}
+            <Text style={[styles.sectionLabel, { color: subTextColor }]}>From</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
               {accounts.map((acc) => {
-                const isSelected = selectedAccountId === acc.id;
+                const isSelected = fromAccountId === acc.id;
                 const accentBg = acc.color ?? '#55A3FF';
                 return (
                   <TouchableOpacity
@@ -349,7 +268,45 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
                         borderWidth: isSelected ? 2 : 1,
                       },
                     ]}
-                    onPress={() => setSelectedAccountId(acc.id)}
+                    onPress={() => setFromAccountId(acc.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
+                      <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
+                    </View>
+                    <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
+                      {acc.name}
+                    </Text>
+                    {isSelected && (
+                      <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
+                        <MaterialIcons name="check" size={10} color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* To account */}
+            <Text style={[styles.sectionLabel, { color: attempted && isSameAccount ? '#ef4444' : subTextColor }]}>
+              {attempted && isSameAccount ? 'To — must differ from From' : 'To'}
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
+              {accounts.map((acc) => {
+                const isSelected = toAccountId === acc.id;
+                const accentBg = acc.color ?? '#55A3FF';
+                return (
+                  <TouchableOpacity
+                    key={acc.id}
+                    style={[
+                      styles.accountCard,
+                      {
+                        backgroundColor: isSelected ? accentBg + '18' : inputBg,
+                        borderColor: isSelected ? accentBg : borderColor,
+                        borderWidth: isSelected ? 2 : 1,
+                      },
+                    ]}
+                    onPress={() => setToAccountId(acc.id)}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
@@ -424,17 +381,17 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
 
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave}>
               <Text style={styles.saveBtnText}>
-                {transaction ? 'Save Changes' : 'Save Transaction'}
+                {transfer ? 'Save Changes' : 'Save Transfer'}
               </Text>
             </TouchableOpacity>
-            {!transaction && (
+            {!transfer && (
               <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleSaveAndContinue}>
                 <Text style={[styles.saveAndContinueBtnText, { color: accentColor }]}>Save & Add Another</Text>
               </TouchableOpacity>
             )}
-            {transaction && onDelete && (
+            {transfer && onDelete && (
               <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
-                <Text style={styles.deleteBtnText}>Delete Transaction</Text>
+                <Text style={styles.deleteBtnText}>Delete Transfer</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
@@ -479,22 +436,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
-  typeToggle: {
-    flexDirection: 'row',
-    borderRadius: 10,
-    padding: 4,
-    marginBottom: 16,
-  },
-  typeBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  typeBtnText: {
-    fontWeight: '600',
-    fontSize: 14,
-  },
   amountContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -520,37 +461,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 20,
-  },
-  categoryItem: {
-    width: '30%',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-  },
-  categoryCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  categoryCircleSelected: {
-    borderWidth: 3,
-    borderColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  categoryLabel: {
-    fontSize: 11,
-    textAlign: 'center',
   },
   accountScroll: {
     marginBottom: 20,
@@ -588,14 +498,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  noteInput: {
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    marginBottom: 16,
-  },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -623,6 +525,14 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  noteInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    marginBottom: 16,
   },
   saveBtn: {
     borderRadius: 12,

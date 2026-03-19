@@ -1,5 +1,5 @@
 import { useSQLiteContext } from 'expo-sqlite';
-import type { Account, Category, Transaction, Transfer, TransactionWithDetails } from '@/types';
+import type { Account, Category, Transaction, Transfer, TransactionWithDetails, TransferWithDetails } from '@/types';
 
 // --- Accounts ---
 
@@ -172,11 +172,28 @@ export function useResetDb() {
 
 // --- Transfers ---
 
+const TRANSFER_SELECT = `
+  SELECT t.*,
+    fa.name as from_account_name, fa.color as from_account_color, fa.icon as from_account_icon,
+    ta.name as to_account_name, ta.color as to_account_color, ta.icon as to_account_icon
+  FROM transfers t
+  JOIN accounts fa ON fa.id = t.from_account_id
+  JOIN accounts ta ON ta.id = t.to_account_id
+`;
+
 export function useTransfersDb() {
   const db = useSQLiteContext();
 
   return {
-    getAll: () => db.getAllAsync<Transfer>('SELECT * FROM transfers ORDER BY date DESC'),
+    getAll: () =>
+      db.getAllAsync<TransferWithDetails>(
+        `${TRANSFER_SELECT} ORDER BY t.date DESC, t.created_at DESC`
+      ),
+
+    getById: (id: number) =>
+      db.getFirstAsync<TransferWithDetails>(
+        `${TRANSFER_SELECT} WHERE t.id = ?`, id
+      ),
 
     insert: (transfer: Omit<Transfer, 'id' | 'created_at'>) =>
       db.runAsync(
@@ -184,6 +201,15 @@ export function useTransfersDb() {
         transfer.from_account_id, transfer.to_account_id, transfer.amount, transfer.note ?? null, transfer.date
       ),
 
+    update: (id: number, transfer: Partial<Omit<Transfer, 'id' | 'created_at'>>) =>
+      db.runAsync(
+        'UPDATE transfers SET from_account_id=?, to_account_id=?, amount=?, note=?, date=? WHERE id=?',
+        transfer.from_account_id!, transfer.to_account_id!, transfer.amount!, transfer.note ?? null, transfer.date!, id
+      ),
+
     remove: (id: number) => db.runAsync('DELETE FROM transfers WHERE id=?', id),
+
+    removeByAccount: (accountId: number) =>
+      db.runAsync('DELETE FROM transfers WHERE from_account_id=? OR to_account_id=?', accountId, accountId),
   };
 }

@@ -26,9 +26,10 @@ import {
   periodNavLabel,
   type PeriodMode,
 } from '@/components/PeriodSelector';
-import { useAccountsDb, useTransactionsDb } from '@/db';
+import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/store/useAccountsStore';
 import { useTransactionsStore } from '@/store/useTransactionsStore';
+import { useTransfersStore } from '@/store/useTransfersStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useUIStore } from '@/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
@@ -101,10 +102,13 @@ export default function DashboardScreen() {
 
   const transactionsDb = useTransactionsDb();
   const accountsDb = useAccountsDb();
+  const transfersDb = useTransfersDb();
   const accounts = useAccountsStore((s) => s.accounts);
   const setAccounts = useAccountsStore((s) => s.setAccounts);
   const transactions = useTransactionsStore((s) => s.transactions);
   const setTransactions = useTransactionsStore((s) => s.setTransactions);
+  const transfers = useTransfersStore((s) => s.transfers);
+  const setTransfers = useTransfersStore((s) => s.setTransfers);
   const currency = useSettingsStore((s) => s.currency);
   const accentColor = useSettingsStore((s) => s.accentColor);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
@@ -114,9 +118,11 @@ export default function DashboardScreen() {
       Promise.all([
         transactionsDb.getAll(),
         accountsDb.getAll(),
-      ]).then(([all, accs]) => {
+        transfersDb.getAll(),
+      ]).then(([all, accs, tfrs]) => {
         setTransactions(all);
         setAccounts(accs);
+        setTransfers(tfrs);
       });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -129,12 +135,22 @@ export default function DashboardScreen() {
     const txUpToEnd = transactions.filter(
       (t) => t.date <= dateRange.end && (selectedId === null || t.account_id === selectedId)
     );
-    const net = txUpToEnd.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
+    const txNet = txUpToEnd.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
     const base = selectedId !== null
       ? (accounts.find((a) => a.id === selectedId)?.initial_balance ?? 0)
       : accounts.reduce((s, a) => s + a.initial_balance, 0);
-    return base + net;
-  }, [accounts, transactions, selectedId, dateRange]);
+    // Transfers net to 0 across all accounts; only apply for single-account view
+    const transferNet = selectedId !== null
+      ? transfers
+          .filter((t) => t.date <= dateRange.end)
+          .reduce((sum, t) => {
+            if (t.from_account_id === selectedId) return sum - t.amount;
+            if (t.to_account_id === selectedId) return sum + t.amount;
+            return sum;
+          }, 0)
+      : 0;
+    return base + txNet + transferNet;
+  }, [accounts, transactions, transfers, selectedId, dateRange]);
 
   // Transactions within the selected period (for income/expenses/pie/recent)
   const periodTransactions = useMemo(
@@ -148,7 +164,27 @@ export default function DashboardScreen() {
     [transactions, selectedId, dateRange]
   );
 
-  const recentTransactions = useMemo(() => periodTransactions.slice(0, 5), [periodTransactions]);
+  const recentItems = useMemo(() => {
+    type RecentItem =
+      | { kind: 'tx'; item: typeof periodTransactions[0] }
+      | { kind: 'transfer'; item: typeof transfers[0] };
+    const txItems: RecentItem[] = periodTransactions.map((item) => ({ kind: 'tx', item }));
+    if (selectedId === null) return txItems.slice(0, 5);
+    const transferItems: RecentItem[] = transfers
+      .filter(
+        (t) =>
+          t.date >= dateRange.start &&
+          t.date <= dateRange.end &&
+          (t.from_account_id === selectedId || t.to_account_id === selectedId)
+      )
+      .map((item) => ({ kind: 'transfer' as const, item }));
+    return [...txItems, ...transferItems]
+      .sort((a, b) => {
+        if (b.item.date !== a.item.date) return b.item.date.localeCompare(a.item.date);
+        return b.item.created_at.localeCompare(a.item.created_at);
+      })
+      .slice(0, 5);
+  }, [periodTransactions, transfers, selectedId, dateRange]);
 
   const periodIncome = useMemo(
     () => periodTransactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
@@ -382,32 +418,58 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
 
-          {recentTransactions.length === 0 ? (
+          {recentItems.length === 0 ? (
             <Text style={[styles.emptyText, { color: subTextColor }]}>No transactions for this period</Text>
           ) : (
-            recentTransactions.map((tx) => (
-              <View key={tx.id} style={styles.txRow}>
-                <View style={[styles.txIcon, { backgroundColor: tx.category_color || '#6b7280' }]}>
-                  <MaterialIcons
-                    name={(tx.category_icon as any) || 'attach-money'}
-                    size={18}
-                    color="#fff"
-                  />
+            recentItems.map((listItem) => {
+              if (listItem.kind === 'transfer') {
+                const t = listItem.item;
+                const isOutgoing = t.from_account_id === selectedId;
+                const otherName = isOutgoing ? t.to_account_name : t.from_account_name;
+                const amountColor = isOutgoing ? '#ef4444' : '#22c55e';
+                const amountType = isOutgoing ? 'expense' : 'income';
+                return (
+                  <View key={`transfer-${t.id}`} style={styles.txRow}>
+                    <View style={[styles.txIcon, { backgroundColor: '#6b7280' }]}>
+                      <MaterialIcons name="swap-horiz" size={18} color="#fff" />
+                    </View>
+                    <View style={styles.txInfo}>
+                      <Text style={[styles.txName, { color: textColor }]}>
+                        {isOutgoing ? `To ${otherName}` : `From ${otherName}`}
+                      </Text>
+                      <Text style={[styles.txDate, { color: subTextColor }]}>{t.date}</Text>
+                    </View>
+                    <Text style={[styles.txAmount, { color: amountColor }]}>
+                      {formatAmount(t.amount, currency, amountType, numberFormat)}
+                    </Text>
+                  </View>
+                );
+              }
+              const tx = listItem.item;
+              return (
+                <View key={`tx-${tx.id}`} style={styles.txRow}>
+                  <View style={[styles.txIcon, { backgroundColor: tx.category_color || '#6b7280' }]}>
+                    <MaterialIcons
+                      name={(tx.category_icon as any) || 'attach-money'}
+                      size={18}
+                      color="#fff"
+                    />
+                  </View>
+                  <View style={styles.txInfo}>
+                    <Text style={[styles.txName, { color: textColor }]}>{tx.category_name}</Text>
+                    <Text style={[styles.txDate, { color: subTextColor }]}>{tx.date}</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.txAmount,
+                      { color: tx.type === 'income' ? '#22c55e' : '#ef4444' },
+                    ]}
+                  >
+                    {formatAmount(tx.amount, currency, tx.type, numberFormat)}
+                  </Text>
                 </View>
-                <View style={styles.txInfo}>
-                  <Text style={[styles.txName, { color: textColor }]}>{tx.category_name}</Text>
-                  <Text style={[styles.txDate, { color: subTextColor }]}>{tx.date}</Text>
-                </View>
-                <Text
-                  style={[
-                    styles.txAmount,
-                    { color: tx.type === 'income' ? '#22c55e' : '#ef4444' },
-                  ]}
-                >
-                  {formatAmount(tx.amount, currency, tx.type, numberFormat)}
-                </Text>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
       </ScrollView>
