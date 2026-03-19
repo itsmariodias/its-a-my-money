@@ -12,6 +12,7 @@ import { useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/components/Themed';
 import AddTransactionSheet from '@/components/AddTransactionSheet';
+import AccountIcon from '@/components/AccountIcon';
 import {
   PeriodSelector,
   getDateRange,
@@ -403,7 +404,7 @@ export default function TransactionsScreen() {
         >
           {selectedAccount ? (
             <View style={[styles.dropdownIcon, { backgroundColor: selectedAccount.color ?? '#55A3FF' }]}>
-              <MaterialIcons name={(selectedAccount.icon as any) ?? 'account-balance-wallet'} size={12} color="#fff" />
+              <AccountIcon name={selectedAccount.icon ?? 'account-balance-wallet'} size={12} color="#fff" />
             </View>
           ) : (
             <MaterialIcons name="layers" size={16} color={accentColor} />
@@ -440,7 +441,7 @@ export default function TransactionsScreen() {
                 onPress={() => { setSelectedId(acc.id); setDropdownOpen(false); }}
               >
                 <View style={[styles.dropdownIcon, { backgroundColor: acc.color ?? '#55A3FF' }]}>
-                  <MaterialIcons name={(acc.icon as any) ?? 'account-balance-wallet'} size={13} color="#fff" />
+                  <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={13} color="#fff" />
                 </View>
                 <Text
                   style={[styles.dropdownItemText, { color: selectedId === acc.id ? accentColor : textColor }]}

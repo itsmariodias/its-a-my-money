@@ -61,6 +61,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [color, setColor] = useState(PRESET_COLORS[0]);
   const [icon, setIcon] = useState<string>(PRESET_ICONS[0]);
+  const [attempted, setAttempted] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -75,13 +76,12 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
       setColor(PRESET_COLORS[0]);
       setIcon(PRESET_ICONS[0]);
     }
+    setAttempted(false);
   }, [isOpen, category]);
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Name required', 'Please enter a category name.');
-      return;
-    }
+    setAttempted(true);
+    if (!name.trim()) return;
     try {
       if (category) {
         await categoriesDb.update(category.id, { name: name.trim(), type, color, icon, is_default: category.is_default });
@@ -172,7 +172,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
             {/* Type toggle */}
             <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
               <TouchableOpacity
@@ -194,14 +194,17 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
             </View>
 
             {/* Name */}
-            <Text style={[styles.label, { color: subColor }]}>Category Name</Text>
+            <Text style={[styles.label, { color: attempted && !name.trim() ? '#ef4444' : subColor }]}>
+              {attempted && !name.trim() ? 'Category Name — required' : 'Category Name'}
+            </Text>
             <TextInput
-              style={[styles.input, { backgroundColor: inputBg, borderColor, color: textColor }]}
+              style={[styles.input, { backgroundColor: inputBg, borderColor: attempted && !name.trim() ? '#ef4444' : borderColor, color: textColor }]}
               value={name}
               onChangeText={setName}
               placeholder="e.g. Groceries"
               placeholderTextColor={subColor}
               returnKeyType="done"
+              autoFocus={!category}
             />
 
             {/* Color */}

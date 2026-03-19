@@ -19,6 +19,7 @@ import {
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/components/Themed';
+import AccountIcon from '@/components/AccountIcon';
 import { useCategoriesDb, useTransactionsDb } from '@/db';
 import { useAccountsStore } from '@/store/useAccountsStore';
 import { useTransactionsStore } from '@/store/useTransactionsStore';
@@ -76,6 +77,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   const [note, setNote] = useState('');
   const [date, setDate] = useState(today());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [attempted, setAttempted] = useState(false);
 
   // Populate / reset fields when the sheet opens or the target transaction changes
   useEffect(() => {
@@ -100,6 +102,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       setSelectedAccountId(accounts[0]?.id ?? null);
       categoriesDb.getByType('expense').then(setCategories);
     }
+    setAttempted(false);
   }, [isOpen, transaction]);
 
   // Reload categories when type toggles (add mode only — in edit mode the
@@ -122,50 +125,57 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     if (selected) setDate(toLocalDateString(selected));
   }, []);
 
-  const handleSave = useCallback(async () => {
-    const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0) {
-      Alert.alert('Invalid amount', 'Please enter a valid amount greater than 0.');
-      return;
+  const saveTransaction = useCallback(async (parsedAmount: number) => {
+    if (transaction) {
+      await transactionsDb.update(transaction.id, {
+        amount: parsedAmount,
+        type,
+        category_id: selectedCategory!.id,
+        account_id: selectedAccountId!,
+        note: note.trim() || null,
+        date,
+      });
+      const updated = await transactionsDb.getById(transaction.id);
+      if (updated) updateTransaction(updated);
+    } else {
+      const result = await transactionsDb.insert({
+        amount: parsedAmount,
+        type,
+        category_id: selectedCategory!.id,
+        account_id: selectedAccountId!,
+        note: note.trim() || null,
+        date,
+      });
+      const tx = await transactionsDb.getById(result.lastInsertRowId);
+      if (tx) addTransaction(tx);
     }
-    if (!selectedCategory) {
-      Alert.alert('No category', 'Please select a category.');
-      return;
-    }
-    if (!selectedAccountId) {
-      Alert.alert('No account', 'Please select an account.');
-      return;
-    }
+  }, [transaction, type, selectedCategory, selectedAccountId, note, date]);
 
+  const handleSave = useCallback(async () => {
+    setAttempted(true);
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
     try {
-      if (transaction) {
-        await transactionsDb.update(transaction.id, {
-          amount: parsedAmount,
-          type,
-          category_id: selectedCategory.id,
-          account_id: selectedAccountId,
-          note: note.trim() || null,
-          date,
-        });
-        const updated = await transactionsDb.getById(transaction.id);
-        if (updated) updateTransaction(updated);
-      } else {
-        const result = await transactionsDb.insert({
-          amount: parsedAmount,
-          type,
-          category_id: selectedCategory.id,
-          account_id: selectedAccountId,
-          note: note.trim() || null,
-          date,
-        });
-        const tx = await transactionsDb.getById(result.lastInsertRowId);
-        if (tx) addTransaction(tx);
-      }
+      await saveTransaction(parsedAmount);
       triggerCloseRef.current();
     } catch {
       Alert.alert('Error', 'Failed to save transaction.');
     }
-  }, [amount, type, selectedCategory, selectedAccountId, note, date, transaction]);
+  }, [amount, selectedCategory, selectedAccountId, saveTransaction]);
+
+  const handleSaveAndContinue = useCallback(async () => {
+    setAttempted(true);
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
+    try {
+      await saveTransaction(parsedAmount);
+      setAmount('');
+      setNote('');
+      setAttempted(false);
+    } catch {
+      Alert.alert('Error', 'Failed to save transaction.');
+    }
+  }, [amount, selectedCategory, selectedAccountId, saveTransaction]);
 
   const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = getColors(isDark);
 
@@ -272,7 +282,23 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
           <ScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
           >
+            {/* Amount */}
+            <View style={[styles.amountContainer, { backgroundColor: inputBg, borderColor: attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) ? '#ef4444' : borderColor }]}>
+              <Text style={[styles.currencySymbol, { color: subTextColor }]}>{currencySymbol}</Text>
+              <TextInput
+                style={[styles.amountInput, { color: textColor }]}
+                value={amount}
+                onChangeText={setAmount}
+                placeholder="0.00"
+                placeholderTextColor={subTextColor}
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+                autoFocus={!transaction}
+              />
+            </View>
+
             {/* Type toggle */}
             <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
               <TouchableOpacity
@@ -293,22 +319,10 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
               </TouchableOpacity>
             </View>
 
-            {/* Amount */}
-            <View style={[styles.amountContainer, { backgroundColor: inputBg, borderColor }]}>
-              <Text style={[styles.currencySymbol, { color: subTextColor }]}>{currencySymbol}</Text>
-              <TextInput
-                style={[styles.amountInput, { color: textColor }]}
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="0.00"
-                placeholderTextColor={subTextColor}
-                keyboardType="decimal-pad"
-                returnKeyType="done"
-              />
-            </View>
-
             {/* Category */}
-            <Text style={[styles.sectionLabel, { color: subTextColor }]}>Category</Text>
+            <Text style={[styles.sectionLabel, { color: attempted && !selectedCategory ? '#ef4444' : subTextColor }]}>
+              {attempted && !selectedCategory ? 'Category — required' : 'Category'}
+            </Text>
             <View style={styles.categoryGrid}>
               {categories.map((cat) => {
                 const isSelected = selectedCategory?.id === cat.id;
@@ -340,43 +354,39 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
 
             {/* Account */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Account</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
               {accounts.map((acc) => {
                 const isSelected = selectedAccountId === acc.id;
-                const iconBg = acc.color ?? '#55A3FF';
+                const accentBg = acc.color ?? '#55A3FF';
                 return (
                   <TouchableOpacity
                     key={acc.id}
                     style={[
-                      styles.accountChip,
+                      styles.accountCard,
                       {
-                        borderColor: isSelected ? iconBg : borderColor,
-                        backgroundColor: isSelected ? iconBg + '18' : inputBg,
+                        backgroundColor: isSelected ? accentBg + '18' : inputBg,
+                        borderColor: isSelected ? accentBg : borderColor,
+                        borderWidth: isSelected ? 2 : 1,
                       },
                     ]}
                     onPress={() => setSelectedAccountId(acc.id)}
+                    activeOpacity={0.7}
                   >
-                    <View style={[styles.accountChipIcon, { backgroundColor: iconBg }]}>
-                      <MaterialIcons name={(acc.icon as any) ?? 'account-balance-wallet'} size={13} color="#fff" />
+                    <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
+                      <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
                     </View>
-                    <Text style={{ color: isSelected ? iconBg : textColor, fontWeight: isSelected ? '600' : '500', fontSize: 13 }}>
+                    <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
                       {acc.name}
                     </Text>
+                    {isSelected && (
+                      <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
+                        <MaterialIcons name="check" size={10} color="#fff" />
+                      </View>
+                    )}
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
-
-            {/* Note */}
-            <Text style={[styles.sectionLabel, { color: subTextColor }]}>Note (optional)</Text>
-            <TextInput
-              style={[styles.noteInput, { backgroundColor: inputBg, borderColor, color: textColor }]}
-              value={note}
-              onChangeText={setNote}
-              placeholder="Add a note..."
-              placeholderTextColor={subTextColor}
-              returnKeyType="done"
-            />
 
             {/* Date */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Date</Text>
@@ -421,11 +431,27 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
               />
             )}
 
+            {/* Note */}
+            <Text style={[styles.sectionLabel, { color: subTextColor }]}>Note (optional)</Text>
+            <TextInput
+              style={[styles.noteInput, { backgroundColor: inputBg, borderColor, color: textColor, fontSize: 15 }]}
+              value={note}
+              onChangeText={setNote}
+              placeholder="Add a note..."
+              placeholderTextColor={subTextColor}
+              returnKeyType="done"
+            />
+
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave}>
               <Text style={styles.saveBtnText}>
                 {transaction ? 'Save Changes' : 'Save Transaction'}
               </Text>
             </TouchableOpacity>
+            {!transaction && (
+              <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleSaveAndContinue}>
+                <Text style={[styles.saveAndContinueBtnText, { color: accentColor }]}>Save & Add Another</Text>
+              </TouchableOpacity>
+            )}
             {transaction && onDelete && (
               <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
                 <Text style={styles.deleteBtnText}>Delete Transaction</Text>
@@ -441,7 +467,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   kvContainer: {
     flex: 1,
@@ -513,7 +539,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   categoryGrid: {
     flexDirection: 'row',
@@ -549,20 +575,36 @@ const styles = StyleSheet.create({
   accountScroll: {
     marginBottom: 20,
   },
-  accountChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    marginRight: 8,
+  accountScrollContent: {
+    gap: 10,
+    paddingRight: 4,
   },
-  accountChipIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  accountCard: {
+    width: 100,
+    borderRadius: 12,
+    padding: 12,
+    gap: 4,
+    position: 'relative',
+  },
+  accountCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  accountCardName: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  accountCardCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -613,6 +655,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  saveAndContinueBtn: {
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 0,
+    marginBottom: 8,
+    borderWidth: 1.5,
+  },
+  saveAndContinueBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   deleteBtn: {
     borderRadius: 12,

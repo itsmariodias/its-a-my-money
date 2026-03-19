@@ -12,6 +12,7 @@ import { useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/components/Themed';
 import AccountFormSheet from '@/components/AccountFormSheet';
+import AccountIcon from '@/components/AccountIcon';
 import {
   PeriodSelector,
   getDateRange,
@@ -61,11 +62,7 @@ function DeleteConfirmModal({ account, txCount, onCancel, onConfirm }: DeleteMod
           {account && (
             <View style={[dlStyles.accountChip, { backgroundColor: inputBg, borderColor }]}>
               <View style={[dlStyles.chipDot, { backgroundColor: account.color ?? '#55A3FF' }]}>
-                <MaterialIcons
-                  name={(account.icon as any) ?? 'account-balance-wallet'}
-                  size={14}
-                  color="#fff"
-                />
+                <AccountIcon name={account.icon ?? 'account-balance-wallet'} size={14} color="#fff" />
               </View>
               <Text style={[dlStyles.chipName, { color: textColor }]} numberOfLines={1}>
                 {account.name}
@@ -242,11 +239,10 @@ function AccountCard({ account, balance, currency, onPress, isDark }: CardProps)
       activeOpacity={0.7}
     >
       <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
-        <MaterialIcons name={(account.icon as any) ?? 'account-balance-wallet'} size={22} color="#fff" />
+        <AccountIcon name={account.icon ?? 'account-balance-wallet'} size={22} color="#fff" />
       </View>
       <View style={styles.cardInfo}>
         <Text style={[styles.cardName, { color: textColor }]} numberOfLines={1}>{account.name}</Text>
-        <Text style={[styles.cardCurrency, { color: subColor }]}>{account.currency}</Text>
       </View>
       <Text style={[styles.cardBalance, { color: balanceColor }]}>
         {formatAmount(balance, currency, undefined, numberFormat)}
@@ -490,9 +486,6 @@ const styles = StyleSheet.create({
   cardName: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  cardCurrency: {
-    fontSize: 12,
   },
   cardBalance: {
     fontSize: 16,
