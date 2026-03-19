@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
+  Dimensions,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -12,11 +15,15 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/components/Themed';
 import { useCategoriesDb } from '@/db';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { getColors } from '@/constants/theme';
 import type { Category } from '@/types';
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 const PRESET_COLORS = [
   '#FF6B6B', '#FF9F43', '#FFEAA7', '#55A3FF',
@@ -86,28 +93,79 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
     }
   };
 
-  const bg = isDark ? '#1a1a2e' : '#ffffff';
-  const textColor = isDark ? '#e0e0e0' : '#1a1a2e';
-  const subColor = isDark ? '#a0a0b0' : '#6b7280';
-  const inputBg = isDark ? '#0f3460' : '#f0f4f8';
-  const borderColor = isDark ? '#2a3a5e' : '#e2e8f0';
+  const { cardBg: bg, textColor, subColor, inputBg, borderColor } = getColors(isDark);
+
+  const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      sheetTranslateY.setValue(SCREEN_HEIGHT);
+      backdropOpacity.setValue(0);
+      Animated.parallel([
+        Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14 }),
+        Animated.timing(backdropOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+      ]).start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const triggerCloseRef = useRef(() => {});
+  triggerCloseRef.current = () => {
+    sheetTranslateY.stopAnimation();
+    backdropOpacity.stopAnimation();
+    Animated.parallel([
+      Animated.timing(sheetTranslateY, { toValue: SCREEN_HEIGHT, duration: 220, useNativeDriver: true }),
+      Animated.timing(backdropOpacity, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start(() => { onCloseRef.current(); });
+  };
+
+  const snapBack = () => {
+    Animated.parallel([
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }),
+      Animated.timing(backdropOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const handlePan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => sheetTranslateY.stopAnimation(),
+    onPanResponderMove: (_, g) => {
+      if (g.dy > 0) {
+        sheetTranslateY.setValue(g.dy);
+        backdropOpacity.setValue(Math.max(0, 1 - g.dy / 380));
+      }
+    },
+    onPanResponderRelease: (_, g) => {
+      if (g.dy > 120 || g.vy > 0.3) triggerCloseRef.current();
+      else snapBack();
+    },
+    onPanResponderTerminate: () => snapBack(),
+  })).current;
 
   return (
-    <Modal visible={isOpen} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+    <Modal visible={isOpen} animationType="none" transparent onRequestClose={() => triggerCloseRef.current()}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.kvContainer}
-        pointerEvents="box-none"
       >
-        <View style={[styles.sheet, { backgroundColor: bg }]}>
-          <View style={[styles.handle, { backgroundColor: borderColor }]} />
+        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+          <Pressable style={{ flex: 1 }} onPress={() => triggerCloseRef.current()} />
+        </Animated.View>
+
+        <Animated.View style={[styles.sheet, { backgroundColor: bg, transform: [{ translateY: sheetTranslateY }] }]}>
+          <View {...handlePan.panHandlers} style={styles.dragArea}>
+            <View style={[styles.handle, { backgroundColor: borderColor }]} />
+          </View>
 
           <View style={styles.header}>
             <Text style={[styles.headerTitle, { color: textColor }]}>
               {category ? 'Edit Category' : 'New Category'}
             </Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8}>
+            <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8}>
               <MaterialIcons name="close" size={24} color={subColor} />
             </TouchableOpacity>
           </View>
@@ -192,15 +250,15 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               <Text style={styles.saveBtnText}>{category ? 'Save Changes' : 'Create Category'}</Text>
             </TouchableOpacity>
           </ScrollView>
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
-  kvContainer: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  kvContainer: { flex: 1 },
   sheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -208,7 +266,8 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     maxHeight: '90%',
   },
-  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 8 },
+  dragArea: { paddingTop: 12, paddingBottom: 12, alignItems: 'center' },
+  handle: { width: 40, height: 4, borderRadius: 2 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
   headerTitle: { fontSize: 18, fontWeight: '700' },
   typeToggle: { flexDirection: 'row', borderRadius: 10, padding: 4, marginBottom: 16 },

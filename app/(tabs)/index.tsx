@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Animated } from 'react-native';
 import {
   Pressable,
@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 
-import { router, useFocusEffect, useNavigation } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-gifted-charts';
 import { Text } from '@/components/Themed';
@@ -152,11 +152,16 @@ export default function DashboardScreen() {
   const periodShort = shortPeriodLabel(periodMode, periodDate);
 
   const { bg, cardBg, textColor, subColor: subTextColor, borderColor } = getColors(isDark);
-  const navigation = useNavigation();
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
+  return (
+    <View style={[styles.container, { backgroundColor: bg }]}>
+      {/* Period + account selector bar */}
+      <View style={[styles.periodBar, { backgroundColor: bg, borderBottomColor: borderColor }]}>
+        <PeriodSelector
+          mode={periodMode}
+          date={periodDate}
+          onChange={(m, d) => { setPeriodMode(m); setPeriodDate(d); }}
+        />
         <TouchableOpacity
           style={styles.headerAccountBtn}
           onPress={() => setDropdownOpen((v) => !v)}
@@ -174,20 +179,6 @@ export default function DashboardScreen() {
           </Text>
           <MaterialIcons name="expand-more" size={16} color={subTextColor} />
         </TouchableOpacity>
-      ),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount, textColor, subTextColor, accentColor]);
-
-  return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
-      {/* Period selector bar */}
-      <View style={[styles.periodBar, { backgroundColor: bg, borderBottomColor: borderColor }]}>
-        <PeriodSelector
-          mode={periodMode}
-          date={periodDate}
-          onChange={(m, d) => { setPeriodMode(m); setPeriodDate(d); }}
-        />
       </View>
 
       {/* Dropdown overlay */}
@@ -233,6 +224,7 @@ export default function DashboardScreen() {
       <ScrollView
         style={[styles.scroll, { zIndex: 1 }]}
         contentContainerStyle={[styles.content, { backgroundColor: bg }]}
+
       >
         {/* Balance card */}
         <View style={[styles.balanceCard, { backgroundColor: accentColor }]}>
@@ -383,6 +375,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
 
   periodBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
     zIndex: 10,
   },

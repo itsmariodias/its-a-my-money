@@ -40,7 +40,7 @@ interface DeleteModalProps {
 function DeleteConfirmModal({ account, txCount, onCancel, onConfirm }: DeleteModalProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { cardBg, textColor, subColor, borderColor } = getColors(isDark);
+  const { cardBg, inputBg, textColor, subColor, borderColor } = getColors(isDark);
 
   return (
     <Modal
@@ -61,7 +61,7 @@ function DeleteConfirmModal({ account, txCount, onCancel, onConfirm }: DeleteMod
 
           {/* Account chip */}
           {account && (
-            <View style={[dlStyles.accountChip, { backgroundColor: isDark ? '#0f3460' : '#f0f4f8', borderColor }]}>
+            <View style={[dlStyles.accountChip, { backgroundColor: inputBg, borderColor }]}>
               <View style={[dlStyles.chipDot, { backgroundColor: account.color ?? '#55A3FF' }]}>
                 <MaterialIcons
                   name={(account.icon as any) ?? 'account-balance-wallet'}
@@ -519,7 +519,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   newAccountBtnText: {
-    color: '#2f95dc', // overridden inline with accentColor
     fontWeight: '600',
     fontSize: 15,
   },

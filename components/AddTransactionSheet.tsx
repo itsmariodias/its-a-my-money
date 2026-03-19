@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  Dimensions,
   KeyboardAvoidingView,
   Modal,
   PanResponder,
@@ -14,6 +15,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/components/Themed';
@@ -22,7 +24,10 @@ import { useAccountsStore } from '@/store/useAccountsStore';
 import { useTransactionsStore } from '@/store/useTransactionsStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
+import { getColors } from '@/constants/theme';
 import type { Category, TransactionWithDetails } from '@/types';
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 function toLocalDateString(d: Date): string {
   const y = d.getFullYear();
@@ -155,43 +160,76 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
         const tx = await transactionsDb.getById(result.lastInsertRowId);
         if (tx) addTransaction(tx);
       }
-      onClose();
+      triggerCloseRef.current();
     } catch {
       Alert.alert('Error', 'Failed to save transaction.');
     }
   }, [amount, type, selectedCategory, selectedAccountId, note, date, transaction]);
 
-  const bg = isDark ? '#1a1a2e' : '#ffffff';
-  const textColor = isDark ? '#e0e0e0' : '#1a1a2e';
-  const subTextColor = isDark ? '#a0a0b0' : '#6b7280';
-  const inputBg = isDark ? '#0f3460' : '#f0f4f8';
-  const borderColor = isDark ? '#2a3a5e' : '#e2e8f0';
+  const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = getColors(isDark);
 
-  const sheetTranslateY = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (isOpen) sheetTranslateY.setValue(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
-
+  const sheetTranslateY = useRef(new Animated.Value(600)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
-  const dragPan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_, g) => g.dy > 5 && g.dy > Math.abs(g.dx),
+  // Animate in on open
+  useEffect(() => {
+    if (isOpen) {
+      sheetTranslateY.setValue(600);
+      backdropOpacity.setValue(0);
+      Animated.parallel([
+        Animated.spring(sheetTranslateY, {
+          toValue: 0, useNativeDriver: true, tension: 100, friction: 14,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 1, duration: 220, useNativeDriver: true,
+        }),
+      ]).start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const triggerCloseRef = useRef(() => {});
+  triggerCloseRef.current = () => {
+    // Stop any running animation (e.g. entrance spring still settling) before exiting.
+    // Without this, the exit timing and entrance spring fight and the callback may not fire.
+    sheetTranslateY.stopAnimation();
+    backdropOpacity.stopAnimation();
+    Animated.parallel([
+      Animated.timing(sheetTranslateY, { toValue: SCREEN_HEIGHT, duration: 220, useNativeDriver: true }),
+      Animated.timing(backdropOpacity, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start(() => {
+      onCloseRef.current();
+    });
+  };
+
+  const snapBack = () => {
+    Animated.parallel([
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }),
+      Animated.timing(backdropOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+  };
+
+  // Drag handle — claims on a clear downward move so taps on the close button pass through
+  const handlePan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => sheetTranslateY.stopAnimation(),
     onPanResponderMove: (_, g) => {
-      if (g.dy > 0) sheetTranslateY.setValue(g.dy);
-    },
-    onPanResponderRelease: (_, g) => {
-      if (g.dy > 100 || g.vy > 0.5) {
-        Animated.timing(sheetTranslateY, { toValue: 600, duration: 180, useNativeDriver: true }).start(() => {
-          onCloseRef.current();
-          sheetTranslateY.setValue(0);
-        });
-      } else {
-        Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true }).start();
+      if (g.dy > 0) {
+        sheetTranslateY.setValue(g.dy);
+        backdropOpacity.setValue(Math.max(0, 1 - g.dy / 380));
       }
     },
+    onPanResponderRelease: (_, g) => {
+      if (g.dy > 120 || g.vy > 0.3) {
+        triggerCloseRef.current();
+      } else {
+        snapBack();
+      }
+    },
+    onPanResponderTerminate: () => snapBack(),
   })).current;
 
   const dateValue = new Date(date + 'T00:00:00');
@@ -199,31 +237,41 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   return (
     <Modal
       visible={isOpen}
-      animationType="slide"
+      animationType="none"
       transparent
-      onRequestClose={onClose}
+      onRequestClose={() => triggerCloseRef.current()}
     >
-      <Pressable style={styles.backdrop} onPress={onClose} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.kvContainer}
-        pointerEvents="box-none"
       >
-        <Animated.View style={[styles.sheet, { backgroundColor: bg, transform: [{ translateY: sheetTranslateY }] }]}>
-          <View {...dragPan.panHandlers}>
-            <View style={[styles.handle, { backgroundColor: borderColor }]} />
+        {/* Backdrop — flex:1 fills only the space ABOVE the sheet, never overlaps it */}
+        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+          <Pressable style={{ flex: 1 }} onPress={() => triggerCloseRef.current()} />
+        </Animated.View>
 
-            <View style={styles.header}>
-              <Text style={[styles.headerTitle, { color: textColor }]}>
-                {transaction ? 'Edit Transaction' : 'Add Transaction'}
-              </Text>
-              <TouchableOpacity onPress={onClose} hitSlop={8}>
-                <MaterialIcons name="close" size={24} color={subTextColor} />
-              </TouchableOpacity>
-            </View>
+        <Animated.View
+          style={[styles.sheet, { backgroundColor: bg, transform: [{ translateY: sheetTranslateY }] }]}
+        >
+          {/* Handle pill — drag zone only, no interactive children */}
+          <View {...handlePan.panHandlers} style={styles.dragArea}>
+            <View style={[styles.handle, { backgroundColor: borderColor }]} />
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {/* Header — completely outside the PanResponder so close button always works */}
+          <View style={styles.header}>
+            <Text style={[styles.headerTitle, { color: textColor }]}>
+              {transaction ? 'Edit Transaction' : 'Add Transaction'}
+            </Text>
+            <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8}>
+              <MaterialIcons name="close" size={24} color={subTextColor} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Type toggle */}
             <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
               <TouchableOpacity
@@ -386,12 +434,11 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   kvContainer: {
     flex: 1,
-    justifyContent: 'flex-end',
   },
   sheet: {
     borderTopLeftRadius: 20,
@@ -400,13 +447,15 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     maxHeight: '90%',
   },
+  dragArea: {
+    paddingTop: 12,
+    paddingBottom: 12,
+    alignItems: 'center',
+  },
   handle: {
     width: 40,
     height: 4,
     borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 8,
   },
   header: {
     flexDirection: 'row',

@@ -23,10 +23,10 @@ export function getColors(isDark: boolean): AppColors {
     ? {
         bg: '#0d0d1a',
         cardBg: '#1a1a2e',
-        inputBg: '#0f3460',
+        inputBg: '#1a2035',
         textColor: '#e0e0e0',
         subColor: '#a0a0b0',
-        borderColor: '#2a3a5e',
+        borderColor: '#2a2a44',
       }
     : {
         bg: '#f2f2f7',

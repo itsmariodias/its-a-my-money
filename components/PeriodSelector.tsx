@@ -2,6 +2,7 @@ import { StyleSheet, TouchableOpacity, useColorScheme, View } from 'react-native
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/components/Themed';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { getColors } from '@/constants/theme';
 
 export type PeriodMode = 'day' | 'month' | 'year';
 
@@ -75,10 +76,7 @@ export function PeriodSelector({ mode, date, onChange }: Props) {
   const isDark = colorScheme === 'dark';
   const accentColor = useSettingsStore((s) => s.accentColor);
 
-  const textColor = isDark ? '#e0e0e0' : '#1a1a2e';
-  const subColor = isDark ? '#a0a0b0' : '#6b7280';
-  const tabBg = isDark ? '#0f3460' : '#f0f4f8';
-  const borderColor = isDark ? '#2a3a5e' : '#e2e8f0';
+  const { textColor, subColor, inputBg: tabBg, borderColor } = getColors(isDark);
 
   const showToday = !isToday(date);
 

@@ -123,7 +123,7 @@ function DeleteCategoryModal({
   onConfirm: () => void;
   isDark: boolean;
 }) {
-  const { cardBg: bg, textColor, subColor, borderColor } = getColors(isDark);
+  const { cardBg: bg, inputBg, textColor, subColor, borderColor } = getColors(isDark);
 
   return (
     <Modal visible={!!category} animationType="fade" transparent onRequestClose={onCancel}>
@@ -136,7 +136,7 @@ function DeleteCategoryModal({
           <Text style={[styles.modalTitle, { color: textColor }]}>Delete Category?</Text>
 
           {category && (
-            <View style={[styles.modalChip, { backgroundColor: isDark ? '#0f3460' : '#f0f4f8', borderColor }]}>
+            <View style={[styles.modalChip, { backgroundColor: inputBg, borderColor }]}>
               <View style={[styles.catCircle, { backgroundColor: category.color }]}>
                 <MaterialIcons name={(category.icon as any) || 'label'} size={16} color="#fff" />
               </View>
@@ -175,7 +175,7 @@ export default function SettingsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const { bg, cardBg, textColor, subColor, borderColor } = getColors(isDark);
+  const { bg, cardBg, inputBg, textColor, subColor, borderColor } = getColors(isDark);
 
   const settingsDb = useSettingsDb();
   const categoriesDb = useCategoriesDb();
@@ -379,8 +379,8 @@ export default function SettingsScreen() {
           onPress={() => { setFormatOpen((v) => !v); setAccentOpen(false); }}
           activeOpacity={0.7}
         >
-          <View style={[styles.rowIcon, { backgroundColor: '#8b5cf620' }]}>
-            <MaterialIcons name="tag" size={20} color="#8b5cf6" />
+          <View style={[styles.rowIcon, { backgroundColor: accentColor + '20' }]}>
+            <MaterialIcons name="tag" size={20} color={accentColor} />
           </View>
           <Text style={[styles.rowLabel, { color: textColor }]}>Number Format</Text>
           <Text style={[styles.rowValue, { color: subColor }]}>
@@ -525,7 +525,7 @@ export default function SettingsScreen() {
                   onPress={() => selectCurrency(c.code)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.currencySymbolBadge, { backgroundColor: isSelected ? accentColor + '20' : (isDark ? '#0f3460' : '#f0f4f8') }]}>
+                  <View style={[styles.currencySymbolBadge, { backgroundColor: isSelected ? accentColor + '20' : inputBg }]}>
                     <Text style={[styles.currencySymbolText, { color: isSelected ? accentColor : textColor }]}>
                       {c.symbol}
                     </Text>

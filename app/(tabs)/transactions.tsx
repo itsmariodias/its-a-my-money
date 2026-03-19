@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Modal,
@@ -10,7 +10,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/components/Themed';
 import AddTransactionSheet from '@/components/AddTransactionSheet';
@@ -52,7 +52,7 @@ interface DeleteTxModalProps {
 function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { cardBg, textColor, subColor, borderColor } = getColors(isDark);
+  const { cardBg, inputBg, textColor, subColor, borderColor } = getColors(isDark);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
 
   return (
@@ -68,7 +68,7 @@ function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps
 
           {/* Transaction chip */}
           {tx && (
-            <View style={[dlStyles.txChip, { backgroundColor: isDark ? '#0f3460' : '#f0f4f8', borderColor }]}>
+            <View style={[dlStyles.txChip, { backgroundColor: inputBg, borderColor }]}>
               <View style={[dlStyles.chipIcon, { backgroundColor: tx.category_color || '#6b7280' }]}>
                 <MaterialIcons name={(tx.category_icon as any) || 'attach-money'} size={14} color="#fff" />
               </View>
@@ -494,11 +494,16 @@ export default function TransactionsScreen() {
   const selectedAccount = accounts.find((a) => a.id === selectedId) ?? null;
 
   const { bg, cardBg, textColor, subColor: subTextColor, borderColor } = getColors(isDark);
-  const navigation = useNavigation();
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
+  return (
+    <View style={[styles.container, { backgroundColor: bg }]}>
+      {/* Period + account selector bar */}
+      <View style={[styles.periodBar, { backgroundColor: bg, borderBottomColor: borderColor }]}>
+        <PeriodSelector
+          mode={periodMode}
+          date={periodDate}
+          onChange={(m, d) => { setPeriodMode(m); setPeriodDate(d); }}
+        />
         <TouchableOpacity
           style={styles.headerAccountBtn}
           onPress={() => setDropdownOpen((v) => !v)}
@@ -516,20 +521,6 @@ export default function TransactionsScreen() {
           </Text>
           <MaterialIcons name="expand-more" size={16} color={subTextColor} />
         </TouchableOpacity>
-      ),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount, textColor, subTextColor, accentColor]);
-
-  return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
-      {/* Period selector bar */}
-      <View style={[styles.periodBar, { backgroundColor: bg, borderBottomColor: borderColor }]}>
-        <PeriodSelector
-          mode={periodMode}
-          date={periodDate}
-          onChange={(m, d) => { setPeriodMode(m); setPeriodDate(d); }}
-        />
       </View>
 
       {/* Account dropdown overlay */}
@@ -635,6 +626,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
 
   periodBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
     zIndex: 10,
   },
