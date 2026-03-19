@@ -26,9 +26,9 @@ import type { Category } from '@/types';
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 const PRESET_COLORS = [
-  '#FF6B6B', '#FF9F43', '#FFEAA7', '#55A3FF',
-  '#4ECDC4', '#45B7D1', '#96CEB4', '#DDA0DD',
-  '#98D8C8', '#FF6B9D', '#48DBFB', '#B0B0B0',
+  '#F44336', '#E91E63', '#9C27B0', '#673AB7',
+  '#2196F3', '#03A9F4', '#009688', '#4CAF50',
+  '#FF9800', '#FF5722', '#795548', '#607D8B',
 ];
 
 const PRESET_ICONS: (keyof typeof MaterialIcons.glyphMap)[] = [

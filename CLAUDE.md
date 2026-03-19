@@ -7,6 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **It's a My Money!** — A cross-platform personal finance app for iOS and Android.
 Built with Expo (managed workflow), TypeScript, expo-router, and SQLite for fully local, offline-first data storage.
 
+## Rules
+
+- **Never commit without explicit permission.** Do not run `git commit` unless the user explicitly asks to commit.
+
 ## Commands
 
 ```bash

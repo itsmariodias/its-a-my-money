@@ -52,19 +52,19 @@ export async function up(db: SQLiteDatabase): Promise<void> {
 
     -- Seed default categories
     INSERT INTO categories (name, type, color, icon, is_default) VALUES
-      ('Food & Drinks', 'expense', '#FF6B6B', 'restaurant', 1),
-      ('Transport', 'expense', '#4ECDC4', 'directions-car', 1),
-      ('Shopping', 'expense', '#45B7D1', 'shopping-cart', 1),
-      ('Entertainment', 'expense', '#96CEB4', 'movie', 1),
-      ('Health', 'expense', '#FFEAA7', 'local-hospital', 1),
-      ('Bills & Utilities', 'expense', '#DDA0DD', 'receipt', 1),
-      ('Housing', 'expense', '#98D8C8', 'home', 1),
-      ('Other Expense', 'expense', '#B0B0B0', 'more-horiz', 1),
-      ('Salary', 'income', '#55A3FF', 'work', 1),
-      ('Freelance', 'income', '#FF9F43', 'laptop', 1),
-      ('Investment', 'income', '#48DBFB', 'trending-up', 1),
-      ('Gift', 'income', '#FF6B9D', 'card-giftcard', 1),
-      ('Other Income', 'income', '#B0B0B0', 'more-horiz', 1);
+      ('Food & Drinks', 'expense', '#F44336', 'restaurant', 1),
+      ('Transport', 'expense', '#2196F3', 'directions-car', 1),
+      ('Shopping', 'expense', '#9C27B0', 'shopping-cart', 1),
+      ('Entertainment', 'expense', '#FF9800', 'movie', 1),
+      ('Health', 'expense', '#009688', 'local-hospital', 1),
+      ('Bills & Utilities', 'expense', '#607D8B', 'receipt', 1),
+      ('Housing', 'expense', '#795548', 'home', 1),
+      ('Other Expense', 'expense', '#9E9E9E', 'more-horiz', 1),
+      ('Salary', 'income', '#4CAF50', 'work', 1),
+      ('Freelance', 'income', '#FF5722', 'laptop', 1),
+      ('Investment', 'income', '#03A9F4', 'trending-up', 1),
+      ('Gift', 'income', '#E91E63', 'card-giftcard', 1),
+      ('Other Income', 'income', '#78909C', 'more-horiz', 1);
 
     -- Seed a default account
     INSERT INTO accounts (name, initial_balance, currency, color, icon)

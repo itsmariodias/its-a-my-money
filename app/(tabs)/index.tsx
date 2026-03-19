@@ -34,8 +34,8 @@ import { formatAmount } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
 
 const PIE_COLORS = [
-  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-  '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+  '#F44336', '#2196F3', '#9C27B0', '#FF9800', '#009688',
+  '#607D8B', '#795548', '#9E9E9E', '#4CAF50', '#03A9F4',
 ];
 
 // Donut chart geometry

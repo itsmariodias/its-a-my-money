@@ -1,10 +1,12 @@
 import { type SQLiteDatabase } from 'expo-sqlite';
 import { up as migration001 } from './migrations/001_initial';
 import { up as migration002 } from './migrations/002_settings';
+import { up as migration003 } from './migrations/003_category_colors';
 
 const migrations = [
   { version: 1, up: migration001 },
   { version: 2, up: migration002 },
+  { version: 3, up: migration003 },
 ];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
