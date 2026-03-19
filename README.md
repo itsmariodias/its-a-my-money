@@ -1,6 +1,6 @@
 # It's a My Money! 💰
 
-A personal finance app for iOS and Android built with Expo. Track your income, expenses, and account balances — fully offline, no accounts, no cloud, no nonsense.
+A personal finance app for iOS and Android built with Expo. Track your income, expenses, transfers, and account balances — fully offline, no accounts, no cloud, no nonsense.
 
 > Vibe coded by [@itsmariodias](https://github.com/itsmariodias) with [Claude Code](https://claude.ai/code) (Anthropic). Every screen, component, and feature in this app was built through a conversation with Claude — no manual coding required.
 
@@ -10,20 +10,24 @@ A personal finance app for iOS and Android built with Expo. Track your income, e
 
 **Dashboard**
 - Total balance and period income/expense summary
-- Spending breakdown pie chart by category — tap a slice to highlight it
+- Spending breakdown by category as an animated donut chart — tap a slice to highlight it
 - Recent transactions list
 - Filter by account or time period (day, month, year)
 
 **Transactions**
 - Full transaction history grouped by date
-- Swipe to delete with confirmation
+- Tap to edit, swipe left to delete
 - Filter by account and time period
 - Section totals per day
+
+**Transfers**
+- Move money between accounts with a dedicated transfer sheet
+- Save & Add Another for entering multiple transfers in one session
 
 **Accounts**
 - Manage multiple wallets (Cash, Bank, Credit Card, etc.)
 - Each account has a name, icon, color, currency, and initial balance
-- Swipe to delete (with cascade delete of linked transactions)
+- Swipe left to delete (with cascade delete of linked transactions)
 - Running balance calculated from initial balance + net transactions
 
 **Settings**
