@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
-import { Animated, Dimensions, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { Animated, BackHandler, Dimensions, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useSegments, withLayoutContext } from 'expo-router';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
@@ -7,9 +7,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import AddTransactionSheet from '@/components/AddTransactionSheet';
+import SettingsScreen from '@/components/SettingsScreen';
 import { useUIStore } from '@/store/useUIStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { getColors } from '@/constants/theme';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const HEADER_HEIGHT = 52;
 
 const { Navigator } = createMaterialTopTabNavigator();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,7 +23,6 @@ const TABS = [
   { name: 'index',        href: '/',             icon: 'pie-chart',              label: 'Dashboard',     title: "It's a My Money!" },
   { name: 'transactions', href: '/transactions',  icon: 'format-list-bulleted',   label: 'Transactions',  title: 'Transactions' },
   { name: 'accounts',     href: '/accounts',      icon: 'account-balance-wallet', label: 'Accounts',      title: 'Accounts' },
-  { name: 'settings',     href: '/settings',      icon: 'settings',               label: 'Settings',      title: 'Settings' },
 ] as const;
 
 const TAB_BAR_HEIGHT = 56;
@@ -65,7 +68,7 @@ function CustomPager({ navigationState, onIndexChange, layout, children, positio
         // At boundary tabs, intercept any horizontal intent early so inner views
         // never get a chance to rubber-band / overscroll
         const atStart = indexRef.current === 0 && g.dx > 0;
-        const atEnd = indexRef.current === numTabs - 1 && g.dx < 0;
+        const atEnd = indexRef.current === TABS.length - 1 && g.dx < 0;
         if (atStart || atEnd) return absDx > 4;
         // Mid-tabs: require a clear horizontal intent — same feel as Android launcher
         return absDx > 12 && absDx > absDy * 2.5;
@@ -76,7 +79,7 @@ function CustomPager({ navigationState, onIndexChange, layout, children, positio
       },
       onPanResponderMove: (_, g) => {
         const next = Math.max(
-          -(numTabs - 1) * screenWidth,
+          -(TABS.length - 1) * screenWidth,
           Math.min(0, positionXRef.current + g.dx),
         );
         translateX.setValue(next);
@@ -89,7 +92,7 @@ function CustomPager({ navigationState, onIndexChange, layout, children, positio
         // Android launcher feel: need 40% drag OR a fast flick to switch
         const threshold = screenWidth * 0.4;
         let nextIdx = idx;
-        if (g.dx < -threshold && idx < numTabs - 1) {
+        if (g.dx < -threshold && idx < TABS.length - 1) {
           nextIdx = idx + 1;
         } else if (g.dx > threshold && idx > 0) {
           nextIdx = idx - 1;
@@ -160,7 +163,33 @@ export default function TabLayout() {
   const router = useRouter();
   const segments = useSegments();
   const currentTab = segments[segments.length - 1];
-  const showFab = currentTab !== 'settings';
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsTranslateX = useRef(new Animated.Value(SCREEN_WIDTH)).current;
+  const settingsOpenRef = useRef(false);
+  const closeSettingsRef = useRef<() => void>(() => {});
+  settingsOpenRef.current = settingsOpen;
+
+  const openSettings = () => {
+    setSettingsOpen(true);
+    settingsTranslateX.setValue(SCREEN_WIDTH);
+    Animated.spring(settingsTranslateX, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14 }).start();
+  };
+  const closeSettings = () => {
+    Animated.timing(settingsTranslateX, { toValue: SCREEN_WIDTH, duration: 220, useNativeDriver: true })
+      .start(() => setSettingsOpen(false));
+  };
+  closeSettingsRef.current = closeSettings;
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!settingsOpenRef.current) return false;
+      closeSettingsRef.current();
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
+
+  const showFab = !settingsOpen;
   const fabBottom = TAB_BAR_HEIGHT + insets.bottom + 12;
 
   const currentTitle = TABS.find((t) => t.name === currentTab)?.title ?? "It's a My Money!";
@@ -169,6 +198,9 @@ export default function TabLayout() {
     <View style={{ flex: 1, backgroundColor: bg, paddingTop: insets.top }}>
       <View style={[styles.header, { backgroundColor: bg, borderBottomColor: borderColor }]}>
         <Text style={[styles.headerTitle, { color: textColor }]}>{currentTitle}</Text>
+        <TouchableOpacity onPress={openSettings} hitSlop={8}>
+          <MaterialIcons name="settings" size={24} color={textColor} />
+        </TouchableOpacity>
       </View>
       <MaterialTabs
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -182,13 +214,12 @@ export default function TabLayout() {
         <MaterialTabs.Screen name="index"        options={{ title: "It's a My Money!" }} />
         <MaterialTabs.Screen name="transactions" options={{ title: 'Transactions' }} />
         <MaterialTabs.Screen name="accounts"     options={{ title: 'Accounts' }} />
-        <MaterialTabs.Screen name="settings"     options={{ title: 'Settings' }} />
       </MaterialTabs>
 
       {/* Custom bottom tab bar */}
-      <View style={[styles.tabBar, { backgroundColor: bg, borderTopColor: borderColor, height: TAB_BAR_HEIGHT + insets.bottom }]}>
+      {!settingsOpen && <View style={[styles.tabBar, { backgroundColor: bg, borderTopColor: borderColor, height: TAB_BAR_HEIGHT + insets.bottom }]}>
         {TABS.map((tab) => {
-          const isActive = currentTab === tab.name;
+          const isActive = currentTab === tab.name || (tab.name === 'index' && currentTab === '(tabs)');
           return (
             <TouchableOpacity
               key={tab.name}
@@ -201,7 +232,7 @@ export default function TabLayout() {
             </TouchableOpacity>
           );
         })}
-      </View>
+      </View>}
 
       {showFab && (
         <TouchableOpacity
@@ -213,6 +244,18 @@ export default function TabLayout() {
         </TouchableOpacity>
       )}
       <AddTransactionSheet isOpen={isAddTxOpen} onClose={closeAddTx} />
+
+      {/* Settings overlay — slides in from the right, includes its own header */}
+      <Animated.View style={[styles.settingsOverlay, { backgroundColor: bg, top: insets.top, transform: [{ translateX: settingsTranslateX }] }]}>
+        <View style={[styles.header, { backgroundColor: bg, borderBottomColor: borderColor }]}>
+          <TouchableOpacity onPress={closeSettings} hitSlop={8}>
+            <MaterialIcons name="arrow-back" size={24} color={textColor} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: textColor, marginLeft: 8 }]}>Settings</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <SettingsScreen />
+      </Animated.View>
     </View>
   );
 }
@@ -220,7 +263,9 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   header: {
     height: 52,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
@@ -236,6 +281,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  settingsOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   fab: {
     position: 'absolute',

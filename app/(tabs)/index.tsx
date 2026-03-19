@@ -1,5 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Animated } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -8,10 +7,17 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedProps,
+  withTiming,
+  withDelay,
+  Easing,
+} from 'react-native-reanimated';
+import { Svg, Circle, G } from 'react-native-svg';
 
 import { router, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { PieChart } from 'react-native-gifted-charts';
 import { Text } from '@/components/Themed';
 import {
   PeriodSelector,
@@ -32,6 +38,56 @@ const PIE_COLORS = [
   '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
 ];
 
+// Donut chart geometry
+const OUTER_R = 105;
+const INNER_R = 68;
+const STROKE_R = (OUTER_R + INNER_R) / 2;   // 86.5 — center of the stroke ring
+const STROKE_W = OUTER_R - INNER_R;          // 37  — ring thickness
+const CIRC = 2 * Math.PI * STROKE_R;         // full circumference
+const CHART_SIZE = OUTER_R * 2 + 4;          // 214px canvas (2px breathing room each side)
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+interface DonutSliceProps {
+  fraction: number;       // 0–1 share of the total
+  cumulativeStart: number; // sum of fractions before this slice
+  color: string;
+  resetKey: string;       // changes when the dataset changes → re-triggers animation
+  index: number;          // stagger index
+}
+
+function DonutSlice({ fraction, cumulativeStart, color, resetKey, index }: DonutSliceProps) {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = 0;
+    // Each slice starts 40 ms after the previous one so they stagger slightly
+    progress.value = withDelay(
+      index * 40,
+      withTiming(1, { duration: 750, easing: Easing.out(Easing.cubic) }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
+
+  const arcLength = fraction * CIRC;
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDasharray: `${progress.value * arcLength} ${CIRC}`,
+    strokeDashoffset: -(cumulativeStart * CIRC),
+  }));
+
+  return (
+    <AnimatedCircle
+      cx={CHART_SIZE / 2}
+      cy={CHART_SIZE / 2}
+      r={STROKE_R}
+      fill="none"
+      stroke={color}
+      strokeWidth={STROKE_W}
+      animatedProps={animatedProps}
+    />
+  );
+}
 
 export default function DashboardScreen() {
   const colorScheme = useColorScheme();
@@ -42,7 +98,6 @@ export default function DashboardScreen() {
   const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
   const [periodDate, setPeriodDate] = useState(new Date());
   const [selectedSliceIdx, setSelectedSliceIdx] = useState<number | null>(null);
-  const centerFade = useRef(new Animated.Value(1)).current;
 
   const transactionsDb = useTransactionsDb();
   const accountsDb = useAccountsDb();
@@ -125,6 +180,9 @@ export default function DashboardScreen() {
       .sort((a, b) => b.value - a.value);
   }, [periodTransactions]);
 
+  // Stable key that changes whenever the category set changes — drives slice re-animation
+  const pieResetKey = useMemo(() => pieData.map((d) => d.label).join('|'), [pieData]);
+
   // Reset selected slice when period/data changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useMemo(() => { setSelectedSliceIdx(null); }, [pieData]);
@@ -141,12 +199,28 @@ export default function DashboardScreen() {
   }, [pieData, selectedSliceIdx]);
 
   const selectSlice = useCallback((idx: number | null) => {
-    Animated.sequence([
-      Animated.timing(centerFade, { toValue: 0, duration: 100, useNativeDriver: true }),
-      Animated.timing(centerFade, { toValue: 1, duration: 150, useNativeDriver: true }),
-    ]).start();
     setSelectedSliceIdx((prev) => (prev === idx ? null : idx));
-  }, [centerFade]);
+  }, []);
+
+  const handleChartPress = useCallback((x: number, y: number) => {
+    const dx = x - CHART_SIZE / 2;
+    const dy = y - CHART_SIZE / 2;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    // Only hits within the donut ring count
+    if (dist < INNER_R || dist > OUTER_R) {
+      selectSlice(null);
+      return;
+    }
+    // Angle from 12 o'clock, clockwise, 0–360°
+    const angle = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
+    let cumulative = 0;
+    for (let i = 0; i < pieData.length; i++) {
+      const sliceDeg = (pieData[i].value / periodExpenses) * 360;
+      if (angle < cumulative + sliceDeg) { selectSlice(i); return; }
+      cumulative += sliceDeg;
+    }
+    selectSlice(null);
+  }, [pieData, periodExpenses, selectSlice]);
 
   const selectedAccount = accounts.find((a) => a.id === selectedId) ?? null;
   const periodShort = shortPeriodLabel(periodMode, periodDate);
@@ -257,29 +331,57 @@ export default function DashboardScreen() {
             <Text style={[styles.sectionTitle, { color: textColor }]}>Spending by Category</Text>
 
             <View style={styles.pieContainer}>
-              <PieChart
-                data={pieDataWithFocus}
-                donut
-                radius={105}
-                innerRadius={68}
-                backgroundColor={cardBg}
-                onPress={(_item: any, index: number) => selectSlice(index)}
-                centerLabelComponent={() => {
-                  const slice = selectedSliceIdx !== null ? pieData[selectedSliceIdx] : null;
-                  const pct = slice ? Math.round((slice.value / periodExpenses) * 100) : null;
-                  return (
-                    <Animated.View style={[styles.pieCenter, { opacity: centerFade }]}>
-                      {slice ? (
-                        <>
-                          <Text style={[styles.pieCenterCategory, { color: subTextColor }]} numberOfLines={2}>
-                            {slice.label}
-                          </Text>
-                          <Text style={[styles.pieCenterAmount, { color: textColor }]}>
-                            {formatAmount(slice.value, currency, undefined, numberFormat)}
-                          </Text>
-                          <Text style={[styles.pieCenterPct, { color: slice.color }]}>{pct}%</Text>
-                        </>
-                      ) : (
+              <Pressable onPress={(e) => handleChartPress(e.nativeEvent.locationX, e.nativeEvent.locationY)}>
+                <View style={{ width: CHART_SIZE, height: CHART_SIZE }}>
+                  <Svg width={CHART_SIZE} height={CHART_SIZE}>
+                    {/* Rotate -90° so arcs start drawing from 12 o'clock */}
+                    <G rotation={-90} originX={CHART_SIZE / 2} originY={CHART_SIZE / 2}>
+                      {/* Background ring so the donut hole is the card color */}
+                      <Circle
+                        cx={CHART_SIZE / 2}
+                        cy={CHART_SIZE / 2}
+                        r={STROKE_R}
+                        fill="none"
+                        stroke={cardBg}
+                        strokeWidth={STROKE_W + 2}
+                      />
+                      {pieDataWithFocus.map((item, i) => {
+                        const fraction = item.value / periodExpenses;
+                        const cumulativeStart = pieDataWithFocus
+                          .slice(0, i)
+                          .reduce((s, d) => s + d.value / periodExpenses, 0);
+                        return (
+                          <DonutSlice
+                            key={item.label}
+                            fraction={fraction}
+                            cumulativeStart={cumulativeStart}
+                            color={item.color}
+                            resetKey={pieResetKey}
+                            index={i}
+                          />
+                        );
+                      })}
+                    </G>
+                  </Svg>
+
+                  {/* Center label — absolutely overlaid in the hole */}
+                  <View style={[StyleSheet.absoluteFill, styles.pieCenterOverlay]} pointerEvents="none">
+                    <View style={styles.pieCenter}>
+                      {selectedSliceIdx !== null ? (() => {
+                        const slice = pieData[selectedSliceIdx];
+                        const pct = Math.round((slice.value / periodExpenses) * 100);
+                        return (
+                          <>
+                            <Text style={[styles.pieCenterCategory, { color: subTextColor }]} numberOfLines={2}>
+                              {slice.label}
+                            </Text>
+                            <Text style={[styles.pieCenterAmount, { color: textColor }]}>
+                              {formatAmount(slice.value, currency, undefined, numberFormat)}
+                            </Text>
+                            <Text style={[styles.pieCenterPct, { color: slice.color }]}>{pct}%</Text>
+                          </>
+                        );
+                      })() : (
                         <>
                           <Text style={[styles.pieCenterTotal, { color: textColor }]}>
                             {formatAmount(periodExpenses, currency, undefined, numberFormat)}
@@ -287,10 +389,10 @@ export default function DashboardScreen() {
                           <Text style={[styles.pieCenterLabel, { color: subTextColor }]}>total spent</Text>
                         </>
                       )}
-                    </Animated.View>
-                  );
-                }}
-              />
+                    </View>
+                  </View>
+                </View>
+              </Pressable>
             </View>
 
             {/* Legend */}
@@ -483,6 +585,7 @@ const styles = StyleSheet.create({
   seeAll: { fontSize: 13, fontWeight: '500' },
 
   pieContainer: { alignItems: 'center', marginVertical: 4 },
+  pieCenterOverlay: { alignItems: 'center', justifyContent: 'center' },
   pieCenter: { alignItems: 'center', paddingHorizontal: 8 },
   pieCenterTotal: { fontSize: 18, fontWeight: '700' },
   pieCenterAmount: { fontSize: 16, fontWeight: '700' },
