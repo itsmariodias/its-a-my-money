@@ -52,9 +52,10 @@ interface Props {
   onClose: () => void;
   /** When provided the sheet opens in edit mode pre-filled with the transaction. */
   transaction?: TransactionWithDetails | null;
+  onDelete?: () => void;
 }
 
-export default function AddTransactionSheet({ isOpen, onClose, transaction = null }: Props) {
+export default function AddTransactionSheet({ isOpen, onClose, transaction = null, onDelete }: Props) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const accentColor = useSettingsStore((s) => s.accentColor);
@@ -425,6 +426,11 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
                 {transaction ? 'Save Changes' : 'Save Transaction'}
               </Text>
             </TouchableOpacity>
+            {transaction && onDelete && (
+              <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
+                <Text style={styles.deleteBtnText}>Delete Transaction</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -605,6 +611,19 @@ const styles = StyleSheet.create({
   },
   saveBtnText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  deleteBtn: {
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+    backgroundColor: '#ef444420',
+  },
+  deleteBtnText: {
+    color: '#ef4444',
     fontSize: 16,
     fontWeight: '700',
   },

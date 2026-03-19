@@ -46,9 +46,11 @@ interface Props {
   isOpen: boolean;
   account: Account | null;
   onClose: () => void;
+  onDelete?: () => void;
+  deleteDisabled?: boolean;
 }
 
-export default function AccountFormSheet({ isOpen, account, onClose }: Props) {
+export default function AccountFormSheet({ isOpen, account, onClose, onDelete, deleteDisabled }: Props) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const accentColor = useSettingsStore((s) => s.accentColor);
@@ -277,6 +279,15 @@ export default function AccountFormSheet({ isOpen, account, onClose }: Props) {
                 {account ? 'Save Changes' : 'Create Account'}
               </Text>
             </TouchableOpacity>
+            {account && onDelete && (
+              <TouchableOpacity
+                style={[styles.deleteBtn, deleteDisabled && { opacity: 0.4 }]}
+                onPress={onDelete}
+                disabled={deleteDisabled}
+              >
+                <Text style={styles.deleteBtnText}>Delete Account</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -379,6 +390,19 @@ const styles = StyleSheet.create({
   },
   saveBtnText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  deleteBtn: {
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+    backgroundColor: '#ef444420',
+  },
+  deleteBtnText: {
+    color: '#ef4444',
     fontSize: 16,
     fontWeight: '700',
   },

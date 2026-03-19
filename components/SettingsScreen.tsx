@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
-  Animated,
   Modal,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -26,64 +24,28 @@ import { CURRENCIES, NUMBER_FORMATS, getCurrencyByCode } from '@/constants/curre
 import { ACCENT_COLORS, getColors } from '@/constants/theme';
 import type { Category } from '@/types';
 
-// ─── Swipeable category row ──────────────────────────────────────────────────
+// ─── Category row ─────────────────────────────────────────────────────────────
 
-const REVEAL = 72;
-
-function SwipeableCategoryRow({
-  category, onEdit, onDeletePress, resetSignal, isFirst, isLast, isDark,
+function CategoryRow({
+  category, onEdit, isFirst, isLast, isDark,
 }: {
-  category: Category; onEdit: () => void; onDeletePress: () => void;
-  resetSignal: number; isFirst: boolean; isLast: boolean; isDark: boolean;
+  category: Category; onEdit: () => void;
+  isFirst: boolean; isLast: boolean; isDark: boolean;
 }) {
   const { cardBg, textColor, subColor, borderColor } = getColors(isDark);
-  const translateX = new Animated.Value(0);
-  const offsetX = { current: 0 };
-
-  const spring = (toValue: number) =>
-    Animated.spring(translateX, { toValue, useNativeDriver: true, tension: 80, friction: 12 }).start(() => {
-      offsetX.current = toValue;
-    });
-
-  const pan = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) =>
-      (g.dx < 0 || offsetX.current < 0) && Math.abs(g.dx) > Math.abs(g.dy),
-    onPanResponderMove: (_, g) => {
-      translateX.setValue(Math.max(-REVEAL, Math.min(0, offsetX.current + g.dx)));
-    },
-    onPanResponderRelease: (_, g) => {
-      if (g.vx < -0.4 || offsetX.current + g.dx < -REVEAL / 2) spring(-REVEAL);
-      else spring(0);
-    },
-    onPanResponderTerminate: () => spring(0),
-  });
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useCallback(() => { spring(0); offsetX.current = 0; }, [resetSignal]);
-
   const br = {
     borderTopLeftRadius: isFirst ? 12 : 0, borderTopRightRadius: isFirst ? 12 : 0,
     borderBottomLeftRadius: isLast ? 12 : 0, borderBottomRightRadius: isLast ? 12 : 0,
   };
-
   return (
-    <View style={[styles.swipeWrap, br, { overflow: 'hidden' }]}>
-      <View style={[styles.deleteZone, { width: REVEAL }]}>
-        <TouchableOpacity style={styles.deleteZoneBtn} onPress={onDeletePress}>
-          <MaterialIcons name="delete" size={22} color="#fff" />
-        </TouchableOpacity>
+    <TouchableOpacity style={[styles.catRowInner, br, { backgroundColor: cardBg }]} onPress={onEdit} activeOpacity={0.7}>
+      <View style={[styles.catCircle, { backgroundColor: category.color }]}>
+        <MaterialIcons name={(category.icon as any) || 'label'} size={18} color="#fff" />
       </View>
-      <Animated.View style={[styles.catRow, { backgroundColor: cardBg, transform: [{ translateX }] }]} {...pan.panHandlers}>
-        <TouchableOpacity style={styles.catRowInner} onPress={onEdit} activeOpacity={0.7}>
-          <View style={[styles.catCircle, { backgroundColor: category.color }]}>
-            <MaterialIcons name={(category.icon as any) || 'label'} size={18} color="#fff" />
-          </View>
-          <Text style={[styles.catName, { color: textColor }]}>{category.name}</Text>
-          {!isLast && <View style={[styles.separator, { backgroundColor: borderColor }]} />}
-          <MaterialIcons name="chevron-right" size={20} color={subColor} />
-        </TouchableOpacity>
-      </Animated.View>
-    </View>
+      <Text style={[styles.catName, { color: textColor }]}>{category.name}</Text>
+      {!isLast && <View style={[styles.separator, { backgroundColor: borderColor }]} />}
+      <MaterialIcons name="chevron-right" size={20} color={subColor} />
+    </TouchableOpacity>
   );
 }
 
@@ -164,7 +126,6 @@ export default function SettingsScreen() {
   const [activeType, setActiveType] = useState<'expense' | 'income'>('expense');
   const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
   const [incomeCategories, setIncomeCategories] = useState<Category[]>([]);
-  const [catResetSignal, setCatResetSignal] = useState(0);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [catFormOpen, setCatFormOpen] = useState(false);
   const [deletingCat, setDeletingCat] = useState<Category | null>(null);
@@ -213,7 +174,7 @@ export default function SettingsScreen() {
     setDeleteCatTxCount(result?.n ?? 0);
     setDeletingCat(cat);
   };
-  const handleDeleteCatCancel = () => { setDeletingCat(null); setCatResetSignal((s) => s + 1); };
+  const handleDeleteCatCancel = () => { setDeletingCat(null); };
   const handleDeleteCatConfirm = async () => {
     if (!deletingCat) return;
     try {
@@ -465,12 +426,10 @@ export default function SettingsScreen() {
               <Text style={[styles.emptyText, { color: subColor }]}>No {activeType} categories yet.</Text>
             ) : (
               displayedCategories.map((cat, idx) => (
-                <SwipeableCategoryRow
+                <CategoryRow
                   key={cat.id}
                   category={cat}
                   onEdit={() => { setEditingCat(cat); setCatFormOpen(true); }}
-                  onDeletePress={() => handleDeleteCatPress(cat)}
-                  resetSignal={catResetSignal}
                   isFirst={idx === 0}
                   isLast={idx === displayedCategories.length - 1}
                   isDark={isDark}
@@ -483,8 +442,19 @@ export default function SettingsScreen() {
           isOpen={catFormOpen}
           category={editingCat}
           defaultType={activeType}
-          onClose={() => setCatFormOpen(false)}
+          onClose={() => { setCatFormOpen(false); setEditingCat(null); }}
           onSaved={loadCategories}
+          onDelete={() => {
+            const cat = editingCat;
+            setCatFormOpen(false);
+            setEditingCat(null);
+            if (cat) handleDeleteCatPress(cat);
+          }}
+          deleteDisabled={
+            editingCat
+              ? (editingCat.type === 'expense' ? expenseCategories : incomeCategories).length <= 1
+              : false
+          }
         />
         <DeleteCategoryModal
           category={deletingCat}
@@ -536,11 +506,7 @@ const styles = StyleSheet.create({
   typeTabText: { fontSize: 14, fontWeight: '600' },
   catList: { padding: 16 },
   emptyText: { textAlign: 'center', marginTop: 40, fontSize: 14 },
-  swipeWrap: { position: 'relative', marginBottom: 1 },
-  deleteZone: { position: 'absolute', right: 0, top: 0, bottom: 0, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center' },
-  deleteZoneBtn: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
-  catRow: { flexDirection: 'row' },
-  catRowInner: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, gap: 12 },
+  catRowInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, gap: 12, marginBottom: 1 },
   catCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   catName: { flex: 1, fontSize: 15, fontWeight: '500' },
   separator: { position: 'absolute', bottom: 0, left: 64, right: 0, height: StyleSheet.hairlineWidth },

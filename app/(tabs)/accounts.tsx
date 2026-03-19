@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-  Animated,
   Modal,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -221,122 +219,40 @@ const dlStyles = StyleSheet.create({
   },
 });
 
-// ─── SwipeableAccountCard ────────────────────────────────────────────────────
-
-const REVEAL_WIDTH = 80;
+// ─── AccountCard ─────────────────────────────────────────────────────────────
 
 interface CardProps {
   account: Account;
   balance: number;
   currency: string;
-  isOnlyAccount: boolean;
-  resetSignal: number;
   onPress: () => void;
-  onDeletePress: () => void;
   isDark: boolean;
 }
 
-function SwipeableAccountCard({
-  account,
-  balance,
-  currency,
-  isOnlyAccount,
-  resetSignal,
-  onPress,
-  onDeletePress,
-  isDark,
-}: CardProps) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  // Tracks the resting position (0 = closed, -REVEAL_WIDTH = open)
-  const offsetX = useRef(0);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      // Capture horizontal swipes; allow left-swipe to open OR right-swipe to close
-      onMoveShouldSetPanResponder: (_, { dx, dy }) => {
-        if (Math.abs(dy) > Math.abs(dx)) return false;
-        if (Math.abs(dx) < 5) return false;
-        return dx < 0 || offsetX.current < 0;
-      },
-      onPanResponderMove: (_, { dx }) => {
-        // Position = current resting offset + gesture delta, clamped to valid range
-        translateX.setValue(Math.max(-REVEAL_WIDTH, Math.min(0, offsetX.current + dx)));
-      },
-      onPanResponderRelease: (_, { dx, vx }) => {
-        const projected = offsetX.current + dx;
-        let toValue: number;
-        if (vx < -0.4) toValue = -REVEAL_WIDTH;       // fast left flick → open
-        else if (vx > 0.4) toValue = 0;               // fast right flick → close
-        else toValue = projected < -(REVEAL_WIDTH / 2) ? -REVEAL_WIDTH : 0;
-        offsetX.current = toValue;
-        Animated.spring(translateX, {
-          toValue,
-          useNativeDriver: true,
-          tension: 80,
-          friction: 10,
-        }).start();
-      },
-      onPanResponderTerminate: () => {
-        offsetX.current = 0;
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-      },
-    })
-  ).current;
-
-  // Reset card position when the signal fires (tab switch or delete cancel)
-  useEffect(() => {
-    offsetX.current = 0;
-    Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetSignal]);
-
+function AccountCard({ account, balance, currency, onPress, isDark }: CardProps) {
   const { cardBg, textColor, subColor } = getColors(isDark);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const iconBg = account.color ?? '#55A3FF';
   const balanceColor = balance >= 0 ? '#22c55e' : '#ef4444';
 
   return (
-    <View style={styles.swipeableWrapper}>
-      {/* Delete zone behind the card */}
-      <View style={styles.deleteZone}>
-        <TouchableOpacity
-          style={[styles.deleteBtn, isOnlyAccount && { opacity: 0.3 }]}
-          onPress={onDeletePress}
-          disabled={isOnlyAccount}
-        >
-          <MaterialIcons name="delete" size={24} color="#fff" />
-        </TouchableOpacity>
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: cardBg }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
+        <MaterialIcons name={(account.icon as any) ?? 'account-balance-wallet'} size={22} color="#fff" />
       </View>
-
-      {/* Sliding card */}
-      <Animated.View
-        style={[styles.card, { backgroundColor: cardBg, transform: [{ translateX }] }]}
-        {...panResponder.panHandlers}
-      >
-        <TouchableOpacity style={styles.cardInner} onPress={onPress} activeOpacity={0.7}>
-          <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
-            <MaterialIcons
-              name={(account.icon as any) ?? 'account-balance-wallet'}
-              size={22}
-              color="#fff"
-            />
-          </View>
-
-          <View style={styles.cardInfo}>
-            <Text style={[styles.cardName, { color: textColor }]} numberOfLines={1}>
-              {account.name}
-            </Text>
-            <Text style={[styles.cardCurrency, { color: subColor }]}>{account.currency}</Text>
-          </View>
-
-          <Text style={[styles.cardBalance, { color: balanceColor }]}>
-            {formatAmount(balance, currency, undefined, numberFormat)}
-          </Text>
-
-          <MaterialIcons name="chevron-right" size={20} color={subColor} />
-        </TouchableOpacity>
-      </Animated.View>
-    </View>
+      <View style={styles.cardInfo}>
+        <Text style={[styles.cardName, { color: textColor }]} numberOfLines={1}>{account.name}</Text>
+        <Text style={[styles.cardCurrency, { color: subColor }]}>{account.currency}</Text>
+      </View>
+      <Text style={[styles.cardBalance, { color: balanceColor }]}>
+        {formatAmount(balance, currency, undefined, numberFormat)}
+      </Text>
+      <MaterialIcons name="chevron-right" size={20} color={subColor} />
+    </TouchableOpacity>
   );
 }
 
@@ -350,7 +266,6 @@ export default function AccountsScreen() {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
   const [periodDate, setPeriodDate] = useState(new Date());
-  const [resetSignal, setResetSignal] = useState(0);
   const [deletingAccount, setDeletingAccount] = useState<Account | null>(null);
   const [deleteTxCount, setDeleteTxCount] = useState(0);
 
@@ -371,8 +286,7 @@ export default function AccountsScreen() {
         setAccounts(accs);
         setTransactions(txns);
       });
-      // Reset all card swipes when leaving the tab
-      return () => setResetSignal((s) => s + 1);
+      return () => {};
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
@@ -406,7 +320,6 @@ export default function AccountsScreen() {
 
   const handleDeleteCancel = useCallback(() => {
     setDeletingAccount(null);
-    setResetSignal((s) => s + 1); // snap the swiped card back
   }, []);
 
   const handleDeleteConfirm = useCallback(async () => {
@@ -457,19 +370,13 @@ export default function AccountsScreen() {
           </View>
         ) : (
           accounts.map((acc) => (
-            <SwipeableAccountCard
+            <AccountCard
               key={acc.id}
               account={acc}
               balance={balanceMap[acc.id] ?? acc.initial_balance}
               currency={currency}
-              isOnlyAccount={accounts.length <= 1}
-              resetSignal={resetSignal}
               isDark={isDark}
-              onPress={() => {
-                setEditingAccount(acc);
-                setFormOpen(true);
-              }}
-              onDeletePress={() => handleDeletePress(acc)}
+              onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
             />
           ))
         )}
@@ -487,7 +394,14 @@ export default function AccountsScreen() {
       <AccountFormSheet
         isOpen={formOpen}
         account={editingAccount}
-        onClose={() => setFormOpen(false)}
+        onClose={() => { setFormOpen(false); setEditingAccount(null); }}
+        onDelete={() => {
+          const acc = editingAccount;
+          setFormOpen(false);
+          setEditingAccount(null);
+          if (acc) handleDeletePress(acc);
+        }}
+        deleteDisabled={accounts.length <= 1}
       />
 
       <DeleteConfirmModal
@@ -554,32 +468,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
   },
-  swipeableWrapper: {
-    position: 'relative',
-    overflow: 'hidden',
-    borderRadius: 14,
-  },
-  deleteZone: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: REVEAL_WIDTH,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteBtn: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   card: {
-    // No borderRadius here — the wrapper's overflow:hidden clips the outer corners.
-    // The card's right edge must stay square so it aligns with the delete zone.
-  },
-  cardInner: {
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,

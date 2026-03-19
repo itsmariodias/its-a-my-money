@@ -46,9 +46,11 @@ interface Props {
   defaultType?: 'expense' | 'income';
   onClose: () => void;
   onSaved: () => void;
+  onDelete?: () => void;
+  deleteDisabled?: boolean;
 }
 
-export default function CategoryFormSheet({ isOpen, category, defaultType = 'expense', onClose, onSaved }: Props) {
+export default function CategoryFormSheet({ isOpen, category, defaultType = 'expense', onClose, onSaved, onDelete, deleteDisabled }: Props) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const accentColor = useSettingsStore((s) => s.accentColor);
@@ -249,6 +251,15 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave}>
               <Text style={styles.saveBtnText}>{category ? 'Save Changes' : 'Create Category'}</Text>
             </TouchableOpacity>
+            {category && onDelete && (
+              <TouchableOpacity
+                style={[styles.deleteBtn, deleteDisabled && { opacity: 0.4 }]}
+                onPress={onDelete}
+                disabled={deleteDisabled}
+              >
+                <Text style={styles.deleteBtnText}>Delete Category</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -301,4 +312,13 @@ const styles = StyleSheet.create({
   previewBadgeText: { fontSize: 11, fontWeight: '600', textTransform: 'capitalize' },
   saveBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4, marginBottom: 8 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  deleteBtn: {
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+    backgroundColor: '#ef444420',
+  },
+  deleteBtnText: { color: '#ef4444', fontSize: 16, fontWeight: '700' },
 });

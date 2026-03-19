@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-  Animated,
   Modal,
-  PanResponder,
   Pressable,
   SectionList,
   StyleSheet,
@@ -230,161 +228,61 @@ const dlStyles = StyleSheet.create({
   },
 });
 
-// ─── SwipeableTransactionRow ──────────────────────────────────────────────────
-
-const REVEAL_WIDTH = 80;
+// ─── TransactionRow ───────────────────────────────────────────────────────────
 
 interface RowProps {
   tx: TransactionWithDetails;
   isFirst: boolean;
   isLast: boolean;
-  resetSignal: number;
-  isDark: boolean;
   cardBg: string;
   borderColor: string;
   textColor: string;
   subTextColor: string;
   currency: string;
   onPress: () => void;
-  onDeletePress: () => void;
 }
 
-function SwipeableTransactionRow({
-  tx,
-  isFirst,
-  isLast,
-  resetSignal,
-  isDark,
-  cardBg,
-  borderColor,
-  textColor,
-  subTextColor,
-  currency,
-  onPress,
-  onDeletePress,
-}: RowProps) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const offsetX = useRef(0);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, { dx, dy }) => {
-        if (Math.abs(dy) > Math.abs(dx)) return false;
-        if (Math.abs(dx) < 5) return false;
-        return dx < 0 || offsetX.current < 0;
-      },
-      onPanResponderMove: (_, { dx }) => {
-        translateX.setValue(Math.max(-REVEAL_WIDTH, Math.min(0, offsetX.current + dx)));
-      },
-      onPanResponderRelease: (_, { dx, vx }) => {
-        const projected = offsetX.current + dx;
-        let toValue: number;
-        if (vx < -0.4) toValue = -REVEAL_WIDTH;
-        else if (vx > 0.4) toValue = 0;
-        else toValue = projected < -(REVEAL_WIDTH / 2) ? -REVEAL_WIDTH : 0;
-        offsetX.current = toValue;
-        Animated.spring(translateX, { toValue, useNativeDriver: true, tension: 80, friction: 10 }).start();
-      },
-      onPanResponderTerminate: () => {
-        offsetX.current = 0;
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-      },
-    })
-  ).current;
-
-  useEffect(() => {
-    offsetX.current = 0;
-    Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetSignal]);
-
+function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, currency, onPress }: RowProps) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const amountColor = tx.type === 'income' ? '#22c55e' : '#ef4444';
 
   return (
-    <View
+    <TouchableOpacity
       style={[
-        rowStyles.wrapper,
-        isFirst && rowStyles.wrapperFirst,
-        isLast && rowStyles.wrapperLast,
+        rowStyles.row,
+        isFirst && rowStyles.rowFirst,
+        isLast && rowStyles.rowLast,
+        { backgroundColor: cardBg },
+        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor },
       ]}
+      onPress={onPress}
+      activeOpacity={0.7}
     >
-      {/* Delete zone */}
-      <View style={rowStyles.deleteZone}>
-        <TouchableOpacity style={rowStyles.deleteBtn} onPress={onDeletePress}>
-          <MaterialIcons name="delete" size={22} color="#fff" />
-        </TouchableOpacity>
+      <View style={[rowStyles.icon, { backgroundColor: tx.category_color || '#6b7280' }]}>
+        <MaterialIcons name={(tx.category_icon as any) || 'attach-money'} size={18} color="#fff" />
       </View>
-
-      {/* Sliding card */}
-      <Animated.View
-        style={[rowStyles.card, { backgroundColor: cardBg, transform: [{ translateX }] }]}
-        {...panResponder.panHandlers}
-      >
-        <TouchableOpacity
-          style={[
-            rowStyles.row,
-            !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor },
-          ]}
-          onPress={onPress}
-          activeOpacity={0.7}
-        >
-          <View style={[rowStyles.icon, { backgroundColor: tx.category_color || '#6b7280' }]}>
-            <MaterialIcons name={(tx.category_icon as any) || 'attach-money'} size={18} color="#fff" />
-          </View>
-          <View style={rowStyles.info}>
-            <Text style={[rowStyles.category, { color: textColor }]}>{tx.category_name}</Text>
-            <Text style={[rowStyles.sub, { color: subTextColor }]} numberOfLines={1}>
-              {[tx.account_name, tx.note].filter(Boolean).join(' · ')}
-            </Text>
-          </View>
-          <Text style={[rowStyles.amount, { color: amountColor }]}>
-            {formatAmount(tx.amount, currency, tx.type, numberFormat)}
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
-    </View>
+      <View style={rowStyles.info}>
+        <Text style={[rowStyles.category, { color: textColor }]}>{tx.category_name}</Text>
+        <Text style={[rowStyles.sub, { color: subTextColor }]} numberOfLines={1}>
+          {[tx.account_name, tx.note].filter(Boolean).join(' · ')}
+        </Text>
+      </View>
+      <Text style={[rowStyles.amount, { color: amountColor }]}>
+        {formatAmount(tx.amount, currency, tx.type, numberFormat)}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
 const rowStyles = StyleSheet.create({
-  wrapper: {
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  wrapperFirst: {
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  wrapperLast: {
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-  },
-  deleteZone: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: REVEAL_WIDTH,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteBtn: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  card: {
-    // no borderRadius — wrapper handles clipping
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
+  rowFirst: { borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+  rowLast: { borderBottomLeftRadius: 12, borderBottomRightRadius: 12 },
   icon: {
     width: 38,
     height: 38,
@@ -418,7 +316,6 @@ export default function TransactionsScreen() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
   const [periodDate, setPeriodDate] = useState(new Date());
-  const [resetSignal, setResetSignal] = useState(0);
   const [editingTx, setEditingTx] = useState<TransactionWithDetails | null>(null);
   const [deletingTx, setDeletingTx] = useState<TransactionWithDetails | null>(null);
 
@@ -438,7 +335,7 @@ export default function TransactionsScreen() {
         setTransactions(txns);
         setAccounts(accs);
       });
-      return () => setResetSignal((s) => s + 1);
+      return () => {};
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
@@ -472,13 +369,8 @@ export default function TransactionsScreen() {
       }));
   }, [filtered]);
 
-  const handleDeletePress = useCallback((tx: TransactionWithDetails) => {
-    setDeletingTx(tx);
-  }, []);
-
   const handleDeleteCancel = useCallback(() => {
     setDeletingTx(null);
-    setResetSignal((s) => s + 1);
   }, []);
 
   const handleDeleteConfirm = useCallback(async () => {
@@ -588,19 +480,16 @@ export default function TransactionsScreen() {
             </View>
           )}
           renderItem={({ item, index, section }) => (
-            <SwipeableTransactionRow
+            <TransactionRow
               tx={item}
               isFirst={index === 0}
               isLast={index === section.data.length - 1}
-              resetSignal={resetSignal}
-              isDark={isDark}
               cardBg={cardBg}
               borderColor={borderColor}
               textColor={textColor}
               subTextColor={subTextColor}
               currency={currency}
               onPress={() => setEditingTx(item)}
-              onDeletePress={() => handleDeletePress(item)}
             />
           )}
         />
@@ -610,6 +499,7 @@ export default function TransactionsScreen() {
         isOpen={editingTx !== null}
         onClose={() => setEditingTx(null)}
         transaction={editingTx}
+        onDelete={() => { const tx = editingTx; setEditingTx(null); setDeletingTx(tx); }}
       />
 
       <DeleteTxModal
