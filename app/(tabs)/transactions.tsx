@@ -12,7 +12,6 @@ import { useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/components/Themed';
 import AddTransactionSheet from '@/components/AddTransactionSheet';
-import AccountIcon from '@/components/AccountIcon';
 import {
   PeriodSelector,
   getDateRange,
@@ -22,6 +21,7 @@ import { useAccountsDb, useTransactionsDb } from '@/db';
 import { useAccountsStore } from '@/store/useAccountsStore';
 import { useTransactionsStore } from '@/store/useTransactionsStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { useUIStore } from '@/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
 import type { TransactionWithDetails } from '@/types';
@@ -313,8 +313,7 @@ export default function TransactionsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const selectedId = useUIStore((s) => s.selectedAccountId);
   const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
   const [periodDate, setPeriodDate] = useState(new Date());
   const [editingTx, setEditingTx] = useState<TransactionWithDetails | null>(null);
@@ -384,77 +383,18 @@ export default function TransactionsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deletingTx]);
 
-  const selectedAccount = accounts.find((a) => a.id === selectedId) ?? null;
-
   const { bg, cardBg, textColor, subColor: subTextColor, borderColor } = getColors(isDark);
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
-      {/* Period + account selector bar */}
+      {/* Period selector */}
       <View style={[styles.periodBar, { backgroundColor: bg, borderBottomColor: borderColor }]}>
         <PeriodSelector
           mode={periodMode}
           date={periodDate}
           onChange={(m, d) => { setPeriodMode(m); setPeriodDate(d); }}
         />
-        <TouchableOpacity
-          style={styles.headerAccountBtn}
-          onPress={() => setDropdownOpen((v) => !v)}
-          activeOpacity={0.7}
-        >
-          {selectedAccount ? (
-            <View style={[styles.dropdownIcon, { backgroundColor: selectedAccount.color ?? '#55A3FF' }]}>
-              <AccountIcon name={selectedAccount.icon ?? 'account-balance-wallet'} size={12} color="#fff" />
-            </View>
-          ) : (
-            <MaterialIcons name="layers" size={16} color={accentColor} />
-          )}
-          <Text style={[styles.headerAccountLabel, { color: textColor }]} numberOfLines={1}>
-            {selectedAccount ? selectedAccount.name : 'All'}
-          </Text>
-          <MaterialIcons name="expand-more" size={16} color={subTextColor} />
-        </TouchableOpacity>
       </View>
-
-      {/* Account dropdown overlay */}
-      {dropdownOpen && (
-        <>
-          <Pressable
-            style={[StyleSheet.absoluteFill, { zIndex: 40 }]}
-            onPress={() => setDropdownOpen(false)}
-          />
-          <View style={[styles.dropdown, { backgroundColor: cardBg, borderColor, zIndex: 50 }]}>
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => { setSelectedId(null); setDropdownOpen(false); }}
-            >
-              <MaterialIcons name="layers" size={18} color={accentColor} />
-              <Text style={[styles.dropdownItemText, { color: selectedId === null ? accentColor : textColor }]}>
-                All Accounts
-              </Text>
-              {selectedId === null && <MaterialIcons name="check" size={18} color={accentColor} />}
-            </TouchableOpacity>
-            {accounts.map((acc) => (
-              <TouchableOpacity
-                key={acc.id}
-                style={styles.dropdownItem}
-                onPress={() => { setSelectedId(acc.id); setDropdownOpen(false); }}
-              >
-                <View style={[styles.dropdownIcon, { backgroundColor: acc.color ?? '#55A3FF' }]}>
-                  <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={13} color="#fff" />
-                </View>
-                <Text
-                  style={[styles.dropdownItemText, { color: selectedId === acc.id ? accentColor : textColor }]}
-                  numberOfLines={1}
-                >
-                  {acc.name}
-                </Text>
-                {selectedId === acc.id && <MaterialIcons name="check" size={18} color={accentColor} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </>
-      )}
 
       {/* Content */}
       {filtered.length === 0 ? (
@@ -517,54 +457,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
 
   periodBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
     zIndex: 10,
-  },
-  headerAccountBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingRight: 16,
-  },
-  headerAccountLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    maxWidth: 90,
-  },
-  dropdownIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dropdown: {
-    position: 'absolute',
-    top: 0,
-    right: 8,
-    minWidth: 180,
-    borderRadius: 12,
-    borderWidth: 1,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    overflow: 'hidden',
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  dropdownItemText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '500',
   },
 
   listContent: {

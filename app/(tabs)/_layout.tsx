@@ -1,14 +1,16 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Animated, BackHandler, Dimensions, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, BackHandler, Dimensions, PanResponder, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useSegments, withLayoutContext } from 'expo-router';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import AccountIcon from '@/components/AccountIcon';
 import AddTransactionSheet from '@/components/AddTransactionSheet';
 import SettingsScreen from '@/components/SettingsScreen';
 import { useUIStore } from '@/store/useUIStore';
+import { useAccountsStore } from '@/store/useAccountsStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { getColors } from '@/constants/theme';
 
@@ -159,11 +161,15 @@ export default function TabLayout() {
   const openAddTx = useUIStore((s) => s.openAddTx);
   const isAddTxOpen = useUIStore((s) => s.isAddTxOpen);
   const closeAddTx = useUIStore((s) => s.closeAddTx);
+  const selectedAccountId = useUIStore((s) => s.selectedAccountId);
+  const setSelectedAccountId = useUIStore((s) => s.setSelectedAccountId);
+  const accounts = useAccountsStore((s) => s.accounts);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const segments = useSegments();
   const currentTab = segments[segments.length - 1];
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const settingsTranslateX = useRef(new Animated.Value(SCREEN_WIDTH)).current;
   const settingsOpenRef = useRef(false);
   const closeSettingsRef = useRef<() => void>(() => {});
@@ -193,15 +199,68 @@ export default function TabLayout() {
   const fabBottom = TAB_BAR_HEIGHT + insets.bottom + 12;
 
   const currentTitle = TABS.find((t) => t.name === currentTab)?.title ?? "It's a My Money!";
+  const showAccountFilter = currentTab !== 'accounts';
+  const selectedAccount = accounts.find((a) => a.id === selectedAccountId) ?? null;
 
   return (
     <View style={{ flex: 1, backgroundColor: bg, paddingTop: insets.top }}>
       <View style={[styles.header, { backgroundColor: bg, borderBottomColor: borderColor }]}>
         <Text style={[styles.headerTitle, { color: textColor }]}>{currentTitle}</Text>
-        <TouchableOpacity onPress={openSettings} hitSlop={8}>
-          <MaterialIcons name="settings" size={24} color={textColor} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {showAccountFilter && (
+            <TouchableOpacity
+              style={styles.accountBtn}
+              onPress={() => setAccountDropdownOpen((v) => !v)}
+              hitSlop={8}
+              activeOpacity={0.7}
+            >
+              {selectedAccount ? (
+                <View style={[styles.accountBtnIcon, { backgroundColor: selectedAccount.color ?? '#55A3FF' }]}>
+                  <AccountIcon name={selectedAccount.icon ?? 'account-balance-wallet'} size={11} color="#fff" />
+                </View>
+              ) : (
+                <MaterialIcons name="layers" size={20} color={textColor} />
+              )}
+              <MaterialIcons name="expand-more" size={16} color={textColor} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={openSettings} hitSlop={8}>
+            <MaterialIcons name="settings" size={24} color={textColor} />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Account dropdown */}
+      {accountDropdownOpen && (
+        <>
+          <Pressable style={[StyleSheet.absoluteFill, { zIndex: 40, top: HEADER_HEIGHT }]} onPress={() => setAccountDropdownOpen(false)} />
+          <View style={[styles.accountDropdown, { backgroundColor: bg, borderColor, zIndex: 50, top: HEADER_HEIGHT }]}>
+            <TouchableOpacity
+              style={[styles.accountDropdownItem, { borderBottomColor: borderColor }]}
+              onPress={() => { setSelectedAccountId(null); setAccountDropdownOpen(false); }}
+            >
+              <MaterialIcons name="layers" size={18} color={accentColor} />
+              <Text style={[styles.accountDropdownText, { color: selectedAccountId === null ? accentColor : textColor }]}>All Accounts</Text>
+              {selectedAccountId === null && <MaterialIcons name="check" size={18} color={accentColor} />}
+            </TouchableOpacity>
+            {accounts.map((acc) => (
+              <TouchableOpacity
+                key={acc.id}
+                style={[styles.accountDropdownItem, { borderBottomColor: borderColor }]}
+                onPress={() => { setSelectedAccountId(acc.id); setAccountDropdownOpen(false); }}
+              >
+                <View style={[styles.accountBtnIcon, { backgroundColor: acc.color ?? '#55A3FF' }]}>
+                  <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={13} color="#fff" />
+                </View>
+                <Text style={[styles.accountDropdownText, { color: selectedAccountId === acc.id ? accentColor : textColor }]} numberOfLines={1}>
+                  {acc.name}
+                </Text>
+                {selectedAccountId === acc.id && <MaterialIcons name="check" size={18} color={accentColor} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
       <MaterialTabs
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         renderPager={(props: any) => <CustomPager {...props} />}
@@ -272,6 +331,50 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
+    flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  accountBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  accountBtnIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountDropdown: {
+    position: 'absolute',
+    right: 8,
+    minWidth: 200,
+    borderRadius: 12,
+    borderWidth: 1,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    overflow: 'hidden',
+  },
+  accountDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  accountDropdownText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
   },
   tabBar: {
     flexDirection: 'row',
