@@ -42,9 +42,15 @@ export const sheetStyles = StyleSheet.create({
   // Date picker
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 12 },
   dateText: { flex: 1, fontSize: 14 },
-  datePickerCard: { borderRadius: 12, borderWidth: 1, overflow: 'hidden', marginBottom: 16 },
-  datePicker: { alignSelf: 'center' },
-  datePickerDone: { paddingVertical: 13, alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth },
+  datePickerModal: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  datePickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+  datePickerDialog: { borderRadius: 16, overflow: 'hidden', width: 340 },
+  datePickerYearChip: { flexDirection: 'row', justifyContent: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  datePickerYearChipBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+  datePickerYearHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  datePickerYearGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 8 },
+  datePickerYearItem: { width: '25%', paddingVertical: 10, alignItems: 'center', borderRadius: 8, marginVertical: 2 },
+  datePickerFooter: { alignItems: 'center', paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth },
 
   // Text inputs
   noteInput: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, marginBottom: 16 },

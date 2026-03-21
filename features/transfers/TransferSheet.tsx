@@ -5,7 +5,6 @@ import {
   Dimensions,
   Modal,
   PanResponder,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,8 +14,8 @@ import {
   View,
 } from 'react-native';
 
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { MaterialIcons } from '@expo/vector-icons';
+import DatePickerField from '@/shared/components/DatePickerField';
 import { Text } from '@/shared/components/Themed';
 import AccountIcon from '@/shared/components/AccountIcon';
 import { useTransfersDb } from '@/db';
@@ -39,14 +38,7 @@ function toLocalDateString(d: Date): string {
 
 const today = () => toLocalDateString(new Date());
 
-function formatDisplayDate(dateStr: string): string {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
+
 
 interface Props {
   isOpen: boolean;
@@ -72,7 +64,6 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   const [toAccountId, setToAccountId] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [date, setDate] = useState(today());
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [attempted, setAttempted] = useState(false);
 
   useEffect(() => {
@@ -95,10 +86,6 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, transfer]);
 
-  const handleDateChange = useCallback((_: DateTimePickerEvent, selected?: Date) => {
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    if (selected) setDate(toLocalDateString(selected));
-  }, []);
 
   const saveTransfer = useCallback(async (parsedAmount: number) => {
     if (transfer) {
@@ -199,7 +186,6 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     onPanResponderTerminate: () => snapBack(),
   })).current;
 
-  const dateValue = new Date(date + 'T00:00:00');
 
   return (
     <Modal
@@ -344,46 +330,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
 
             {/* Date */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Date</Text>
-            <TouchableOpacity
-              style={[styles.dateRow, { backgroundColor: inputBg, borderColor }]}
-              onPress={() => setShowDatePicker((v) => !v)}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons name="calendar-today" size={18} color={subTextColor} />
-              <Text style={[styles.dateText, { color: textColor }]}>{formatDisplayDate(date)}</Text>
-              <MaterialIcons
-                name={showDatePicker && Platform.OS === 'ios' ? 'expand-less' : 'expand-more'}
-                size={20}
-                color={subTextColor}
-              />
-            </TouchableOpacity>
-
-            {showDatePicker && Platform.OS === 'ios' && (
-              <View style={[styles.datePickerCard, { backgroundColor: inputBg, borderColor }]}>
-                <DateTimePicker
-                  value={dateValue}
-                  mode="date"
-                  display="inline"
-                  onChange={handleDateChange}
-                  style={styles.datePicker}
-                />
-                <TouchableOpacity
-                  style={[styles.datePickerDone, { borderTopColor: borderColor }]}
-                  onPress={() => setShowDatePicker(false)}
-                >
-                  <Text style={{ color: accentColor, fontWeight: '600', fontSize: 15 }}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {showDatePicker && Platform.OS === 'android' && (
-              <DateTimePicker
-                value={dateValue}
-                mode="date"
-                display="default"
-                onChange={handleDateChange}
-              />
-            )}
+            <DatePickerField date={date} onChange={setDate} />
 
             {/* Note */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Note (optional)</Text>

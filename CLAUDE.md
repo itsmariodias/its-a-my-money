@@ -11,6 +11,26 @@ Built with Expo (managed workflow), TypeScript, expo-router, and SQLite for full
 
 - **Never commit without explicit permission.** Do not run `git commit` unless the user explicitly asks to commit.
 
+## Code Principles
+
+### Deduplication and Reusability
+
+**This is the most important principle in this codebase.** Before writing any new code, check if the same logic or UI already exists. If two or more components share the same behavior, extract it into a shared module.
+
+- **Shared UI components** go in `shared/components/` (e.g., `DatePickerField`, `AccountIcon`, `PeriodSelector`).
+- **Shared styles** go in `constants/sheetStyles.ts` — do not duplicate any style that already exists there.
+- **Shared types** go in `types/index.ts`.
+- **Shared store logic** goes in `shared/store/`.
+
+When adding a feature, always ask: "Does another component already do something similar?" If yes, extract the common part first, then use it in both places. Three similar lines duplicated across files is a signal to extract, not to copy-paste.
+
+### Keep Code Simple
+
+- Prefer flat, readable code over clever abstractions.
+- Inline styles only for dynamic values (accentColor, isDark). Static styles go in `StyleSheet.create`.
+- Avoid deeply nested ternaries — extract into small helper components or early returns.
+- Name things clearly. If a function name needs a comment to explain it, rename the function.
+
 ## Commands
 
 ```bash
@@ -43,64 +63,113 @@ pnpm tsc --noEmit
 
 ### Stack
 - **Jest** with `ts-jest` preset — configured in `jest.config.js`
-- Tests live in `__tests__/` at the project root, named `*.test.ts`
+- Tests are **co-located** with their source files, named `*.test.ts` (e.g., `features/accounts/useAccountsStore.test.ts`)
 - Mock for `expo-sqlite` in `__mocks__/expo-sqlite.ts` (auto-discovered by Jest)
 
 ### Strategy
-- **BDD / Given-When-Then**: Every test follows scenario-based structure
-- **Pure logic first**: `formatAmount`, `getColors`, `isValidExport`, Zustand stores
-- **DB hooks via mock**: Verify SQL + parameter correctness without real SQLite
-- **No component rendering tests**: We test logic and data, not UI
+- **BDD / Given-When-Then**: Every test follows scenario-based structure. Each `it()` block reads like a user story.
+- **Pure logic first**: Test utility functions (`formatAmount`, `getColors`, `isValidExport`) and Zustand store reducers directly — these are the easiest to test and the most valuable to protect.
+- **DB hooks via mock**: Verify that the correct SQL statements and parameters are sent to SQLite, without running a real database. The mock in `__mocks__/expo-sqlite.ts` captures all calls.
+- **No component rendering tests**: We test logic and data, not UI. No React test renderer, no `@testing-library/react-native`.
+
+### Why This Strategy
+The app is local-first with all business logic in pure functions and Zustand stores. Testing at this layer catches real bugs (wrong SQL, incorrect state transitions, formatting errors) without the brittleness of UI snapshot tests. If a store function computes the wrong balance or a DB hook sends the wrong query, these tests catch it.
 
 ### Adding Tests
-1. Create `__tests__/feature-name.test.ts`
+1. Create `feature-name.test.ts` **next to the source file** it tests (co-located, not in a separate `__tests__/` directory)
 2. Use `describe` for features, `it` for scenarios with Given/When/Then comments
 3. For DB hook tests, import mock and clear between tests with `jest.clearAllMocks()`
 4. Reset Zustand stores in `beforeEach` with `store.setState(initialState)`
+
+### Test File Locations
+```
+constants/currencies.test.ts          # formatAmount, getCurrencySymbol
+constants/theme.test.ts               # getColors, ACCENT_COLORS
+db/index.test.ts                      # DB hook SQL verification
+features/accounts/useAccountsStore.test.ts
+features/transactions/useTransactionsStore.test.ts
+features/transfers/useTransfersStore.test.ts
+features/settings/useSettingsStore.test.ts
+features/settings/validation.test.ts
+shared/store/useUIStore.test.ts
+```
 
 ## Architecture
 
 ### Tech Stack
 - **Expo** (managed workflow) + **expo-router** (file-based routing)
 - **expo-sqlite** — local SQLite database, all data on-device, no backend
+- **react-native-calendars** — cross-platform date picker (shared `DatePickerField` component)
+- **react-native-gifted-charts** — charts on the dashboard
 - **Zustand** — global state management
 - **pnpm** — package manager
 - **TypeScript** throughout
 
 ### Directory Structure
 ```
-app/                     # expo-router screens (file-based routing)
-  (tabs)/                # Bottom tab navigator (Dashboard, Transactions, Accounts, Settings)
-  (tabs)/_layout.tsx     # Tab layout — expandable FAB, sheets, tab swipe gesture, account filter
-  _layout.tsx            # Root layout — wraps app in SQLiteProvider, runs migrations
-components/              # Reusable UI components
-  AddTransactionSheet.tsx
-  TransferSheet.tsx
-  AccountFormSheet.tsx
-  CategoryFormSheet.tsx
-  PeriodSelector.tsx
-db/
-  index.ts               # Query helper hooks (useAccountsDb, useTransactionsDb, useTransfersDb, etc.)
-  migrations.ts          # Migration runner — reads from db/migrations/
-  migrations/            # Versioned migration files (001_initial.ts, ...)
-store/
-  useAccountsStore.ts    # Zustand store for accounts
-  useTransactionsStore.ts
-  useTransfersStore.ts   # Zustand store for transfers
-  useSettingsStore.ts    # currency, accentColor, numberFormat
-  useUIStore.ts          # isAddTxOpen, openAddTx, isTransferOpen, openTransfer, selectedAccountId
-types/
-  index.ts               # All shared TypeScript interfaces (Account, Transaction, Transfer, etc.)
-utils/
-  monefy/                # Monefy backup CSV parser (stub)
+app/                                  # expo-router screens (file-based routing)
+  (tabs)/                             # Bottom tab navigator
+    _layout.tsx                       # Tab layout — FAB, sheets, tab swipe, header, account filter
+    index.tsx                         # Dashboard screen
+    transactions.tsx                  # Transactions list screen
+    accounts.tsx                      # Accounts list screen
+  _layout.tsx                         # Root layout — SQLiteProvider, migrations
+
+features/                             # Feature modules (screens + logic co-located)
+  accounts/
+    AccountFormSheet.tsx              # Create/edit account bottom sheet
+    useAccountsStore.ts              # Zustand store
+    useAccountsStore.test.ts
+  transactions/
+    AddTransactionSheet.tsx           # Create/edit transaction bottom sheet
+    CategoryFormSheet.tsx             # Create/edit category bottom sheet
+    useTransactionsStore.ts
+    useTransactionsStore.test.ts
+  transfers/
+    TransferSheet.tsx                 # Create/edit transfer bottom sheet
+    useTransfersStore.ts
+    useTransfersStore.test.ts
+  settings/
+    SettingsScreen.tsx                # Settings overlay
+    useSettingsStore.ts
+    useSettingsStore.test.ts
+    validation.ts                     # Export validation helpers
+    validation.test.ts
+    monefy/                           # Monefy backup CSV parser (stub)
+
+shared/                               # Cross-feature reusable code
+  components/
+    DatePickerField.tsx               # Calendar date picker popup (used by transaction + transfer sheets)
+    AccountIcon.tsx                   # Account icon renderer
+    PeriodSelector.tsx                # Month/year period navigation
+    Themed.tsx                        # Theme-aware Text/View wrappers
+  store/
+    useUIStore.ts                     # UI state (open sheets, selected account filter)
+    useUIStore.test.ts
+
 constants/
-  currencies.ts          # formatAmount(), NUMBER_FORMATS, getCurrencySymbol()
-  theme.ts               # getColors(), ACCENT_COLORS
-assets/                  # Images and fonts
+  currencies.ts                       # formatAmount(), NUMBER_FORMATS, getCurrencySymbol()
+  currencies.test.ts
+  theme.ts                            # getColors(), ACCENT_COLORS, sheetErrorText
+  theme.test.ts
+  sheetStyles.ts                      # Shared bottom sheet + date picker styles
+
+db/
+  index.ts                            # Query helper hooks (useAccountsDb, useTransactionsDb, etc.)
+  index.test.ts
+  migrations.ts                       # Migration runner
+  migrations/                         # Versioned migration files (001_initial.ts, ...)
+
+types/
+  index.ts                            # All shared TypeScript interfaces
+
+__mocks__/
+  expo-sqlite.ts                      # Jest mock for expo-sqlite
+
 .github/
   workflows/
-    ci.yml               # Lint + type-check on push/PR
-    build-android.yml    # Signed APK build on GitHub release publish
+    ci.yml                            # Lint + type-check on push/PR
+    build-android.yml                 # Signed APK build on GitHub release publish
 ```
 
 ### Data Layer
@@ -121,7 +190,7 @@ New migrations go in `db/migrations/` as `NNN_description.ts` exporting an `up(d
 expo-router with a bottom tab layout (`app/(tabs)/`). Tabs support horizontal swipe via a `PanResponder` in `_layout.tsx`. Modals and detail screens are stacked above the tab navigator.
 
 ### FAB (Floating Action Button)
-A single expandable speed-dial FAB lives in `app/(tabs)/_layout.tsx`. Tapping it expands to two labeled options: **Transaction** and **Transfer**. Tapping either opens the corresponding sheet and collapses the menu. A dimmed backdrop closes the menu on tap. The FAB icon rotates 45° (→ ×) when expanded. Hidden when the settings overlay is open.
+A single expandable speed-dial FAB lives in `app/(tabs)/_layout.tsx`. Tapping it expands to two labeled options: **Transaction** and **Transfer**. Tapping either opens the corresponding sheet and collapses the menu. A dimmed backdrop closes the menu on tap. The FAB icon rotates 45 degrees when expanded. Hidden when the settings overlay is open.
 
 ### Bottom Sheets
 All sheets (`AddTransactionSheet`, `TransferSheet`, `AccountFormSheet`, `CategoryFormSheet`) share the same animation pattern:
@@ -131,6 +200,16 @@ All sheets (`AddTransactionSheet`, `TransferSheet`, `AccountFormSheet`, `Categor
 - `ScrollView` uses `automaticallyAdjustKeyboardInsets` for keyboard avoidance (no `KeyboardAvoidingView`)
 - Outer container is a plain `View` with `justifyContent: 'flex-end'` — the sheet never moves when the keyboard opens
 - "Save & Add Another" resets only `amount` and `note`, preserving other fields
+
+### Shared Components
+
+Components used by multiple features live in `shared/components/`. If you find yourself copying UI logic between two sheets or screens, stop and extract it into a shared component.
+
+Current shared components:
+- **`DatePickerField`** — calendar date picker rendered as a modal popup. Includes month navigation, a year picker grid (years from 1977), and full theme support. Used by both `AddTransactionSheet` and `TransferSheet`. Accepts `date` (YYYY-MM-DD string) and `onChange` callback.
+- **`AccountIcon`** — renders account icons consistently across all screens.
+- **`PeriodSelector`** — month/year navigation used on Dashboard and Transactions.
+- **`Themed`** — theme-aware `Text` and `View` wrappers.
 
 ### State Management
 Zustand stores hold in-memory app state derived from the DB. DB writes always happen first, then stores are updated. Stores are not persisted — they are populated from SQLite on startup.
@@ -148,7 +227,7 @@ User preferences are persisted in SQLite (`settings` table, key-value) and synce
 Dynamic values (accentColor, etc.) cannot go in `StyleSheet.create` — use inline style overrides: `[styles.foo, { color: accentColor }]`.
 
 ### Shared Sheet Styles
-All bottom sheet components share a common style library in `constants/sheetStyles.ts`. It exports `sheetStyles` — a `StyleSheet.create` object covering ~35 styles: modal structure, labels, amount input, type toggle, account picker, date picker, text inputs, color/icon pickers, and action buttons.
+All bottom sheet components share a common style library in `constants/sheetStyles.ts`. It exports `sheetStyles` — a `StyleSheet.create` object covering modal structure, labels, amount input, type toggle, account picker, date picker modal + year picker, text inputs, color/icon pickers, and action buttons.
 
 Usage pattern in every sheet:
 ```tsx
@@ -189,4 +268,4 @@ The workflow job requires `permissions: contents: write` to upload to releases.
 
 ## Monefy Migration
 
-The Monefy backup format is a password-protected ZIP containing a CSV. Parser stub lives in `utils/monefy/`.
+The Monefy backup format is a password-protected ZIP containing a CSV. Parser stub lives in `features/settings/monefy/`.
