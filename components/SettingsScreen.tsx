@@ -14,14 +14,19 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
+import * as LegacyFS from 'expo-file-system/legacy';
 import { Text } from '@/components/Themed';
-import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb } from '@/db';
+import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb } from '@/db';
+import type { ExportData } from '@/db';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useAccountsStore } from '@/store/useAccountsStore';
 import { useTransactionsStore } from '@/store/useTransactionsStore';
+import { useTransfersStore } from '@/store/useTransfersStore';
 import CategoryFormSheet from '@/components/CategoryFormSheet';
 import { CURRENCIES, NUMBER_FORMATS, getCurrencyByCode } from '@/constants/currencies';
 import { ACCENT_COLORS, getColors } from '@/constants/theme';
+import Constants from 'expo-constants';
 import type { Category } from '@/types';
 
 // ─── Category row ─────────────────────────────────────────────────────────────
@@ -99,6 +104,20 @@ function DeleteCategoryModal({
   );
 }
 
+// ─── Validation ───────────────────────────────────────────────────────────────
+
+function isValidExport(data: unknown): data is ExportData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  return (
+    d.version === 1 &&
+    Array.isArray(d.accounts) &&
+    Array.isArray(d.categories) &&
+    Array.isArray(d.transactions) &&
+    Array.isArray(d.transfers)
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
@@ -111,6 +130,8 @@ export default function SettingsScreen() {
   const transactionsDb = useTransactionsDb();
   const accountsDb = useAccountsDb();
   const resetDb = useResetDb();
+  const transfersDb = useTransfersDb();
+  const importDb = useImportDb();
 
   const currency = useSettingsStore((s) => s.currency);
   const setCurrency = useSettingsStore((s) => s.setCurrency);
@@ -120,8 +141,12 @@ export default function SettingsScreen() {
   const setNumberFormat = useSettingsStore((s) => s.setNumberFormat);
   const setAccounts = useAccountsStore((s) => s.setAccounts);
   const setTransactions = useTransactionsStore((s) => s.setTransactions);
+  const setTransfers = useTransfersStore((s) => s.setTransfers);
 
   const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [importConfirmData, setImportConfirmData] = useState<ExportData | null>(null);
+  const [importRestoreSettings, setImportRestoreSettings] = useState(true);
+  const [infoModal, setInfoModal] = useState<{ icon: string; iconColor: string; title: string; message: string } | null>(null);
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [activeType, setActiveType] = useState<'expense' | 'income'>('expense');
   const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
@@ -187,19 +212,113 @@ export default function SettingsScreen() {
 
   const handleExport = async () => {
     try {
-      const [accounts, categories, transactions] = await Promise.all([
-        accountsDb.getAll(), categoriesDb.getAll(), transactionsDb.getAll(),
+      const [accounts, categories, rawTxns, rawTransfers] = await Promise.all([
+        accountsDb.getAll(),
+        categoriesDb.getAll(),
+        transactionsDb.getAll(),
+        transfersDb.getAll(),
       ]);
-      const data = JSON.stringify({ accounts, categories, transactions }, null, 2);
+
+      const transactions = rawTxns.map(({ id, amount, type, category_id, account_id, note, date, created_at }) =>
+        ({ id, amount, type, category_id, account_id, note, date, created_at })
+      );
+      const transfers = rawTransfers.map(({ id, from_account_id, to_account_id, amount, note, date, created_at }) =>
+        ({ id, from_account_id, to_account_id, amount, note, date, created_at })
+      );
+
+      const [currencyRow, accentRow, formatRow] = await Promise.all([
+        settingsDb.get('currency'),
+        settingsDb.get('accent_color'),
+        settingsDb.get('number_format'),
+      ]);
+
+      const data = JSON.stringify({
+        version: 1,
+        exported_at: new Date().toISOString(),
+        accounts,
+        categories,
+        transactions,
+        transfers,
+        settings: {
+          currency: currencyRow?.value ?? 'USD',
+          accent_color: accentRow?.value ?? null,
+          number_format: formatRow?.value ?? 'en-US',
+        },
+      }, null, 2);
+
       const filename = `its-a-my-money-${new Date().toISOString().split('T')[0]}.json`;
-      const file = new File(Paths.cache, filename);
-      file.write(data);
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Export Data' });
+
+      if (Platform.OS === 'android') {
+        const permissions = await LegacyFS.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!permissions.granted) return;
+        const fileUri = await LegacyFS.StorageAccessFramework.createFileAsync(
+          permissions.directoryUri, filename, 'application/json'
+        );
+        await LegacyFS.writeAsStringAsync(fileUri, data, { encoding: LegacyFS.EncodingType.UTF8 });
+        setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Export Successful', message: 'File saved to your chosen location.' });
       } else {
-        Alert.alert('Sharing not available', 'Your device does not support sharing files.');
+        const file = new File(Paths.cache, filename);
+        await file.write(data);
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Save backup' });
+        } else {
+          setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Sharing Unavailable', message: 'Your device does not support sharing files.' });
+        }
       }
-    } catch { Alert.alert('Export failed', 'Could not export data.'); }
+    } catch { setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Export Failed', message: 'Could not export data.' }); }
+  };
+
+  const handleImport = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/json', 'public.json'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+
+      const text = await LegacyFS.readAsStringAsync(result.assets[0].uri);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Invalid File', message: 'The selected file is not valid JSON.' });
+        return;
+      }
+
+      if (!isValidExport(parsed)) {
+        setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Invalid Backup', message: 'The file does not appear to be a valid Its a My Money backup.' });
+        return;
+      }
+
+      setImportRestoreSettings(true);
+      setImportConfirmData(parsed);
+    } catch {
+      setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Import Failed', message: 'Could not read the selected file.' });
+    }
+  };
+
+  const doImport = async (data: ExportData) => {
+    setImportConfirmData(null);
+    try {
+      await importDb.importAll(data);
+      const [accs, txns, trfs] = await Promise.all([
+        accountsDb.getAll(),
+        transactionsDb.getAll(),
+        transfersDb.getAll(),
+      ]);
+      setAccounts(accs);
+      setTransactions(txns);
+      setTransfers(trfs);
+      if (importRestoreSettings && data.settings) {
+        if (data.settings.currency) { await settingsDb.set('currency', data.settings.currency); setCurrency(data.settings.currency); }
+        if (data.settings.accent_color) { await settingsDb.set('accent_color', data.settings.accent_color); setAccentColor(data.settings.accent_color); }
+        if (data.settings.number_format) { await settingsDb.set('number_format', data.settings.number_format); setNumberFormat(data.settings.number_format); }
+      }
+      await loadCategories();
+      setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Import Successful', message: 'Your data has been restored.' });
+    } catch {
+      setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Import Failed', message: 'Could not import the backup.' });
+    }
   };
 
   const handleReset = async () => {
@@ -209,8 +328,11 @@ export default function SettingsScreen() {
       setAccounts(accs);
       setTransactions(txns);
       setCurrency('USD');
+      setAccentColor('#2f95dc');
+      setNumberFormat('en-US');
       await loadCategories();
       setResetModalOpen(false);
+      setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Reset Successful', message: 'All data has been cleared and the app restored to its default state.' });
     } catch { Alert.alert('Error', 'Failed to reset app data.'); }
   };
 
@@ -300,6 +422,15 @@ export default function SettingsScreen() {
             <Text style={[styles.rowValue, { color: subColor }]}>JSON</Text>
             <MaterialIcons name="chevron-right" size={20} color={subColor} />
           </TouchableOpacity>
+          <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
+          <TouchableOpacity style={styles.row} onPress={handleImport} activeOpacity={0.7}>
+            <View style={[styles.rowIcon, { backgroundColor: '#3b82f620' }]}>
+              <MaterialIcons name="file-upload" size={20} color="#3b82f6" />
+            </View>
+            <Text style={[styles.rowLabel, { color: textColor }]}>Import Data</Text>
+            <Text style={[styles.rowValue, { color: subColor }]}>JSON</Text>
+            <MaterialIcons name="chevron-right" size={20} color={subColor} />
+          </TouchableOpacity>
         </View>
 
         <Text style={[styles.sectionLabel, { color: '#ef4444' }]}>Danger Zone</Text>
@@ -315,7 +446,7 @@ export default function SettingsScreen() {
 
         <View style={styles.appInfo}>
           <Text style={[styles.appName, { color: subColor }]}>It's a My Money</Text>
-          <Text style={[styles.appVersion, { color: isDark ? '#3a4a6e' : '#d1d5db' }]}>v1.0.0</Text>
+          <Text style={[styles.appVersion, { color: isDark ? '#3a4a6e' : '#d1d5db' }]}>v{Constants.expoConfig?.version}</Text>
           <Text style={[styles.appCredit, { color: isDark ? '#3a4a6e' : '#d1d5db' }]}>
             by @itsmariodias · vibe coded with Claude Code
           </Text>
@@ -343,6 +474,78 @@ export default function SettingsScreen() {
               <View style={[styles.modalBtnDivider, { backgroundColor: borderColor }]} />
               <TouchableOpacity style={styles.modalBtnDelete} onPress={handleReset}>
                 <Text style={styles.modalBtnDeleteText}>Reset</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Import confirm modal */}
+      <Modal visible={!!importConfirmData} animationType="fade" transparent onRequestClose={() => setImportConfirmData(null)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setImportConfirmData(null)} />
+        <View style={styles.modalCenter} pointerEvents="box-none">
+          <View style={[styles.modalCard, { backgroundColor: cardBg }]}>
+            <View style={[styles.modalIconWrap, { backgroundColor: '#3b82f620' }]}>
+              <MaterialIcons name="file-upload" size={32} color="#3b82f6" />
+            </View>
+            <Text style={[styles.modalTitle, { color: textColor }]}>Import Backup?</Text>
+            <Text style={[styles.resetWarningText, { color: subColor }]}>
+              This will replace all current data with the imported backup.
+            </Text>
+            {importConfirmData && (
+              <View style={[styles.importSummary, { backgroundColor: inputBg }]}>
+                <Text style={[styles.importSummaryItem, { color: textColor }]}>
+                  {importConfirmData.accounts.length} accounts · {importConfirmData.categories.length} categories
+                </Text>
+                <Text style={[styles.importSummaryItem, { color: subColor }]}>
+                  {importConfirmData.transactions.length} transactions · {importConfirmData.transfers.length} transfers
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.importSettingsRow, { backgroundColor: inputBg }]}
+              onPress={() => setImportRestoreSettings((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons
+                name={importRestoreSettings ? 'check-box' : 'check-box-outline-blank'}
+                size={22}
+                color={importRestoreSettings ? accentColor : subColor}
+              />
+              <Text style={[styles.importSettingsLabel, { color: textColor }]}>Restore preferences</Text>
+            </TouchableOpacity>
+            <View style={[styles.modalWarn, { backgroundColor: isDark ? '#2d2000' : '#fffbeb' }]}>
+              <MaterialIcons name="warning" size={14} color="#f59e0b" />
+              <Text style={[styles.modalWarnText, { color: '#f59e0b' }]}>This cannot be undone.</Text>
+            </View>
+            <View style={[styles.modalDivider, { backgroundColor: borderColor }]} />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setImportConfirmData(null)}>
+                <Text style={[styles.modalBtnCancelText, { color: subColor }]}>Cancel</Text>
+              </TouchableOpacity>
+              <View style={[styles.modalBtnDivider, { backgroundColor: borderColor }]} />
+              <TouchableOpacity style={styles.modalBtnDelete} onPress={() => importConfirmData && doImport(importConfirmData)}>
+                <Text style={styles.modalBtnDeleteText}>Import</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Info modal (success / error) */}
+      <Modal visible={!!infoModal} animationType="fade" transparent onRequestClose={() => setInfoModal(null)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setInfoModal(null)} />
+        <View style={styles.modalCenter} pointerEvents="box-none">
+          <View style={[styles.modalCard, { backgroundColor: cardBg }]}>
+            <View style={[styles.modalIconWrap, { backgroundColor: infoModal ? infoModal.iconColor + '20' : 'transparent' }]}>
+              <MaterialIcons name={(infoModal?.icon ?? 'info') as any} size={32} color={infoModal?.iconColor} />
+            </View>
+            <Text style={[styles.modalTitle, { color: textColor }]}>{infoModal?.title}</Text>
+            <Text style={[styles.resetWarningText, { color: subColor }]}>{infoModal?.message}</Text>
+            <View style={[styles.modalDivider, { backgroundColor: borderColor }]} />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setInfoModal(null)}>
+                <Text style={[styles.modalBtnCancelText, { color: accentColor }]}>OK</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -527,4 +730,8 @@ const styles = StyleSheet.create({
   modalBtnDivider: { width: StyleSheet.hairlineWidth },
   modalBtnDelete: { flex: 1, paddingVertical: 16, alignItems: 'center' },
   modalBtnDeleteText: { color: '#ef4444', fontSize: 15, fontWeight: '700' },
+  importSummary: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12, gap: 4 },
+  importSummaryItem: { fontSize: 13, textAlign: 'center' },
+  importSettingsRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12, gap: 8 },
+  importSettingsLabel: { fontSize: 14, fontWeight: '500' },
 });

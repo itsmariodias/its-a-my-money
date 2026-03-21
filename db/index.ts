@@ -165,7 +165,77 @@ export function useResetDb() {
           ('Gift', 'income', '#E91E63', 'card-giftcard', 1),
           ('Other Income', 'income', '#78909C', 'more-horiz', 1);
         INSERT OR REPLACE INTO settings (key, value) VALUES ('currency', 'USD');
+        DELETE FROM settings WHERE key IN ('accent_color', 'number_format');
       `);
+    },
+  };
+}
+
+// --- Import ---
+
+export interface ExportData {
+  version: number;
+  accounts: Account[];
+  categories: Category[];
+  transactions: Transaction[];
+  transfers: Transfer[];
+  settings?: { currency?: string; accent_color?: string; number_format?: string };
+}
+
+export function useImportDb() {
+  const db = useSQLiteContext();
+
+  return {
+    importAll: async (data: ExportData) => {
+      await db.withTransactionAsync(async () => {
+        // 1. Wipe all user data
+        await db.runAsync('DELETE FROM transfers');
+        await db.runAsync('DELETE FROM transactions');
+        await db.runAsync('DELETE FROM budgets');
+        await db.runAsync('DELETE FROM accounts');
+        await db.runAsync('DELETE FROM categories');
+
+        // 2. Categories first (transactions reference them)
+        for (const cat of data.categories) {
+          await db.runAsync(
+            'INSERT INTO categories (id, name, type, color, icon, is_default) VALUES (?, ?, ?, ?, ?, ?)',
+            cat.id, cat.name, cat.type, cat.color, cat.icon, cat.is_default
+          );
+        }
+
+        // 3. Accounts
+        for (const acc of data.accounts) {
+          await db.runAsync(
+            'INSERT INTO accounts (id, name, initial_balance, currency, color, icon, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            acc.id, acc.name, acc.initial_balance, acc.currency, acc.color ?? null, acc.icon ?? null, acc.created_at
+          );
+        }
+
+        // 4. Transactions
+        for (const tx of data.transactions) {
+          await db.runAsync(
+            'INSERT INTO transactions (id, amount, type, category_id, account_id, note, date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            tx.id, tx.amount, tx.type, tx.category_id, tx.account_id, tx.note ?? null, tx.date, tx.created_at
+          );
+        }
+
+        // 5. Transfers
+        for (const tr of data.transfers) {
+          await db.runAsync(
+            'INSERT INTO transfers (id, from_account_id, to_account_id, amount, note, date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            tr.id, tr.from_account_id, tr.to_account_id, tr.amount, tr.note ?? null, tr.date, tr.created_at
+          );
+        }
+
+        // 6. Settings
+        if (data.settings) {
+          for (const [key, value] of Object.entries(data.settings)) {
+            if (value != null) {
+              await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', key, value);
+            }
+          }
+        }
+      });
     },
   };
 }
