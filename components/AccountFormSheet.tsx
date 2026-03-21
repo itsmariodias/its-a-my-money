@@ -120,7 +120,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
     if (isOpen) {
       sheetTranslateY.setValue(SCREEN_HEIGHT);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);

@@ -182,7 +182,7 @@ export default function TabLayout() {
   const openSettings = () => {
     setSettingsOpen(true);
     settingsTranslateX.setValue(SCREEN_WIDTH);
-    Animated.spring(settingsTranslateX, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14 }).start();
+    Animated.spring(settingsTranslateX, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
   };
   const closeSettings = () => {
     Animated.timing(settingsTranslateX, { toValue: SCREEN_WIDTH, duration: 220, useNativeDriver: true })
