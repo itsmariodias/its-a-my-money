@@ -15,11 +15,11 @@ import {
 } from 'react-native';
 
 import { MaterialIcons } from '@expo/vector-icons';
-import { Text } from '@/components/Themed';
-import AccountIcon from '@/components/AccountIcon';
+import { Text } from '@/shared/components/Themed';
+import AccountIcon from '@/shared/components/AccountIcon';
 import { useAccountsDb } from '@/db';
-import { useAccountsStore } from '@/store/useAccountsStore';
-import { useSettingsStore } from '@/store/useSettingsStore';
+import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
 import { sheetStyles } from '@/constants/sheetStyles';

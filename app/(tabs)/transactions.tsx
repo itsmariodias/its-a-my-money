@@ -10,20 +10,20 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Text } from '@/components/Themed';
-import AddTransactionSheet from '@/components/AddTransactionSheet';
-import TransferSheet from '@/components/TransferSheet';
+import { Text } from '@/shared/components/Themed';
+import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
+import TransferSheet from '@/features/transfers/TransferSheet';
 import {
   PeriodSelector,
   getDateRange,
   type PeriodMode,
-} from '@/components/PeriodSelector';
+} from '@/shared/components/PeriodSelector';
 import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
-import { useAccountsStore } from '@/store/useAccountsStore';
-import { useTransactionsStore } from '@/store/useTransactionsStore';
-import { useTransfersStore } from '@/store/useTransfersStore';
-import { useSettingsStore } from '@/store/useSettingsStore';
-import { useUIStore } from '@/store/useUIStore';
+import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
+import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
 import type { TransactionWithDetails, TransferWithDetails } from '@/types';

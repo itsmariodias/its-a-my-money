@@ -1,4 +1,4 @@
-import { isValidExport } from '@/utils/validation';
+import { isValidExport } from './validation';
 
 describe('isValidExport', () => {
   const validData = {

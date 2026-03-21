@@ -15,9 +15,9 @@ import {
 } from 'react-native';
 
 import { MaterialIcons } from '@expo/vector-icons';
-import { Text } from '@/components/Themed';
+import { Text } from '@/shared/components/Themed';
 import { useCategoriesDb } from '@/db';
-import { useSettingsStore } from '@/store/useSettingsStore';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getColors } from '@/constants/theme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { Category } from '@/types';
