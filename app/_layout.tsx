@@ -7,10 +7,10 @@ import { Suspense, useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { useColorScheme } from '@/shared/components/useColorScheme';
 import { runMigrations } from '@/db/migrations';
 import { useSettingsDb } from '@/db';
-import { useSettingsStore } from '@/store/useSettingsStore';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getColors } from '@/constants/theme';
 
 const lightNavTheme = {

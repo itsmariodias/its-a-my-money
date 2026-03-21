@@ -18,20 +18,20 @@ import { Svg, Circle, G } from 'react-native-svg';
 
 import { router, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Text } from '@/components/Themed';
+import { Text } from '@/shared/components/Themed';
 import {
   PeriodSelector,
   getDateRange,
   shortPeriodLabel,
   periodNavLabel,
   type PeriodMode,
-} from '@/components/PeriodSelector';
+} from '@/shared/components/PeriodSelector';
 import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
-import { useAccountsStore } from '@/store/useAccountsStore';
-import { useTransactionsStore } from '@/store/useTransactionsStore';
-import { useTransfersStore } from '@/store/useTransfersStore';
-import { useSettingsStore } from '@/store/useSettingsStore';
-import { useUIStore } from '@/store/useUIStore';
+import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
+import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
 

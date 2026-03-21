@@ -16,18 +16,19 @@ import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as LegacyFS from 'expo-file-system/legacy';
-import { Text } from '@/components/Themed';
+import { Text } from '@/shared/components/Themed';
 import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb } from '@/db';
 import type { ExportData } from '@/db';
-import { useSettingsStore } from '@/store/useSettingsStore';
-import { useAccountsStore } from '@/store/useAccountsStore';
-import { useTransactionsStore } from '@/store/useTransactionsStore';
-import { useTransfersStore } from '@/store/useTransfersStore';
-import CategoryFormSheet from '@/components/CategoryFormSheet';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
+import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
 import { CURRENCIES, NUMBER_FORMATS, getCurrencyByCode } from '@/constants/currencies';
 import { ACCENT_COLORS, getColors } from '@/constants/theme';
 import Constants from 'expo-constants';
 import type { Category } from '@/types';
+import { isValidExport } from './validation';
 
 // ─── Category row ─────────────────────────────────────────────────────────────
 
@@ -101,20 +102,6 @@ function DeleteCategoryModal({
         </View>
       </View>
     </Modal>
-  );
-}
-
-// ─── Validation ───────────────────────────────────────────────────────────────
-
-function isValidExport(data: unknown): data is ExportData {
-  if (!data || typeof data !== 'object') return false;
-  const d = data as Record<string, unknown>;
-  return (
-    d.version === 1 &&
-    Array.isArray(d.accounts) &&
-    Array.isArray(d.categories) &&
-    Array.isArray(d.transactions) &&
-    Array.isArray(d.transfers)
   );
 }
 

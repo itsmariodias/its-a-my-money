@@ -10,20 +10,20 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Text } from '@/components/Themed';
-import AccountFormSheet from '@/components/AccountFormSheet';
-import AccountIcon from '@/components/AccountIcon';
+import { Text } from '@/shared/components/Themed';
+import AccountFormSheet from '@/features/accounts/AccountFormSheet';
+import AccountIcon from '@/shared/components/AccountIcon';
 import {
   PeriodSelector,
   getDateRange,
   periodNavLabel,
   type PeriodMode,
-} from '@/components/PeriodSelector';
+} from '@/shared/components/PeriodSelector';
 import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
-import { useAccountsStore } from '@/store/useAccountsStore';
-import { useTransactionsStore } from '@/store/useTransactionsStore';
-import { useTransfersStore } from '@/store/useTransfersStore';
-import { useSettingsStore } from '@/store/useSettingsStore';
+import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
+import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
 import type { Account } from '@/types';

@@ -17,16 +17,16 @@ import {
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Text } from '@/components/Themed';
-import AccountIcon from '@/components/AccountIcon';
-import { useTransfersDb } from '@/db';
-import { useAccountsStore } from '@/store/useAccountsStore';
-import { useTransfersStore } from '@/store/useTransfersStore';
-import { useSettingsStore } from '@/store/useSettingsStore';
+import { Text } from '@/shared/components/Themed';
+import AccountIcon from '@/shared/components/AccountIcon';
+import { useCategoriesDb, useTransactionsDb } from '@/db';
+import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
 import { sheetStyles } from '@/constants/sheetStyles';
-import type { TransferWithDetails } from '@/types';
+import type { Category, TransactionWithDetails } from '@/types';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -51,105 +51,131 @@ function formatDisplayDate(dateStr: string): string {
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  transfer?: TransferWithDetails | null;
+  /** When provided the sheet opens in edit mode pre-filled with the transaction. */
+  transaction?: TransactionWithDetails | null;
   onDelete?: () => void;
 }
 
-export default function TransferSheet({ isOpen, onClose, transfer = null, onDelete }: Props) {
+export default function AddTransactionSheet({ isOpen, onClose, transaction = null, onDelete }: Props) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const accentColor = useSettingsStore((s) => s.accentColor);
 
   const accounts = useAccountsStore((s) => s.accounts);
-  const addTransfer = useTransfersStore((s) => s.addTransfer);
-  const updateTransfer = useTransfersStore((s) => s.updateTransfer);
+  const addTransaction = useTransactionsStore((s) => s.addTransaction);
+  const updateTransaction = useTransactionsStore((s) => s.updateTransaction);
   const currencySymbol = getCurrencySymbol(useSettingsStore((s) => s.currency));
 
-  const transfersDb = useTransfersDb();
+  const categoriesDb = useCategoriesDb();
+  const transactionsDb = useTransactionsDb();
 
+  const [type, setType] = useState<'expense' | 'income'>('expense');
   const [amount, setAmount] = useState('');
-  const [fromAccountId, setFromAccountId] = useState<number | null>(null);
-  const [toAccountId, setToAccountId] = useState<number | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [date, setDate] = useState(today());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [attempted, setAttempted] = useState(false);
 
+  // Populate / reset fields when the sheet opens or the target transaction changes
   useEffect(() => {
     if (!isOpen) return;
-    if (transfer) {
-      setAmount(String(transfer.amount));
-      setFromAccountId(transfer.from_account_id);
-      setToAccountId(transfer.to_account_id);
-      setNote(transfer.note ?? '');
-      setDate(transfer.date);
+    if (transaction) {
+      setType(transaction.type);
+      setAmount(String(transaction.amount));
+      setNote(transaction.note ?? '');
+      setDate(transaction.date);
+      setSelectedAccountId(transaction.account_id);
+      categoriesDb.getByType(transaction.type).then((cats) => {
+        setCategories(cats);
+        setSelectedCategory(cats.find((c) => c.id === transaction.category_id) ?? null);
+      });
     } else {
+      setType('expense');
       setAmount('');
-      setFromAccountId(accounts[0]?.id ?? null);
-      setToAccountId(accounts.length > 1 ? accounts[1]?.id ?? null : null);
       setNote('');
       setDate(today());
       setShowDatePicker(false);
+      setSelectedCategory(null);
+      setSelectedAccountId(accounts[0]?.id ?? null);
+      categoriesDb.getByType('expense').then(setCategories);
     }
     setAttempted(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, transfer]);
+  }, [isOpen, transaction]);
+
+  // Reload categories when type toggles (add mode only — in edit mode the
+  // initial useEffect handles it, and subsequent type changes are intentional)
+  useEffect(() => {
+    if (!isOpen) return;
+    categoriesDb.getByType(type).then((cats) => {
+      setCategories(cats);
+      // Re-select the original category if we're back on the same type in edit mode
+      if (transaction && type === transaction.type) {
+        setSelectedCategory(cats.find((c) => c.id === transaction.category_id) ?? null);
+      } else {
+        setSelectedCategory(null);
+      }
+    });
+  }, [type]);
 
   const handleDateChange = useCallback((_: DateTimePickerEvent, selected?: Date) => {
     if (Platform.OS === 'android') setShowDatePicker(false);
     if (selected) setDate(toLocalDateString(selected));
   }, []);
 
-  const saveTransfer = useCallback(async (parsedAmount: number) => {
-    if (transfer) {
-      await transfersDb.update(transfer.id, {
+  const saveTransaction = useCallback(async (parsedAmount: number) => {
+    if (transaction) {
+      await transactionsDb.update(transaction.id, {
         amount: parsedAmount,
-        from_account_id: fromAccountId!,
-        to_account_id: toAccountId!,
+        type,
+        category_id: selectedCategory!.id,
+        account_id: selectedAccountId!,
         note: note.trim() || null,
         date,
       });
-      const updated = await transfersDb.getById(transfer.id);
-      if (updated) updateTransfer(updated);
+      const updated = await transactionsDb.getById(transaction.id);
+      if (updated) updateTransaction(updated);
     } else {
-      const result = await transfersDb.insert({
+      const result = await transactionsDb.insert({
         amount: parsedAmount,
-        from_account_id: fromAccountId!,
-        to_account_id: toAccountId!,
+        type,
+        category_id: selectedCategory!.id,
+        account_id: selectedAccountId!,
         note: note.trim() || null,
         date,
       });
-      const t = await transfersDb.getById(result.lastInsertRowId);
-      if (t) addTransfer(t);
+      const tx = await transactionsDb.getById(result.lastInsertRowId);
+      if (tx) addTransaction(tx);
     }
-  }, [transfer, fromAccountId, toAccountId, note, date, transfersDb, updateTransfer, addTransfer]);
+  }, [transaction, type, selectedCategory, selectedAccountId, note, date]);
 
   const handleSave = useCallback(async () => {
     setAttempted(true);
     const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
+    if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
     try {
-      await saveTransfer(parsedAmount);
+      await saveTransaction(parsedAmount);
       triggerCloseRef.current();
     } catch {
-      Alert.alert('Error', 'Failed to save transfer.');
+      Alert.alert('Error', 'Failed to save transaction.');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, fromAccountId, toAccountId, saveTransfer]);
+  }, [amount, selectedCategory, selectedAccountId, saveTransaction]);
 
   const handleSaveAndContinue = useCallback(async () => {
     setAttempted(true);
     const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
+    if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
     try {
-      await saveTransfer(parsedAmount);
+      await saveTransaction(parsedAmount);
       setAmount('');
       setNote('');
       setAttempted(false);
     } catch {
-      Alert.alert('Error', 'Failed to save transfer.');
+      Alert.alert('Error', 'Failed to save transaction.');
     }
-  }, [amount, fromAccountId, toAccountId, saveTransfer]);
+  }, [amount, selectedCategory, selectedAccountId, saveTransaction]);
 
   const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = getColors(isDark);
 
@@ -158,13 +184,14 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
+  // Animate in on open — sheet slides in first, backdrop fades in after sheet settles
   useEffect(() => {
     if (isOpen) {
       sheetTranslateY.setValue(600);
       backdropOpacity.setValue(1);
       Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const triggerCloseRef = useRef(() => {});
@@ -182,6 +209,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }).start();
   };
 
+  // Drag handle — claims on a clear downward move so taps on the close button pass through
   const handlePan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
@@ -216,13 +244,15 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
         <Animated.View
           style={[styles.sheet, { backgroundColor: bg, transform: [{ translateY: sheetTranslateY }] }]}
         >
+          {/* Handle pill — drag zone only, no interactive children */}
           <View {...handlePan.panHandlers} style={styles.dragArea}>
             <View style={[styles.handle, { backgroundColor: borderColor }]} />
           </View>
 
+          {/* Header — completely outside the PanResponder so close button always works */}
           <View style={styles.header}>
             <Text style={[styles.headerTitle, { color: textColor }]}>
-              {transfer ? 'Edit Transfer' : 'New Transfer'}
+              {transaction ? 'Edit Transaction' : 'Add Transaction'}
             </Text>
             <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8}>
               <MaterialIcons name="close" size={24} color={subTextColor} />
@@ -246,61 +276,72 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
                 placeholderTextColor={subTextColor}
                 keyboardType="decimal-pad"
                 returnKeyType="done"
-                autoFocus={!transfer}
+                autoFocus={!transaction}
               />
             </View>
             {attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) && (
               <Text style={styles.errorText}>Enter a valid amount greater than 0</Text>
             )}
 
-            {/* From account */}
-            <Text style={[styles.sectionLabel, { color: subTextColor }]}>From</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
-              {accounts.map((acc) => {
-                const isSelected = fromAccountId === acc.id;
-                const accentBg = acc.color ?? '#55A3FF';
-                return (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={[
-                      styles.accountCard,
-                      {
-                        backgroundColor: isSelected ? accentBg + '18' : inputBg,
-                        borderColor: isSelected ? accentBg : borderColor,
-                        borderWidth: isSelected ? 2 : 1,
-                      },
-                    ]}
-                    onPress={() => {
-                      if (acc.id === toAccountId) {
-                        setToAccountId(fromAccountId);
-                        setFromAccountId(acc.id);
-                      } else {
-                        setFromAccountId(acc.id);
-                      }
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
-                      <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
-                    </View>
-                    <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
-                      {acc.name}
-                    </Text>
-                    {isSelected && (
-                      <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
-                        <MaterialIcons name="check" size={10} color="#fff" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            {/* Type toggle */}
+            <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
+              <TouchableOpacity
+                style={[styles.typeBtn, type === 'expense' && { backgroundColor: '#ef4444' }]}
+                onPress={() => setType('expense')}
+              >
+                <Text style={[styles.typeBtnText, { color: type === 'expense' ? '#fff' : subTextColor }]}>
+                  Expense
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.typeBtn, type === 'income' && { backgroundColor: '#22c55e' }]}
+                onPress={() => setType('income')}
+              >
+                <Text style={[styles.typeBtnText, { color: type === 'income' ? '#fff' : subTextColor }]}>
+                  Income
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-            {/* To account */}
-            <Text style={[styles.sectionLabel, { color: subTextColor }]}>To</Text>
+            {/* Category */}
+            <Text style={[styles.sectionLabel, { color: subTextColor }]}>Category</Text>
+            <View style={styles.categoryGrid}>
+              {categories.map((cat) => {
+                const isSelected = selectedCategory?.id === cat.id;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={styles.categoryItem}
+                    onPress={() => setSelectedCategory(cat)}
+                  >
+                    <View
+                      style={[
+                        styles.categoryCircle,
+                        { backgroundColor: cat.color },
+                        isSelected && styles.categoryCircleSelected,
+                      ]}
+                    >
+                      <MaterialIcons name={(cat.icon as any) || 'label'} size={20} color="#fff" />
+                    </View>
+                    <Text
+                      style={[styles.categoryLabel, { color: isSelected ? textColor : subTextColor }]}
+                      numberOfLines={1}
+                    >
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {attempted && !selectedCategory && (
+              <Text style={styles.errorText}>Please select a category</Text>
+            )}
+
+            {/* Account */}
+            <Text style={[styles.sectionLabel, { color: subTextColor }]}>Account</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
               {accounts.map((acc) => {
-                const isSelected = toAccountId === acc.id;
+                const isSelected = selectedAccountId === acc.id;
                 const accentBg = acc.color ?? '#55A3FF';
                 return (
                   <TouchableOpacity
@@ -313,14 +354,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
                         borderWidth: isSelected ? 2 : 1,
                       },
                     ]}
-                    onPress={() => {
-                      if (acc.id === fromAccountId) {
-                        setFromAccountId(toAccountId);
-                        setToAccountId(acc.id);
-                      } else {
-                        setToAccountId(acc.id);
-                      }
-                    }}
+                    onPress={() => setSelectedAccountId(acc.id)}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
@@ -338,9 +372,6 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
                 );
               })}
             </ScrollView>
-            {attempted && fromAccountId === toAccountId && (
-              <Text style={styles.errorText}>From and To accounts must be different</Text>
-            )}
 
             {/* Date */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Date</Text>
@@ -398,17 +429,17 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
 
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave}>
               <Text style={styles.saveBtnText}>
-                {transfer ? 'Save Changes' : 'Save Transfer'}
+                {transaction ? 'Save Changes' : 'Save Transaction'}
               </Text>
             </TouchableOpacity>
-            {!transfer && (
+            {!transaction && (
               <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleSaveAndContinue}>
                 <Text style={[styles.saveAndContinueBtnText, { color: accentColor }]}>Save & Add Another</Text>
               </TouchableOpacity>
             )}
-            {transfer && onDelete && (
+            {transaction && onDelete && (
               <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
-                <Text style={styles.deleteBtnText}>Delete Transfer</Text>
+                <Text style={styles.deleteBtnText}>Delete Transaction</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
@@ -418,4 +449,12 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   );
 }
 
-const styles = sheetStyles;
+const localStyles = StyleSheet.create({
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  categoryItem: { width: '30%', alignItems: 'center', gap: 4, paddingVertical: 4 },
+  categoryCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  categoryCircleSelected: { borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
+  categoryLabel: { fontSize: 11, textAlign: 'center' },
+});
+
+const styles = { ...sheetStyles, ...localStyles };

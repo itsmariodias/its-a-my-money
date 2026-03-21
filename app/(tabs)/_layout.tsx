@@ -5,14 +5,14 @@ import { useRouter, useSegments, withLayoutContext } from 'expo-router';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useColorScheme } from '@/components/useColorScheme';
-import AccountIcon from '@/components/AccountIcon';
-import AddTransactionSheet from '@/components/AddTransactionSheet';
-import TransferSheet from '@/components/TransferSheet';
-import SettingsScreen from '@/components/SettingsScreen';
-import { useUIStore } from '@/store/useUIStore';
-import { useAccountsStore } from '@/store/useAccountsStore';
-import { useSettingsStore } from '@/store/useSettingsStore';
+import { useColorScheme } from '@/shared/components/useColorScheme';
+import AccountIcon from '@/shared/components/AccountIcon';
+import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
+import TransferSheet from '@/features/transfers/TransferSheet';
+import SettingsScreen from '@/features/settings/SettingsScreen';
+import { useUIStore } from '@/shared/store/useUIStore';
+import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getColors } from '@/constants/theme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
