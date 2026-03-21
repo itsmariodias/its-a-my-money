@@ -25,6 +25,7 @@ import { useTransactionsStore } from '@/store/useTransactionsStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
+import { sheetStyles } from '@/constants/sheetStyles';
 import type { Category, TransactionWithDetails } from '@/types';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -278,6 +279,9 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
                 autoFocus={!transaction}
               />
             </View>
+            {attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) && (
+              <Text style={styles.errorText}>Enter a valid amount greater than 0</Text>
+            )}
 
             {/* Type toggle */}
             <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
@@ -300,9 +304,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
             </View>
 
             {/* Category */}
-            <Text style={[styles.sectionLabel, { color: attempted && !selectedCategory ? '#ef4444' : subTextColor }]}>
-              {attempted && !selectedCategory ? 'Category — required' : 'Category'}
-            </Text>
+            <Text style={[styles.sectionLabel, { color: subTextColor }]}>Category</Text>
             <View style={styles.categoryGrid}>
               {categories.map((cat) => {
                 const isSelected = selectedCategory?.id === cat.id;
@@ -331,6 +333,9 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
                 );
               })}
             </View>
+            {attempted && !selectedCategory && (
+              <Text style={styles.errorText}>Please select a category</Text>
+            )}
 
             {/* Account */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Account</Text>
@@ -444,221 +449,12 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  kvContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-    maxHeight: '90%',
-  },
-  dragArea: {
-    paddingTop: 12,
-    paddingBottom: 12,
-    alignItems: 'center',
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  typeToggle: {
-    flexDirection: 'row',
-    borderRadius: 10,
-    padding: 4,
-    marginBottom: 16,
-  },
-  typeBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  typeBtnText: {
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  amountContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    marginBottom: 20,
-  },
-  currencySymbol: {
-    fontSize: 28,
-    fontWeight: '300',
-    marginRight: 4,
-  },
-  amountInput: {
-    flex: 1,
-    fontSize: 36,
-    fontWeight: '600',
-    paddingVertical: 16,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 20,
-  },
-  categoryItem: {
-    width: '30%',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-  },
-  categoryCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  categoryCircleSelected: {
-    borderWidth: 3,
-    borderColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  categoryLabel: {
-    fontSize: 11,
-    textAlign: 'center',
-  },
-  accountScroll: {
-    marginBottom: 20,
-  },
-  accountScrollContent: {
-    gap: 10,
-    paddingRight: 4,
-  },
-  accountCard: {
-    width: 100,
-    borderRadius: 12,
-    padding: 12,
-    gap: 4,
-    position: 'relative',
-  },
-  accountCardIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  accountCardName: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  accountCardCheck: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  noteInput: {
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    marginBottom: 12,
-  },
-  dateText: {
-    flex: 1,
-    fontSize: 14,
-  },
-  datePickerCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  datePicker: {
-    alignSelf: 'center',
-  },
-  datePickerDone: {
-    paddingVertical: 13,
-    alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  saveBtn: {
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  saveBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  saveAndContinueBtn: {
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 0,
-    marginBottom: 8,
-    borderWidth: 1.5,
-  },
-  saveAndContinueBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  deleteBtn: {
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 8,
-    backgroundColor: '#ef444420',
-  },
-  deleteBtnText: {
-    color: '#ef4444',
-    fontSize: 16,
-    fontWeight: '700',
-  },
+const localStyles = StyleSheet.create({
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  categoryItem: { width: '30%', alignItems: 'center', gap: 4, paddingVertical: 4 },
+  categoryCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  categoryCircleSelected: { borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
+  categoryLabel: { fontSize: 11, textAlign: 'center' },
 });
+
+const styles = { ...sheetStyles, ...localStyles };

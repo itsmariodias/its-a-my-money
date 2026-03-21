@@ -347,11 +347,12 @@ export default function TabLayout() {
             ]}
             pointerEvents={fabExpanded ? 'auto' : 'none'}
           >
-            <Text style={[styles.fabSpeedLabel, { backgroundColor: bg, color: textColor, borderColor }]}>Transfer</Text>
+            <Text style={[styles.fabSpeedLabel, { backgroundColor: bg, color: textColor, borderColor, opacity: accounts.length < 2 ? 0.4 : 1 }]}>Transfer</Text>
             <TouchableOpacity
-              style={[styles.fabSpeedBtn, { backgroundColor: bg, borderColor }]}
+              style={[styles.fabSpeedBtn, { backgroundColor: bg, borderColor, opacity: accounts.length < 2 ? 0.4 : 1 }]}
               onPress={() => { collapseFab(); openTransfer(); }}
               activeOpacity={0.8}
+              disabled={accounts.length < 2}
             >
               <MaterialIcons name="swap-horiz" size={22} color={accentColor} />
             </TouchableOpacity>

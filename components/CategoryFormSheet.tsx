@@ -19,6 +19,7 @@ import { Text } from '@/components/Themed';
 import { useCategoriesDb } from '@/db';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { getColors } from '@/constants/theme';
+import { sheetStyles } from '@/constants/sheetStyles';
 import type { Category } from '@/types';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -181,11 +182,11 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
             </View>
 
             {/* Name */}
-            <Text style={[styles.label, { color: attempted && !name.trim() ? '#ef4444' : subColor }]}>
+            <Text style={[styles.sectionLabel, { color: attempted && !name.trim() ? '#ef4444' : subColor }]}>
               {attempted && !name.trim() ? 'Category Name — required' : 'Category Name'}
             </Text>
             <TextInput
-              style={[styles.input, { backgroundColor: inputBg, borderColor: attempted && !name.trim() ? '#ef4444' : borderColor, color: textColor }]}
+              style={[styles.textInput, { backgroundColor: inputBg, borderColor: attempted && !name.trim() ? '#ef4444' : borderColor, color: textColor }]}
               value={name}
               onChangeText={setName}
               placeholder="e.g. Groceries"
@@ -194,8 +195,12 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               autoFocus={!category}
             />
 
+            {attempted && !name.trim() && (
+              <Text style={styles.errorText}>Category name is required</Text>
+            )}
+
             {/* Color */}
-            <Text style={[styles.label, { color: subColor }]}>Color</Text>
+            <Text style={[styles.sectionLabel, { color: subColor }]}>Color</Text>
             <View style={styles.colorGrid}>
               {PRESET_COLORS.map((c) => (
                 <TouchableOpacity
@@ -209,7 +214,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
             </View>
 
             {/* Icon */}
-            <Text style={[styles.label, { color: subColor }]}>Icon</Text>
+            <Text style={[styles.sectionLabel, { color: subColor }]}>Icon</Text>
             <View style={styles.iconGrid}>
               {PRESET_ICONS.map((ic) => (
                 <TouchableOpacity
@@ -225,7 +230,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
             </View>
 
             {/* Preview */}
-            <Text style={[styles.label, { color: subColor }]}>Preview</Text>
+            <Text style={[styles.sectionLabel, { color: subColor }]}>Preview</Text>
             <View style={[styles.preview, { backgroundColor: inputBg, borderColor }]}>
               <View style={[styles.previewCircle, { backgroundColor: color }]}>
                 <MaterialIcons name={icon as any} size={22} color="#fff" />
@@ -257,58 +262,13 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { backgroundColor: 'rgba(0,0,0,0.4)' },
-  kvContainer: { flex: 1, justifyContent: 'flex-end' },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-    maxHeight: '90%',
-  },
-  dragArea: { paddingTop: 12, paddingBottom: 12, alignItems: 'center' },
-  handle: { width: 40, height: 4, borderRadius: 2 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
-  headerTitle: { fontSize: 18, fontWeight: '700' },
-  typeToggle: { flexDirection: 'row', borderRadius: 10, padding: 4, marginBottom: 16 },
-  typeBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
-  typeBtnText: { fontWeight: '600', fontSize: 14 },
-  label: {
-    fontSize: 12, fontWeight: '600', textTransform: 'uppercase',
-    letterSpacing: 0.5, marginBottom: 8,
-  },
-  input: {
-    borderRadius: 10, borderWidth: 1,
-    paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 15, marginBottom: 16,
-  },
-  colorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
-  colorSwatch: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  colorSwatchSelected: { borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
+const localStyles = StyleSheet.create({
   iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   iconItem: { width: '11%', aspectRatio: 1, borderRadius: 10 },
-  iconItemInner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  preview: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 20,
-  },
+  preview: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 20 },
   previewCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   previewName: { flex: 1, fontSize: 15, fontWeight: '500' },
   previewBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   previewBadgeText: { fontSize: 11, fontWeight: '600', textTransform: 'capitalize' },
-  saveBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4, marginBottom: 8 },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  deleteBtn: {
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 8,
-    backgroundColor: '#ef444420',
-  },
-  deleteBtnText: { color: '#ef4444', fontSize: 16, fontWeight: '700' },
 });
+const styles = { ...sheetStyles, ...localStyles };

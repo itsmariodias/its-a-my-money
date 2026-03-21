@@ -128,6 +128,19 @@ User preferences are persisted in SQLite (`settings` table, key-value) and synce
 
 Dynamic values (accentColor, etc.) cannot go in `StyleSheet.create` — use inline style overrides: `[styles.foo, { color: accentColor }]`.
 
+### Shared Sheet Styles
+All bottom sheet components share a common style library in `constants/sheetStyles.ts`. It exports `sheetStyles` — a `StyleSheet.create` object covering ~35 styles: modal structure, labels, amount input, type toggle, account picker, date picker, text inputs, color/icon pickers, and action buttons.
+
+Usage pattern in every sheet:
+```tsx
+import { sheetStyles } from '@/constants/sheetStyles';
+// Only define sheet-specific overrides locally:
+const localStyles = StyleSheet.create({ ... });
+const styles = { ...sheetStyles, ...localStyles };
+```
+
+Do not duplicate any style already in `sheetStyles` — add it there instead. `constants/theme.ts` also exports `sheetErrorText` (used inside `sheetStyles` as `errorText`).
+
 ### Header
 The shared header lives in `app/(tabs)/_layout.tsx` (not in individual screens). It contains:
 - Screen title (left)

@@ -25,6 +25,7 @@ import { useTransfersStore } from '@/store/useTransfersStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
+import { sheetStyles } from '@/constants/sheetStyles';
 import type { TransferWithDetails } from '@/types';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -99,8 +100,6 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     if (selected) setDate(toLocalDateString(selected));
   }, []);
 
-  const isSameAccount = fromAccountId !== null && fromAccountId === toAccountId;
-
   const saveTransfer = useCallback(async (parsedAmount: number) => {
     if (transfer) {
       await transfersDb.update(transfer.id, {
@@ -128,7 +127,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   const handleSave = useCallback(async () => {
     setAttempted(true);
     const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || isSameAccount) return;
+    if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
       await saveTransfer(parsedAmount);
       triggerCloseRef.current();
@@ -136,12 +135,12 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
       Alert.alert('Error', 'Failed to save transfer.');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, fromAccountId, toAccountId, isSameAccount, saveTransfer]);
+  }, [amount, fromAccountId, toAccountId, saveTransfer]);
 
   const handleSaveAndContinue = useCallback(async () => {
     setAttempted(true);
     const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || isSameAccount) return;
+    if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
       await saveTransfer(parsedAmount);
       setAmount('');
@@ -150,7 +149,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     } catch {
       Alert.alert('Error', 'Failed to save transfer.');
     }
-  }, [amount, fromAccountId, toAccountId, isSameAccount, saveTransfer]);
+  }, [amount, fromAccountId, toAccountId, saveTransfer]);
 
   const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = getColors(isDark);
 
@@ -250,6 +249,9 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
                 autoFocus={!transfer}
               />
             </View>
+            {attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) && (
+              <Text style={styles.errorText}>Enter a valid amount greater than 0</Text>
+            )}
 
             {/* From account */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>From</Text>
@@ -268,7 +270,14 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
                         borderWidth: isSelected ? 2 : 1,
                       },
                     ]}
-                    onPress={() => setFromAccountId(acc.id)}
+                    onPress={() => {
+                      if (acc.id === toAccountId) {
+                        setToAccountId(fromAccountId);
+                        setFromAccountId(acc.id);
+                      } else {
+                        setFromAccountId(acc.id);
+                      }
+                    }}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
@@ -288,9 +297,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
             </ScrollView>
 
             {/* To account */}
-            <Text style={[styles.sectionLabel, { color: attempted && isSameAccount ? '#ef4444' : subTextColor }]}>
-              {attempted && isSameAccount ? 'To — must differ from From' : 'To'}
-            </Text>
+            <Text style={[styles.sectionLabel, { color: subTextColor }]}>To</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
               {accounts.map((acc) => {
                 const isSelected = toAccountId === acc.id;
@@ -306,7 +313,14 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
                         borderWidth: isSelected ? 2 : 1,
                       },
                     ]}
-                    onPress={() => setToAccountId(acc.id)}
+                    onPress={() => {
+                      if (acc.id === fromAccountId) {
+                        setFromAccountId(toAccountId);
+                        setToAccountId(acc.id);
+                      } else {
+                        setToAccountId(acc.id);
+                      }
+                    }}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
@@ -324,6 +338,9 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
                 );
               })}
             </ScrollView>
+            {attempted && fromAccountId === toAccountId && (
+              <Text style={styles.errorText}>From and To accounts must be different</Text>
+            )}
 
             {/* Date */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Date</Text>
@@ -401,174 +418,4 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  kvContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-    maxHeight: '90%',
-  },
-  dragArea: {
-    paddingTop: 12,
-    paddingBottom: 12,
-    alignItems: 'center',
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  amountContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    marginBottom: 20,
-  },
-  currencySymbol: {
-    fontSize: 28,
-    fontWeight: '300',
-    marginRight: 4,
-  },
-  amountInput: {
-    flex: 1,
-    fontSize: 36,
-    fontWeight: '600',
-    paddingVertical: 16,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  accountScroll: {
-    marginBottom: 20,
-  },
-  accountScrollContent: {
-    gap: 10,
-    paddingRight: 4,
-  },
-  accountCard: {
-    width: 100,
-    borderRadius: 12,
-    padding: 12,
-    gap: 4,
-    position: 'relative',
-  },
-  accountCardIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  accountCardName: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  accountCardCheck: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    marginBottom: 12,
-  },
-  dateText: {
-    flex: 1,
-    fontSize: 14,
-  },
-  datePickerCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  datePicker: {
-    alignSelf: 'center',
-  },
-  datePickerDone: {
-    paddingVertical: 13,
-    alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  noteInput: {
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  saveBtn: {
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  saveBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  saveAndContinueBtn: {
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 0,
-    marginBottom: 8,
-    borderWidth: 1.5,
-  },
-  saveAndContinueBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  deleteBtn: {
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 8,
-    backgroundColor: '#ef444420',
-  },
-  deleteBtnText: {
-    color: '#ef4444',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-});
+const styles = sheetStyles;

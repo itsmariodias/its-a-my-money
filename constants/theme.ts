@@ -18,6 +18,19 @@ export const ACCENT_COLORS = [
   '#14b8a6',
 ];
 
+import { TextStyle } from 'react-native';
+
+/** Shared validation error style — use as the `errorText` entry in any sheet's StyleSheet. */
+export const sheetErrorText: TextStyle = {
+  fontSize: 12,
+  fontWeight: '600',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+  color: '#ef4444',
+  marginTop: -8,
+  marginBottom: 8,
+};
+
 export function getColors(isDark: boolean): AppColors {
   return isDark
     ? {
