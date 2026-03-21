@@ -39,6 +39,25 @@ pnpm lint
 pnpm tsc --noEmit
 ```
 
+## Testing
+
+### Stack
+- **Jest** with `ts-jest` preset — configured in `jest.config.js`
+- Tests live in `__tests__/` at the project root, named `*.test.ts`
+- Mock for `expo-sqlite` in `__mocks__/expo-sqlite.ts` (auto-discovered by Jest)
+
+### Strategy
+- **BDD / Given-When-Then**: Every test follows scenario-based structure
+- **Pure logic first**: `formatAmount`, `getColors`, `isValidExport`, Zustand stores
+- **DB hooks via mock**: Verify SQL + parameter correctness without real SQLite
+- **No component rendering tests**: We test logic and data, not UI
+
+### Adding Tests
+1. Create `__tests__/feature-name.test.ts`
+2. Use `describe` for features, `it` for scenarios with Given/When/Then comments
+3. For DB hook tests, import mock and clear between tests with `jest.clearAllMocks()`
+4. Reset Zustand stores in `beforeEach` with `store.setState(initialState)`
+
 ## Architecture
 
 ### Tech Stack

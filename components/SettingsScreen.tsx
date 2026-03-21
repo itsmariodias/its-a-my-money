@@ -28,6 +28,7 @@ import { CURRENCIES, NUMBER_FORMATS, getCurrencyByCode } from '@/constants/curre
 import { ACCENT_COLORS, getColors } from '@/constants/theme';
 import Constants from 'expo-constants';
 import type { Category } from '@/types';
+import { isValidExport } from '@/utils/validation';
 
 // ─── Category row ─────────────────────────────────────────────────────────────
 
@@ -101,20 +102,6 @@ function DeleteCategoryModal({
         </View>
       </View>
     </Modal>
-  );
-}
-
-// ─── Validation ───────────────────────────────────────────────────────────────
-
-function isValidExport(data: unknown): data is ExportData {
-  if (!data || typeof data !== 'object') return false;
-  const d = data as Record<string, unknown>;
-  return (
-    d.version === 1 &&
-    Array.isArray(d.accounts) &&
-    Array.isArray(d.categories) &&
-    Array.isArray(d.transactions) &&
-    Array.isArray(d.transfers)
   );
 }
 
