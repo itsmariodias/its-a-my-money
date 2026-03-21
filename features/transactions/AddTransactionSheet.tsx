@@ -86,7 +86,6 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       setAmount('');
       setNote('');
       setDate(today());
-      setShowDatePicker(false);
       setSelectedCategory(null);
       setSelectedAccountId(accounts[0]?.id ?? null);
       categoriesDb.getByType('expense').then(setCategories);

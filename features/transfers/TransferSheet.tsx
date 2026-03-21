@@ -80,7 +80,6 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
       setToAccountId(accounts.length > 1 ? accounts[1]?.id ?? null : null);
       setNote('');
       setDate(today());
-      setShowDatePicker(false);
     }
     setAttempted(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
