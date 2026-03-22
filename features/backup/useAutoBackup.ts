@@ -5,7 +5,7 @@ import { useBackupStore } from './useBackupStore';
 import { useSettingsDb } from '@/db';
 import { getAccessToken, uploadBackup } from './googleDrive';
 import { generateExportJson } from '@/features/settings/exportData';
-import { notifyBackupStarted, notifyBackupCompleted } from './notifications';
+import { notifyBackupStarted, dismissBackupNotification } from './notifications';
 
 const INTERVAL_MS = {
   daily: 24 * 60 * 60 * 1000,
@@ -31,7 +31,7 @@ export function useAutoBackup() {
 
       const {
         googleDriveEnabled, folderId, backupFrequency, lastBackupAt,
-        setIsBackingUp, setLastBackupAt,
+        setIsBackingUp, setLastBackupAt, setLastError,
       } = useBackupStore.getState();
 
       if (!googleDriveEnabled || !folderId) return;
@@ -49,10 +49,10 @@ export function useAutoBackup() {
         const now = new Date().toISOString();
         setLastBackupAt(now);
         await settingsDb.set('last_backup_at', now);
-        await notifyBackupCompleted(true);
+        await dismissBackupNotification();
       } catch (e: any) {
-        console.error('Auto backup failed:', e);
-        await notifyBackupCompleted(false, e?.message);
+        await dismissBackupNotification();
+        setLastError(e?.message ?? 'Auto backup failed');
       } finally {
         setIsBackingUp(false);
         isRunningRef.current = false;

@@ -10,12 +10,13 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Text } from '@/shared/components/Themed';
+import InfoModal from '@/shared/components/InfoModal';
 import { useSettingsDb } from '@/db';
 import { useBackupStore, initialBackupState } from './useBackupStore';
 import type { BackupFrequency } from './useBackupStore';
 import { signIn, signOut, getAccessToken, ensureBackupFolder, uploadBackup } from './googleDrive';
 import { generateExportJson } from '@/features/settings/exportData';
-import { requestNotificationPermission, notifyBackupStarted, notifyBackupCompleted } from './notifications';
+import { requestNotificationPermission, notifyBackupStarted, dismissBackupNotification } from './notifications';
 
 const FREQUENCY_OPTIONS: { value: BackupFrequency; label: string }[] = [
   { value: 'daily', label: 'Daily' },
@@ -66,8 +67,12 @@ export default function GoogleDriveSection({
   const setLastBackupAt = useBackupStore((s) => s.setLastBackupAt);
   const setIsBackingUp = useBackupStore((s) => s.setIsBackingUp);
 
+  const lastError = useBackupStore((s) => s.lastError);
+  const clearLastError = useBackupStore((s) => s.clearLastError);
+
   const [connecting, setConnecting] = useState(false);
   const [freqModalOpen, setFreqModalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleConnect = async () => {
     setConnecting(true);
@@ -91,7 +96,7 @@ export default function GoogleDriveSection({
         settingsDb.set('backup_frequency', 'weekly'),
       ]);
     } catch (e: any) {
-      console.error('Google Drive connect failed:', e);
+      setErrorMessage(e?.message ?? 'Failed to connect to Google Drive');
     } finally {
       setConnecting(false);
     }
@@ -128,10 +133,10 @@ export default function GoogleDriveSection({
       const now = new Date().toISOString();
       setLastBackupAt(now);
       await settingsDb.set('last_backup_at', now);
-      await notifyBackupCompleted(true);
+      await dismissBackupNotification();
     } catch (e: any) {
-      console.error('Manual backup failed:', e);
-      await notifyBackupCompleted(false, e?.message);
+      await dismissBackupNotification();
+      setErrorMessage(e?.message ?? 'Backup failed');
     } finally {
       setIsBackingUp(false);
     }
@@ -141,6 +146,13 @@ export default function GoogleDriveSection({
     setBackupFrequency(freq);
     await settingsDb.set('backup_frequency', freq);
     setFreqModalOpen(false);
+  };
+
+  // Combine local errors and auto-backup errors from the store
+  const visibleError = errorMessage ?? lastError;
+  const dismissError = () => {
+    setErrorMessage(null);
+    if (lastError) clearLastError();
   };
 
   // --- Not connected ---
@@ -164,6 +176,14 @@ export default function GoogleDriveSection({
             )}
           </TouchableOpacity>
         </View>
+        <InfoModal
+          visible={!!visibleError}
+          onClose={dismissError}
+          icon="cloud-off"
+          iconColor="#ef4444"
+          title="Backup Error"
+          message={visibleError ?? ''}
+        />
       </>
     );
   }
@@ -272,6 +292,15 @@ export default function GoogleDriveSection({
           </View>
         </View>
       </Modal>
+
+      <InfoModal
+        visible={!!visibleError}
+        onClose={dismissError}
+        icon="cloud-off"
+        iconColor="#ef4444"
+        title="Backup Error"
+        message={visibleError ?? ''}
+      />
     </>
   );
 }

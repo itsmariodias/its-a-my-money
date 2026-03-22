@@ -10,12 +10,15 @@ interface BackupState {
   backupFrequency: BackupFrequency;
   lastBackupAt: string | null;
   isBackingUp: boolean;
+  lastError: string | null;
   setGoogleDriveEnabled: (enabled: boolean) => void;
   setGoogleEmail: (email: string | null) => void;
   setFolder: (id: string | null, name: string | null) => void;
   setBackupFrequency: (freq: BackupFrequency) => void;
   setLastBackupAt: (date: string | null) => void;
   setIsBackingUp: (val: boolean) => void;
+  setLastError: (error: string | null) => void;
+  clearLastError: () => void;
 }
 
 export const initialBackupState = {
@@ -26,6 +29,7 @@ export const initialBackupState = {
   backupFrequency: 'weekly' as BackupFrequency,
   lastBackupAt: null as string | null,
   isBackingUp: false,
+  lastError: null as string | null,
 };
 
 export const useBackupStore = create<BackupState>((set) => ({
@@ -36,4 +40,6 @@ export const useBackupStore = create<BackupState>((set) => ({
   setBackupFrequency: (backupFrequency) => set({ backupFrequency }),
   setLastBackupAt: (lastBackupAt) => set({ lastBackupAt }),
   setIsBackingUp: (isBackingUp) => set({ isBackingUp }),
+  setLastError: (lastError) => set({ lastError }),
+  clearLastError: () => set({ lastError: null }),
 }));
