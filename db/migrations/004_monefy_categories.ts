@@ -19,13 +19,13 @@ export async function up(db: SQLiteDatabase): Promise<void> {
   const newCategories: Array<[string, string, string, string]> = [
     ['Car',           'expense', '#2196F3', 'directions-car'],
     ['Communications','expense', '#00BCD4', 'phone'],
-    ['Food',          'expense', '#FF5722', 'restaurant'],
+    ['Food',          'expense', '#FF5722', 'local-grocery-store'],
     ['Gifts',         'expense', '#E91E63', 'card-giftcard'],
     ['Pets',          'expense', '#FF9800', 'pets'],
     ['Sports',        'expense', '#F44336', 'sports-soccer'],
     ['Taxi',          'expense', '#FFC107', 'local-taxi'],
     ['Toiletry',      'expense', '#26C6DA', 'soap'],
-    ['Deposits',      'income',  '#03A9F4', 'savings'],
+    ['Deposits',      'income',  '#03A9F4', 'account-balance'],
     ['Savings',       'income',  '#43A047', 'savings'],
   ];
 

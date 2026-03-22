@@ -37,6 +37,8 @@ const PRESET_ICONS: (keyof typeof MaterialIcons.glyphMap)[] = [
   'phone-android', 'local-gas-station', 'sports-esports', 'work',
   'laptop', 'trending-up', 'card-giftcard', 'savings',
   'attach-money', 'business-center', 'more-horiz', 'label',
+  'local-grocery-store', 'directions-bus', 'checkroom', 'account-balance', 'redeem',
+  'local-taxi', 'soap', 'phone', 'sports-soccer',
 ];
 
 interface Props {
