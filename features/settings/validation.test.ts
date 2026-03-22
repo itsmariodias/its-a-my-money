@@ -64,6 +64,106 @@ describe('isValidExport', () => {
     expect(isValidExport('not an object')).toBe(false);
   });
 
+  // --- Item-level validation tests ---
+
+  it('should reject account with missing name', () => {
+    const data = {
+      ...validData,
+      accounts: [{ id: 1, initial_balance: 0, currency: 'USD' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject account with non-numeric id', () => {
+    const data = {
+      ...validData,
+      accounts: [{ id: 'abc', name: 'Cash', initial_balance: 0, currency: 'USD' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject account with non-numeric initial_balance', () => {
+    const data = {
+      ...validData,
+      accounts: [{ id: 1, name: 'Cash', initial_balance: 'zero', currency: 'USD' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject category with invalid type', () => {
+    const data = {
+      ...validData,
+      categories: [{ id: 1, name: 'Bad', type: 'savings', color: '#f00', icon: 'x', is_default: 0 }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject category missing icon', () => {
+    const data = {
+      ...validData,
+      categories: [{ id: 1, name: 'Food', type: 'expense', color: '#f00' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject category missing color', () => {
+    const data = {
+      ...validData,
+      categories: [{ id: 1, name: 'Food', type: 'expense', icon: 'restaurant' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject transaction with missing date', () => {
+    const data = {
+      ...validData,
+      transactions: [{ id: 1, amount: 50, type: 'expense', category_id: 1, account_id: 1 }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject transaction with string amount', () => {
+    const data = {
+      ...validData,
+      transactions: [{ id: 1, amount: '50', type: 'expense', category_id: 1, account_id: 1, date: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject transaction with invalid type', () => {
+    const data = {
+      ...validData,
+      transactions: [{ id: 1, amount: 50, type: 'refund', category_id: 1, account_id: 1, date: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject transfer with missing from_account_id', () => {
+    const data = {
+      ...validData,
+      transfers: [{ id: 1, amount: 100, to_account_id: 2, date: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject transfer with non-numeric amount', () => {
+    const data = {
+      ...validData,
+      transfers: [{ id: 1, amount: 'hundred', from_account_id: 1, to_account_id: 2, date: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject when accounts array contains a non-object item', () => {
+    const data = { ...validData, accounts: [42] };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject when accounts array contains null', () => {
+    const data = { ...validData, accounts: [null] };
+    expect(isValidExport(data)).toBe(false);
+  });
+
   it('should validate a realistic round-trip export structure', () => {
     // Given a realistic export with multiple entities and valid FK references
     const data = {

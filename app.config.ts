@@ -1,10 +1,17 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
+function semverToVersionCode(version: string): number {
+  const [major = 0, minor = 0, patch = 0] = version.split('.').map(Number);
+  return major * 10000 + minor * 100 + patch;
+}
+
+const appVersion = (process.env.APP_VERSION ?? '0.0.1').replace(/^v\.?/, '');
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "It's a My Money!",
   slug: 'its-a-my-money',
-  version: (process.env.APP_VERSION ?? '0.0.1').replace(/^v\.?/, ''),
+  version: appVersion,
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: 'itsamymoney',
@@ -19,6 +26,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: 'com.itsmariodias.itsamymoney',
   },
   android: {
+    versionCode: semverToVersionCode(appVersion),
     package: 'com.itsmariodias.itsamymoney',
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
