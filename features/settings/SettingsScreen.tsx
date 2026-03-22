@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as LocalAuthentication from 'expo-local-authentication';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as LegacyFS from 'expo-file-system/legacy';
@@ -127,6 +128,8 @@ export default function SettingsScreen() {
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const setNumberFormat = useSettingsStore((s) => s.setNumberFormat);
+  const biometricLock = useSettingsStore((s) => s.biometricLock);
+  const setBiometricLock = useSettingsStore((s) => s.setBiometricLock);
   const setAccounts = useAccountsStore((s) => s.setAccounts);
   const setTransactions = useTransactionsStore((s) => s.setTransactions);
   const setTransfers = useTransfersStore((s) => s.setTransfers);
@@ -175,6 +178,26 @@ export default function SettingsScreen() {
     setNumberFormat(format);
   };
 
+  const handleBiometricToggle = async () => {
+    if (!biometricLock) {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      if (!compatible) {
+        setInfoModal({ icon: 'fingerprint', iconColor: '#ef4444', title: 'Not Available', message: 'Your device does not support biometric authentication.' });
+        return;
+      }
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!enrolled) {
+        setInfoModal({ icon: 'fingerprint', iconColor: '#f59e0b', title: 'Not Set Up', message: 'No biometrics enrolled on this device. Set up fingerprint or face recognition in your device settings first.' });
+        return;
+      }
+      const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Verify to enable biometric lock', disableDeviceFallback: false });
+      if (!result.success) return;
+    }
+    const newValue = !biometricLock;
+    await settingsDb.set('biometric_lock', String(newValue));
+    setBiometricLock(newValue);
+  };
+
   const filteredCurrencies = currencySearch.trim()
     ? CURRENCIES.filter((c) => {
         const q = currencySearch.toLowerCase();
@@ -214,10 +237,11 @@ export default function SettingsScreen() {
         ({ id, from_account_id, to_account_id, amount, note, date, created_at })
       );
 
-      const [currencyRow, accentRow, formatRow] = await Promise.all([
+      const [currencyRow, accentRow, formatRow, biometricRow] = await Promise.all([
         settingsDb.get('currency'),
         settingsDb.get('accent_color'),
         settingsDb.get('number_format'),
+        settingsDb.get('biometric_lock'),
       ]);
 
       const data = JSON.stringify({
@@ -231,6 +255,7 @@ export default function SettingsScreen() {
           currency: currencyRow?.value ?? 'USD',
           accent_color: accentRow?.value ?? null,
           number_format: formatRow?.value ?? 'en-US',
+          biometric_lock: biometricRow?.value ?? 'false',
         },
       }, null, 2);
 
@@ -358,6 +383,7 @@ export default function SettingsScreen() {
         if (data.settings.currency) { await settingsDb.set('currency', data.settings.currency); setCurrency(data.settings.currency); }
         if (data.settings.accent_color) { await settingsDb.set('accent_color', data.settings.accent_color); setAccentColor(data.settings.accent_color); }
         if (data.settings.number_format) { await settingsDb.set('number_format', data.settings.number_format); setNumberFormat(data.settings.number_format); }
+        if (data.settings.biometric_lock) { await settingsDb.set('biometric_lock', data.settings.biometric_lock); setBiometricLock(data.settings.biometric_lock === 'true'); }
       }
       await loadCategories();
       setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Import Successful', message: 'Your data has been restored.' });
@@ -375,6 +401,7 @@ export default function SettingsScreen() {
       setCurrency('USD');
       setAccentColor('#2f95dc');
       setNumberFormat('en-US');
+      setBiometricLock(false);
       await loadCategories();
       setResetModalOpen(false);
       setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Reset Successful', message: 'All data has been cleared and the app restored to its default state.' });
@@ -447,6 +474,20 @@ export default function SettingsScreen() {
               </View>
             </View>
           )}
+
+          <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
+
+          <TouchableOpacity style={styles.row} onPress={handleBiometricToggle} activeOpacity={0.7}>
+            <View style={[styles.rowIcon, { backgroundColor: accentColor + '20' }]}>
+              <MaterialIcons name="fingerprint" size={20} color={accentColor} />
+            </View>
+            <Text style={[styles.rowLabel, { color: textColor }]}>Biometric Lock</Text>
+            <MaterialIcons
+              name={biometricLock ? 'toggle-on' : 'toggle-off'}
+              size={36}
+              color={biometricLock ? accentColor : subColor}
+            />
+          </TouchableOpacity>
         </View>
 
         <Text style={[styles.sectionLabel, { color: subColor }]}>Data</Text>

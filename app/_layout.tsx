@@ -2,10 +2,13 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { SQLiteProvider } from 'expo-sqlite';
-import { Suspense, useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, AppState, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import 'react-native-reanimated';
+import { Text } from '@/shared/components/Themed';
 
 import { useColorScheme } from '@/shared/components/useColorScheme';
 import { runMigrations } from '@/db/migrations';
@@ -71,16 +74,45 @@ function RootLayoutNav() {
   const setCurrency = useSettingsStore((s) => s.setCurrency);
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
   const setNumberFormat = useSettingsStore((s) => s.setNumberFormat);
+  const setBiometricLock = useSettingsStore((s) => s.setBiometricLock);
+  const biometricLock = useSettingsStore((s) => s.biometricLock);
+  const accentColor = useSettingsStore((s) => s.accentColor);
+
+  const [isLocked, setIsLocked] = useState(false);
 
   useEffect(() => {
     settingsDb.get('currency').then((row) => { if (row) setCurrency(row.value); });
     settingsDb.get('accent_color').then((row) => { if (row) setAccentColor(row.value); });
     settingsDb.get('number_format').then((row) => { if (row) setNumberFormat(row.value); });
+    settingsDb.get('biometric_lock').then((row) => { if (row) setBiometricLock(row.value === 'true'); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const authenticate = useCallback(async () => {
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: "Unlock It's a My Money!",
+      fallbackLabel: 'Use Passcode',
+      disableDeviceFallback: false,
+    });
+    if (result.success) setIsLocked(false);
+  }, []);
+
+  useEffect(() => {
+    if (!biometricLock) {
+      setIsLocked(false);
+      return;
+    }
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        setIsLocked(true);
+        authenticate();
+      }
+    });
+    return () => subscription.remove();
+  }, [biometricLock, authenticate]);
+
   const isDark = colorScheme === 'dark';
-  const { bg } = getColors(isDark);
+  const { bg, textColor, subColor } = getColors(isDark);
 
   return (
     <ThemeProvider value={isDark ? darkNavTheme : lightNavTheme}>
@@ -88,6 +120,24 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
+      {isLocked && biometricLock && (
+        <View style={[lockStyles.overlay, { backgroundColor: bg }]}>
+          <MaterialIcons name="lock" size={48} color={subColor} />
+          <Text style={[lockStyles.title, { color: textColor }]}>App Locked</Text>
+          <Text style={[lockStyles.subtitle, { color: subColor }]}>Authenticate to continue</Text>
+          <TouchableOpacity onPress={authenticate} style={[lockStyles.retryBtn, { backgroundColor: accentColor }]}>
+            <Text style={lockStyles.retryBtnText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </ThemeProvider>
   );
 }
+
+const lockStyles = StyleSheet.create({
+  overlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', zIndex: 999 },
+  title: { fontSize: 18, fontWeight: '600', marginTop: 16 },
+  subtitle: { fontSize: 14, marginTop: 8 },
+  retryBtn: { marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+  retryBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+});

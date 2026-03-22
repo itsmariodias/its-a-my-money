@@ -2,7 +2,7 @@ import { useSettingsStore } from './useSettingsStore';
 
 describe('useSettingsStore', () => {
   beforeEach(() => {
-    useSettingsStore.setState({ currency: 'USD', accentColor: '#2f95dc', numberFormat: 'en-US' });
+    useSettingsStore.setState({ currency: 'USD', accentColor: '#2f95dc', numberFormat: 'en-US', biometricLock: false });
   });
 
   it('should have correct defaults', () => {
@@ -23,5 +23,21 @@ describe('useSettingsStore', () => {
     // Then values should match
     expect(useSettingsStore.getState().currency).toBe('EUR');
     expect(useSettingsStore.getState().accentColor).toBe('#ef4444');
+  });
+
+  it('should have biometricLock defaulting to false', () => {
+    // Given a fresh settings store
+    // When getState is called
+    const state = useSettingsStore.getState();
+    // Then biometricLock should be false
+    expect(state.biometricLock).toBe(false);
+  });
+
+  it('should update biometricLock', () => {
+    // Given a fresh store
+    // When setBiometricLock is called with true
+    useSettingsStore.getState().setBiometricLock(true);
+    // Then biometricLock should be true
+    expect(useSettingsStore.getState().biometricLock).toBe(true);
   });
 });

@@ -189,7 +189,7 @@ export interface ExportData {
   categories: Category[];
   transactions: Transaction[];
   transfers: Transfer[];
-  settings?: { currency?: string; accent_color?: string; number_format?: string };
+  settings?: { currency?: string; accent_color?: string; number_format?: string; biometric_lock?: string };
 }
 
 export function useImportDb() {
