@@ -52,7 +52,8 @@ export async function ensureBackupFolder(
   accessToken: string
 ): Promise<{ id: string; name: string }> {
   // Search for existing folder created by this app
-  const query = `name='${BACKUP_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const escapedName = BACKUP_FOLDER_NAME.replace(/'/g, "\\'");
+  const query = `name='${escapedName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   const result = await driveGet(
     accessToken,
     `${DRIVE_API}?q=${encodeURIComponent(query)}&fields=files(id,name)&spaces=drive`

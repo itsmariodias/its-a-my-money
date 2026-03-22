@@ -4,7 +4,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { SQLiteProvider } from 'expo-sqlite';
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import 'react-native-reanimated';
@@ -117,15 +117,25 @@ function RootLayoutNav() {
     if (result.success) setIsLocked(false);
   }, []);
 
+  const backgroundAtRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (!biometricLock) {
       setIsLocked(false);
       return;
     }
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
-        setIsLocked(true);
-        authenticate();
+      if (nextState === 'background' || nextState === 'inactive') {
+        backgroundAtRef.current = Date.now();
+      } else if (nextState === 'active') {
+        const gone = backgroundAtRef.current ? Date.now() - backgroundAtRef.current : Infinity;
+        backgroundAtRef.current = null;
+        // Only lock if the app was in the background for more than 3 seconds
+        // (brief trips like Google Sign-In or share sheets shouldn't trigger the lock)
+        if (gone > 3000) {
+          setIsLocked(true);
+          authenticate();
+        }
       }
     });
     return () => subscription.remove();
