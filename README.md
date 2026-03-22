@@ -1,6 +1,8 @@
 # It's a My Money! 💰
 
-A personal finance app for iOS and Android built with Expo. Track your income, expenses, transfers, and account balances — fully offline, no accounts, no cloud, no nonsense.
+A personal finance app built with Expo. Track your income, expenses, transfers, and account balances — fully offline, no accounts, no cloud, no nonsense.
+
+> **Platform support:** Android is fully supported. iOS is **not yet supported** — if you'd like to help test or contribute to iOS support, check the [issues](https://github.com/itsmariodias/its-a-my-money/issues) or open a new one!
 
 > Vibe coded by [@itsmariodias](https://github.com/itsmariodias) with [Claude Code](https://claude.ai/code) (Anthropic). Every screen, component, and feature in this app was built through a conversation with Claude — no manual coding required.
 
