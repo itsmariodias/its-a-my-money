@@ -192,7 +192,7 @@ eas.json                              # EAS Build profiles (development + produc
 .github/
   workflows/
     ci.yml                            # Lint + type-check on push/PR
-    build-android.yml                 # Signed APK build on GitHub release publish
+    build-android.yml                 # Signed APK build on tag push (v*)
 ```
 
 ### Data Layer
@@ -311,17 +311,23 @@ Both `transactions.tsx` and `accounts.tsx` have inline `SwipeableTransactionRow`
 Runs on every push to `main` and on all PRs. Runs `pnpm lint` and `pnpm tsc`.
 
 ### Android APK build (`build-android.yml`)
-Triggers on GitHub Release published. Uses `expo prebuild --platform android --clean` + Gradle (no EAS account needed). Caches pnpm store and Gradle. Signs with keystore stored as GitHub secrets:
+Triggers on tag push (`v*`). Uses `expo prebuild --platform android --clean` + Gradle (no EAS account needed). Caches pnpm store and Gradle. Signs with keystore stored as GitHub secrets:
 - `KEYSTORE_BASE64` — base64-encoded `.keystore` file
 - `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
 - `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_IOS_URL_SCHEME`, `GOOGLE_ANDROID_CLIENT_ID` — Google OAuth credentials
 - `EAS_PROJECT_ID` — EAS project identifier
 
-`APP_VERSION` is set automatically from the release tag (e.g., `v.1.2.0` → `1.2.0`).
+`APP_VERSION` is set automatically from the tag (e.g., `v1.2.0` → `1.2.0`).
 
-Output APK is named `its-a-my-money-{tag}.apk` and uploaded as a release asset.
+Output APK is named `its-a-my-money-{tag}.apk` and attached to a GitHub release.
 
-The workflow job requires `permissions: contents: write` to upload to releases.
+The workflow job requires `permissions: contents: write` to create releases.
+
+**Release flow:**
+1. (Optional) Create a **draft** release on GitHub with the tag name and changelog
+2. Push the tag: `git tag v1.x.x && git push origin v1.x.x`
+3. Workflow builds the APK and creates/updates the release with the APK attached
+4. If a draft release exists for the tag, the APK is uploaded to it — then publish when ready
 
 ### EAS Build
 Used for development builds (replacing Expo Go, which cannot handle native modules like Google Sign-In). Configured in `eas.json` with `development` and `production` profiles. `expo-dev-client` is a dev dependency only.
