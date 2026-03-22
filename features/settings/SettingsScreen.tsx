@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { useSQLiteContext } from 'expo-sqlite';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as LegacyFS from 'expo-file-system/legacy';
@@ -31,6 +32,8 @@ import Constants from 'expo-constants';
 import type { Category } from '@/types';
 import { isValidExport } from './validation';
 import { parseMonefyCsv, convertMonefyToExportData } from './monefy';
+import { generateExportJson } from './exportData';
+import GoogleDriveSection from '@/features/backup/GoogleDriveSection';
 
 // ─── Category row ─────────────────────────────────────────────────────────────
 
@@ -114,6 +117,7 @@ export default function SettingsScreen() {
   const isDark = colorScheme === 'dark';
   const { bg, cardBg, inputBg, textColor, subColor, borderColor } = getColors(isDark);
 
+  const db = useSQLiteContext();
   const settingsDb = useSettingsDb();
   const categoriesDb = useCategoriesDb();
   const transactionsDb = useTransactionsDb();
@@ -223,42 +227,7 @@ export default function SettingsScreen() {
 
   const handleExport = async () => {
     try {
-      const [accounts, categories, rawTxns, rawTransfers] = await Promise.all([
-        accountsDb.getAll(),
-        categoriesDb.getAll(),
-        transactionsDb.getAll(),
-        transfersDb.getAll(),
-      ]);
-
-      const transactions = rawTxns.map(({ id, amount, type, category_id, account_id, note, date, created_at }) =>
-        ({ id, amount, type, category_id, account_id, note, date, created_at })
-      );
-      const transfers = rawTransfers.map(({ id, from_account_id, to_account_id, amount, note, date, created_at }) =>
-        ({ id, from_account_id, to_account_id, amount, note, date, created_at })
-      );
-
-      const [currencyRow, accentRow, formatRow, biometricRow] = await Promise.all([
-        settingsDb.get('currency'),
-        settingsDb.get('accent_color'),
-        settingsDb.get('number_format'),
-        settingsDb.get('biometric_lock'),
-      ]);
-
-      const data = JSON.stringify({
-        version: 1,
-        exported_at: new Date().toISOString(),
-        accounts,
-        categories,
-        transactions,
-        transfers,
-        settings: {
-          currency: currencyRow?.value ?? 'USD',
-          accent_color: accentRow?.value ?? null,
-          number_format: formatRow?.value ?? 'en-US',
-          biometric_lock: biometricRow?.value ?? 'false',
-        },
-      }, null, 2);
-
+      const data = await generateExportJson(db);
       const filename = `its-a-my-money-${new Date().toISOString().split('T')[0]}.json`;
 
       if (Platform.OS === 'android') {
@@ -489,6 +458,16 @@ export default function SettingsScreen() {
             />
           </TouchableOpacity>
         </View>
+
+        <GoogleDriveSection
+          isDark={isDark}
+          cardBg={cardBg}
+          textColor={textColor}
+          subColor={subColor}
+          borderColor={borderColor}
+          inputBg={inputBg}
+          accentColor={accentColor}
+        />
 
         <Text style={[styles.sectionLabel, { color: subColor }]}>Data</Text>
         <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>

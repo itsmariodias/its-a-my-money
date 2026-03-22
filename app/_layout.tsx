@@ -14,6 +14,9 @@ import { useColorScheme } from '@/shared/components/useColorScheme';
 import { runMigrations } from '@/db/migrations';
 import { useSettingsDb } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import { useBackupStore } from '@/features/backup/useBackupStore';
+import type { BackupFrequency } from '@/features/backup/useBackupStore';
+import { useAutoBackup } from '@/features/backup/useAutoBackup';
 import { getColors } from '@/constants/theme';
 
 const lightNavTheme = {
@@ -78,6 +81,12 @@ function RootLayoutNav() {
   const biometricLock = useSettingsStore((s) => s.biometricLock);
   const accentColor = useSettingsStore((s) => s.accentColor);
 
+  const setGoogleDriveEnabled = useBackupStore((s) => s.setGoogleDriveEnabled);
+  const setGoogleEmail = useBackupStore((s) => s.setGoogleEmail);
+  const setBackupFolder = useBackupStore((s) => s.setFolder);
+  const setBackupFrequency = useBackupStore((s) => s.setBackupFrequency);
+  const setLastBackupAt = useBackupStore((s) => s.setLastBackupAt);
+
   const [isLocked, setIsLocked] = useState(false);
 
   useEffect(() => {
@@ -85,8 +94,19 @@ function RootLayoutNav() {
     settingsDb.get('accent_color').then((row) => { if (row) setAccentColor(row.value); });
     settingsDb.get('number_format').then((row) => { if (row) setNumberFormat(row.value); });
     settingsDb.get('biometric_lock').then((row) => { if (row) setBiometricLock(row.value === 'true'); });
+    settingsDb.get('google_drive_enabled').then((row) => { if (row) setGoogleDriveEnabled(row.value === 'true'); });
+    settingsDb.get('google_email').then((row) => { if (row) setGoogleEmail(row.value); });
+    settingsDb.get('google_drive_folder_id').then((row) => {
+      if (row) settingsDb.get('google_drive_folder_name').then((nameRow) => {
+        setBackupFolder(row.value, nameRow?.value ?? null);
+      });
+    });
+    settingsDb.get('backup_frequency').then((row) => { if (row) setBackupFrequency(row.value as BackupFrequency); });
+    settingsDb.get('last_backup_at').then((row) => { if (row) setLastBackupAt(row.value); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useAutoBackup();
 
   const authenticate = useCallback(async () => {
     const result = await LocalAuthentication.authenticateAsync({

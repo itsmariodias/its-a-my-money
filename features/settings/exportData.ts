@@ -1,0 +1,53 @@
+import type { SQLiteDatabase } from 'expo-sqlite';
+import type { Account, Category, Transaction, Transfer } from '@/types';
+
+export interface ExportJson {
+  version: number;
+  exported_at: string;
+  accounts: Account[];
+  categories: Category[];
+  transactions: Omit<Transaction, never>[];
+  transfers: Omit<Transfer, never>[];
+  settings: {
+    currency: string;
+    accent_color: string | null;
+    number_format: string;
+    biometric_lock: string;
+  };
+}
+
+export async function generateExportData(db: SQLiteDatabase): Promise<ExportJson> {
+  const [accounts, categories, rawTxns, rawTransfers] = await Promise.all([
+    db.getAllAsync<Account>('SELECT * FROM accounts ORDER BY name ASC'),
+    db.getAllAsync<Category>('SELECT * FROM categories ORDER BY type, name ASC'),
+    db.getAllAsync<Transaction>('SELECT id, amount, type, category_id, account_id, note, date, created_at FROM transactions ORDER BY date DESC, created_at DESC'),
+    db.getAllAsync<Transfer>('SELECT id, from_account_id, to_account_id, amount, note, date, created_at FROM transfers ORDER BY date DESC, created_at DESC'),
+  ]);
+
+  const [currencyRow, accentRow, formatRow, biometricRow] = await Promise.all([
+    db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'currency'),
+    db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'accent_color'),
+    db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'number_format'),
+    db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'biometric_lock'),
+  ]);
+
+  return {
+    version: 1,
+    exported_at: new Date().toISOString(),
+    accounts,
+    categories,
+    transactions: rawTxns,
+    transfers: rawTransfers,
+    settings: {
+      currency: currencyRow?.value ?? 'USD',
+      accent_color: accentRow?.value ?? null,
+      number_format: formatRow?.value ?? 'en-US',
+      biometric_lock: biometricRow?.value ?? 'false',
+    },
+  };
+}
+
+export async function generateExportJson(db: SQLiteDatabase): Promise<string> {
+  const data = await generateExportData(db);
+  return JSON.stringify(data, null, 2);
+}
