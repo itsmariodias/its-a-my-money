@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Dimensions,
   Modal,
@@ -16,6 +15,7 @@ import {
 
 import { MaterialIcons } from '@expo/vector-icons';
 import DatePickerField from '@/shared/components/DatePickerField';
+import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
 import AccountIcon from '@/shared/components/AccountIcon';
 import { useCategoriesDb, useTransactionsDb } from '@/db';
@@ -67,6 +67,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   const [note, setNote] = useState('');
   const [date, setDate] = useState(today());
   const [attempted, setAttempted] = useState(false);
+  const [errorModal, setErrorModal] = useState<string | null>(null);
 
   // Populate / reset fields when the sheet opens or the target transaction changes
   useEffect(() => {
@@ -143,7 +144,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       await saveTransaction(parsedAmount);
       triggerCloseRef.current();
     } catch {
-      Alert.alert('Error', 'Failed to save transaction.');
+      setErrorModal('Failed to save transaction.');
     }
   }, [amount, selectedCategory, selectedAccountId, saveTransaction]);
 
@@ -157,7 +158,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       setNote('');
       setAttempted(false);
     } catch {
-      Alert.alert('Error', 'Failed to save transaction.');
+      setErrorModal('Failed to save transaction.');
     }
   }, [amount, selectedCategory, selectedAccountId, saveTransaction]);
 
@@ -213,6 +214,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
 
 
   return (
+    <>
     <Modal
       visible={isOpen}
       animationType="none"
@@ -390,6 +392,15 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
         </Animated.View>
       </View>
     </Modal>
+    <InfoModal
+      visible={!!errorModal}
+      onClose={() => setErrorModal(null)}
+      icon="error"
+      iconColor="#ef4444"
+      title="Error"
+      message={errorModal ?? ''}
+    />
+    </>
   );
 }
 

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Dimensions,
   Modal,
@@ -16,6 +15,7 @@ import {
 
 import { MaterialIcons } from '@expo/vector-icons';
 import DatePickerField from '@/shared/components/DatePickerField';
+import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
 import AccountIcon from '@/shared/components/AccountIcon';
 import { useTransfersDb } from '@/db';
@@ -65,6 +65,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   const [note, setNote] = useState('');
   const [date, setDate] = useState(today());
   const [attempted, setAttempted] = useState(false);
+  const [errorModal, setErrorModal] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -118,7 +119,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
       await saveTransfer(parsedAmount);
       triggerCloseRef.current();
     } catch {
-      Alert.alert('Error', 'Failed to save transfer.');
+      setErrorModal('Failed to save transfer.');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount, fromAccountId, toAccountId, saveTransfer]);
@@ -133,7 +134,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
       setNote('');
       setAttempted(false);
     } catch {
-      Alert.alert('Error', 'Failed to save transfer.');
+      setErrorModal('Failed to save transfer.');
     }
   }, [amount, fromAccountId, toAccountId, saveTransfer]);
 
@@ -187,6 +188,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
 
 
   return (
+    <>
     <Modal
       visible={isOpen}
       animationType="none"
@@ -361,6 +363,15 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
         </Animated.View>
       </View>
     </Modal>
+    <InfoModal
+      visible={!!errorModal}
+      onClose={() => setErrorModal(null)}
+      icon="error"
+      iconColor="#ef4444"
+      title="Error"
+      message={errorModal ?? ''}
+    />
+    </>
   );
 }
 

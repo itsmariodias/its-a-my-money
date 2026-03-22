@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Dimensions,
   Modal,
@@ -16,6 +15,7 @@ import {
 
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
+import InfoModal from '@/shared/components/InfoModal';
 import { useCategoriesDb } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getColors } from '@/constants/theme';
@@ -61,6 +61,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
   const [color, setColor] = useState(PRESET_COLORS[0]);
   const [icon, setIcon] = useState<string>(PRESET_ICONS[0]);
   const [attempted, setAttempted] = useState(false);
+  const [errorModal, setErrorModal] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -90,7 +91,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
       onSaved();
       onClose();
     } catch {
-      Alert.alert('Error', 'Failed to save category.');
+      setErrorModal('Failed to save category.');
     }
   };
 
@@ -140,6 +141,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
   })).current;
 
   return (
+    <>
     <Modal visible={isOpen} animationType="none" transparent onRequestClose={() => triggerCloseRef.current()}>
       <View style={styles.kvContainer}>
         <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: backdropOpacity }]}>
@@ -259,6 +261,15 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
         </Animated.View>
       </View>
     </Modal>
+    <InfoModal
+      visible={!!errorModal}
+      onClose={() => setErrorModal(null)}
+      icon="error"
+      iconColor="#ef4444"
+      title="Error"
+      message={errorModal ?? ''}
+    />
+    </>
   );
 }
 

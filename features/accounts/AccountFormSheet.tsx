@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Dimensions,
   Modal,
@@ -17,6 +16,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
 import AccountIcon from '@/shared/components/AccountIcon';
+import InfoModal from '@/shared/components/InfoModal';
 import { useAccountsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
@@ -75,6 +75,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
   const [color, setColor] = useState(PRESET_COLORS[0]);
   const [icon, setIcon] = useState<string>(PRESET_ICONS[0]);
   const [attempted, setAttempted] = useState(false);
+  const [errorModal, setErrorModal] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -106,7 +107,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
       setAccounts(updated);
       onClose();
     } catch {
-      Alert.alert('Error', 'Failed to save account.');
+      setErrorModal('Failed to save account.');
     }
   };
 
@@ -156,6 +157,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
   })).current;
 
   return (
+    <>
     <Modal
         visible={isOpen}
         animationType="none"
@@ -261,6 +263,15 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
           </Animated.View>
         </View>
       </Modal>
+    <InfoModal
+      visible={!!errorModal}
+      onClose={() => setErrorModal(null)}
+      icon="error"
+      iconColor="#ef4444"
+      title="Error"
+      message={errorModal ?? ''}
+    />
+    </>
   );
 }
 

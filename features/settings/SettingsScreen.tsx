@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
   Modal,
   Platform,
   Pressable,
@@ -17,6 +16,7 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as LegacyFS from 'expo-file-system/legacy';
 import { Text } from '@/shared/components/Themed';
+import InfoModal from '@/shared/components/InfoModal';
 import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb } from '@/db';
 import type { ExportData } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
@@ -245,7 +245,7 @@ export default function SettingsScreen() {
         setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Export Successful', message: 'File saved to your chosen location.' });
       } else {
         const file = new File(Paths.cache, filename);
-        await file.write(data);
+        file.write(data);
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Save backup' });
         } else {
@@ -320,7 +320,7 @@ export default function SettingsScreen() {
       await loadCategories();
       setResetModalOpen(false);
       setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Reset Successful', message: 'All data has been cleared and the app restored to its default state.' });
-    } catch { Alert.alert('Error', 'Failed to reset app data.'); }
+    } catch { setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Error', message: 'Failed to reset app data.' }); }
   };
 
   const displayedCategories = activeType === 'expense' ? expenseCategories : incomeCategories;
@@ -432,7 +432,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.appInfo}>
-          <Text style={[styles.appName, { color: subColor }]}>It's a My Money</Text>
+          <Text style={[styles.appName, { color: subColor }]}>It's a My Money!</Text>
           <Text style={[styles.appVersion, { color: isDark ? '#3a4a6e' : '#d1d5db' }]}>v{Constants.expoConfig?.version}</Text>
           <Text style={[styles.appCredit, { color: isDark ? '#3a4a6e' : '#d1d5db' }]}>
             by @itsmariodias · vibe coded with Claude Code
@@ -451,8 +451,12 @@ export default function SettingsScreen() {
             </View>
             <Text style={[styles.modalTitle, { color: textColor }]}>Reset All Data?</Text>
             <Text style={[styles.resetWarningText, { color: subColor }]}>
-              This will permanently delete all transactions, accounts, and custom categories, and restore the app to its default state.{'\n\n'}This cannot be undone.
+              This will permanently delete all transactions, accounts, and custom categories, and restore the app to its default state.
             </Text>
+            <View style={[styles.modalWarn, { backgroundColor: isDark ? '#2d2000' : '#fffbeb' }]}>
+              <MaterialIcons name="warning" size={14} color="#f59e0b" />
+              <Text style={[styles.modalWarnText, { color: '#f59e0b' }]}>This cannot be undone.</Text>
+            </View>
             <View style={[styles.modalDivider, { backgroundColor: borderColor }]} />
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setResetModalOpen(false)}>
@@ -520,24 +524,14 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* Info modal (success / error) */}
-      <Modal visible={!!infoModal} animationType="fade" transparent onRequestClose={() => setInfoModal(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setInfoModal(null)} />
-        <View style={styles.modalCenter} pointerEvents="box-none">
-          <View style={[styles.modalCard, { backgroundColor: cardBg }]}>
-            <View style={[styles.modalIconWrap, { backgroundColor: infoModal ? infoModal.iconColor + '20' : 'transparent' }]}>
-              <MaterialIcons name={(infoModal?.icon ?? 'info') as any} size={32} color={infoModal?.iconColor} />
-            </View>
-            <Text style={[styles.modalTitle, { color: textColor }]}>{infoModal?.title}</Text>
-            <Text style={[styles.resetWarningText, { color: subColor }]}>{infoModal?.message}</Text>
-            <View style={[styles.modalDivider, { backgroundColor: borderColor }]} />
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setInfoModal(null)}>
-                <Text style={[styles.modalBtnCancelText, { color: accentColor }]}>OK</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <InfoModal
+        visible={!!infoModal}
+        onClose={() => setInfoModal(null)}
+        icon={infoModal?.icon ?? 'info'}
+        iconColor={infoModal?.iconColor ?? '#ef4444'}
+        title={infoModal?.title ?? ''}
+        message={infoModal?.message ?? ''}
+      />
 
       {/* Currency picker */}
       <Modal visible={currencyPickerOpen} animationType="slide" transparent={false} onRequestClose={() => setCurrencyPickerOpen(false)}>
@@ -669,7 +663,7 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 14 },
   rowDivider: { height: StyleSheet.hairlineWidth, marginLeft: 62 },
   appInfo: { alignItems: 'center', marginTop: 12, gap: 2 },
-  appName: { fontSize: 13, fontWeight: '600' },
+  appName: { fontSize: 15, fontFamily: 'LilitaOne' },
   appVersion: { fontSize: 12 },
   appCredit: { fontSize: 11, marginTop: 2 },
   dropdownPanel: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 4, paddingBottom: 4 },
