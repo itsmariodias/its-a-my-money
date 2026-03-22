@@ -52,6 +52,11 @@ jobs:
           restore-keys: ${{ runner.os }}-gradle-
 
       - name: Generate native Android project
+        env:
+          APP_VERSION: ${{ github.ref_name }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
+          GOOGLE_IOS_URL_SCHEME: ${{ secrets.GOOGLE_IOS_URL_SCHEME }}
         run: npx expo prebuild --platform android --clean
 
       - name: Decode keystore
