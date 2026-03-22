@@ -230,7 +230,6 @@ export default function TabLayout() {
     ]).start(() => setFabExpanded(false));
   }, [fabRotation, fabBackdropOpacity, item1Translate, item1Opacity, item2Translate, item2Opacity]);
 
-  const showFab = !settingsOpen;
   const fabBottom = TAB_BAR_HEIGHT + insets.bottom + 12;
 
   const currentTitle = TABS.find((t) => t.name === currentTab)?.title ?? "It's a My Money!";
@@ -240,7 +239,7 @@ export default function TabLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: bg, paddingTop: insets.top }}>
       <View style={[styles.header, { backgroundColor: bg, borderBottomColor: borderColor }]}>
-        <Text style={[styles.headerTitle, { color: textColor }]}>{currentTitle}</Text>
+        <Text style={[currentTitle === "It's a My Money!" ? styles.headerTitleLogo : styles.headerTitle, { color: textColor }]}>{currentTitle}</Text>
         <View style={styles.headerActions}>
           {showAccountFilter && (
             <TouchableOpacity
@@ -311,7 +310,7 @@ export default function TabLayout() {
       </MaterialTabs>
 
       {/* Custom bottom tab bar */}
-      {!settingsOpen && <View style={[styles.tabBar, { backgroundColor: bg, borderTopColor: borderColor, height: TAB_BAR_HEIGHT + insets.bottom }]}>
+      <View style={[styles.tabBar, { backgroundColor: bg, borderTopColor: borderColor, height: TAB_BAR_HEIGHT + insets.bottom }]}>
         {TABS.map((tab) => {
           const isActive = currentTab === tab.name || (tab.name === 'index' && currentTab === '(tabs)');
           return (
@@ -326,14 +325,14 @@ export default function TabLayout() {
             </TouchableOpacity>
           );
         })}
-      </View>}
+      </View>
 
-      {showFab && fabExpanded && (
+      {fabExpanded && (
         <Animated.View style={[StyleSheet.absoluteFill, styles.fabBackdrop, { opacity: fabBackdropOpacity }]} pointerEvents="box-none">
           <Pressable style={{ flex: 1 }} onPress={collapseFab} />
         </Animated.View>
       )}
-      {showFab && (
+      {(
         <>
           {/* Speed-dial item 2: Transfer (top) */}
           <Animated.View
@@ -424,6 +423,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
   },
+  headerTitleLogo: {
+    fontFamily: 'LilitaOne',
+    fontSize: 20,
+    flex: 1,
+  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -481,6 +485,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 200,
   },
   fab: {
     position: 'absolute',

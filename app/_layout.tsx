@@ -33,6 +33,7 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    LilitaOne: require('../assets/fonts/LilitaOne-Regular.ttf'),
   });
 
   useEffect(() => {
