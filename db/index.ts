@@ -151,18 +151,28 @@ export function useResetDb() {
         INSERT INTO accounts (name, initial_balance, currency, color, icon)
           VALUES ('Cash', 0, 'USD', '#55A3FF', 'account-balance-wallet');
         INSERT INTO categories (name, type, color, icon, is_default) VALUES
-          ('Food & Drinks', 'expense', '#F44336', 'restaurant', 1),
-          ('Transport', 'expense', '#2196F3', 'directions-car', 1),
-          ('Shopping', 'expense', '#9C27B0', 'shopping-cart', 1),
+          ('Bills', 'expense', '#607D8B', 'receipt', 1),
+          ('Car', 'expense', '#2196F3', 'directions-car', 1),
+          ('Clothes', 'expense', '#9C27B0', 'shopping-cart', 1),
+          ('Communications', 'expense', '#00BCD4', 'phone', 1),
+          ('Eating out', 'expense', '#F44336', 'restaurant', 1),
           ('Entertainment', 'expense', '#FF9800', 'movie', 1),
+          ('Food', 'expense', '#FF5722', 'restaurant', 1),
+          ('Gifts', 'expense', '#E91E63', 'card-giftcard', 1),
           ('Health', 'expense', '#009688', 'local-hospital', 1),
-          ('Bills & Utilities', 'expense', '#607D8B', 'receipt', 1),
-          ('Housing', 'expense', '#795548', 'home', 1),
+          ('House', 'expense', '#795548', 'home', 1),
+          ('Pets', 'expense', '#FF9800', 'pets', 1),
+          ('Sports', 'expense', '#F44336', 'sports-soccer', 1),
+          ('Taxi', 'expense', '#FFC107', 'local-taxi', 1),
+          ('Toiletry', 'expense', '#26C6DA', 'soap', 1),
+          ('Transport', 'expense', '#2196F3', 'directions-car', 1),
           ('Other Expense', 'expense', '#9E9E9E', 'more-horiz', 1),
-          ('Salary', 'income', '#4CAF50', 'work', 1),
+          ('Deposits', 'income', '#03A9F4', 'savings', 1),
           ('Freelance', 'income', '#FF5722', 'laptop', 1),
-          ('Investment', 'income', '#03A9F4', 'trending-up', 1),
           ('Gift', 'income', '#E91E63', 'card-giftcard', 1),
+          ('Investment', 'income', '#03A9F4', 'trending-up', 1),
+          ('Salary', 'income', '#4CAF50', 'work', 1),
+          ('Savings', 'income', '#43A047', 'savings', 1),
           ('Other Income', 'income', '#78909C', 'more-horiz', 1);
         INSERT OR REPLACE INTO settings (key, value) VALUES ('currency', 'USD');
         DELETE FROM settings WHERE key IN ('accent_color', 'number_format');
@@ -188,19 +198,30 @@ export function useImportDb() {
   return {
     importAll: async (data: ExportData) => {
       await db.withTransactionAsync(async () => {
-        // 1. Wipe all user data
+        // 1. Wipe transactions, transfers, budgets, accounts (not categories)
         await db.runAsync('DELETE FROM transfers');
         await db.runAsync('DELETE FROM transactions');
         await db.runAsync('DELETE FROM budgets');
         await db.runAsync('DELETE FROM accounts');
-        await db.runAsync('DELETE FROM categories');
 
-        // 2. Categories first (transactions reference them)
+        // 2. Categories: merge by name — reuse existing, insert only new ones.
+        //    Build a remapping from ExportData category ID → actual DB category ID.
+        const existing = await db.getAllAsync<{ id: number; name: string }>(
+          'SELECT id, name FROM categories'
+        );
+        const existingIdByName = new Map(existing.map((c) => [c.name, c.id]));
+        const categoryIdMap = new Map<number, number>();
+
         for (const cat of data.categories) {
-          await db.runAsync(
-            'INSERT INTO categories (id, name, type, color, icon, is_default) VALUES (?, ?, ?, ?, ?, ?)',
-            cat.id, cat.name, cat.type, cat.color, cat.icon, cat.is_default
-          );
+          if (existingIdByName.has(cat.name)) {
+            categoryIdMap.set(cat.id, existingIdByName.get(cat.name)!);
+          } else {
+            const result = await db.runAsync(
+              'INSERT INTO categories (name, type, color, icon, is_default) VALUES (?, ?, ?, ?, ?)',
+              cat.name, cat.type, cat.color, cat.icon, cat.is_default
+            );
+            categoryIdMap.set(cat.id, result.lastInsertRowId);
+          }
         }
 
         // 3. Accounts
@@ -211,11 +232,12 @@ export function useImportDb() {
           );
         }
 
-        // 4. Transactions
+        // 4. Transactions (remap category_id to actual DB id)
         for (const tx of data.transactions) {
+          const actualCategoryId = categoryIdMap.get(tx.category_id) ?? tx.category_id;
           await db.runAsync(
             'INSERT INTO transactions (id, amount, type, category_id, account_id, note, date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            tx.id, tx.amount, tx.type, tx.category_id, tx.account_id, tx.note ?? null, tx.date, tx.created_at
+            tx.id, tx.amount, tx.type, actualCategoryId, tx.account_id, tx.note ?? null, tx.date, tx.created_at
           );
         }
 

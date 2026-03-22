@@ -52,18 +52,28 @@ export async function up(db: SQLiteDatabase): Promise<void> {
 
     -- Seed default categories
     INSERT INTO categories (name, type, color, icon, is_default) VALUES
-      ('Food & Drinks', 'expense', '#F44336', 'restaurant', 1),
-      ('Transport', 'expense', '#2196F3', 'directions-car', 1),
-      ('Shopping', 'expense', '#9C27B0', 'shopping-cart', 1),
+      ('Bills', 'expense', '#607D8B', 'receipt', 1),
+      ('Car', 'expense', '#2196F3', 'directions-car', 1),
+      ('Clothes', 'expense', '#9C27B0', 'shopping-cart', 1),
+      ('Communications', 'expense', '#00BCD4', 'phone', 1),
+      ('Eating out', 'expense', '#F44336', 'restaurant', 1),
       ('Entertainment', 'expense', '#FF9800', 'movie', 1),
+      ('Food', 'expense', '#FF5722', 'restaurant', 1),
+      ('Gifts', 'expense', '#E91E63', 'card-giftcard', 1),
       ('Health', 'expense', '#009688', 'local-hospital', 1),
-      ('Bills & Utilities', 'expense', '#607D8B', 'receipt', 1),
-      ('Housing', 'expense', '#795548', 'home', 1),
+      ('House', 'expense', '#795548', 'home', 1),
+      ('Pets', 'expense', '#FF9800', 'pets', 1),
+      ('Sports', 'expense', '#F44336', 'sports-soccer', 1),
+      ('Taxi', 'expense', '#FFC107', 'local-taxi', 1),
+      ('Toiletry', 'expense', '#26C6DA', 'soap', 1),
+      ('Transport', 'expense', '#2196F3', 'directions-car', 1),
       ('Other Expense', 'expense', '#9E9E9E', 'more-horiz', 1),
-      ('Salary', 'income', '#4CAF50', 'work', 1),
+      ('Deposits', 'income', '#03A9F4', 'savings', 1),
       ('Freelance', 'income', '#FF5722', 'laptop', 1),
-      ('Investment', 'income', '#03A9F4', 'trending-up', 1),
       ('Gift', 'income', '#E91E63', 'card-giftcard', 1),
+      ('Investment', 'income', '#03A9F4', 'trending-up', 1),
+      ('Salary', 'income', '#4CAF50', 'work', 1),
+      ('Savings', 'income', '#43A047', 'savings', 1),
       ('Other Income', 'income', '#78909C', 'more-horiz', 1);
 
     -- Seed a default account

@@ -11,10 +11,10 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as LegacyFS from 'expo-file-system/legacy';
+import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { Text } from '@/shared/components/Themed';
 import InfoModal from '@/shared/components/InfoModal';
 import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb } from '@/db';
@@ -29,6 +29,7 @@ import { ACCENT_COLORS, getColors } from '@/constants/theme';
 import Constants from 'expo-constants';
 import type { Category } from '@/types';
 import { isValidExport } from './validation';
+import { parseMonefyCsv, convertMonefyToExportData } from './monefy';
 
 // ─── Category row ─────────────────────────────────────────────────────────────
 
@@ -236,18 +237,51 @@ export default function SettingsScreen() {
       const filename = `its-a-my-money-${new Date().toISOString().split('T')[0]}.json`;
 
       if (Platform.OS === 'android') {
-        const permissions = await LegacyFS.StorageAccessFramework.requestDirectoryPermissionsAsync();
-        if (!permissions.granted) return;
-        const fileUri = await LegacyFS.StorageAccessFramework.createFileAsync(
-          permissions.directoryUri, filename, 'application/json'
-        );
-        await LegacyFS.writeAsStringAsync(fileUri, data, { encoding: LegacyFS.EncodingType.UTF8 });
-        setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Export Successful', message: 'File saved to your chosen location.' });
+        const safDirToPath = (uri: string) => {
+          const decoded = decodeURIComponent(uri);
+          const match = decoded.match(/tree\/primary:(.*)$/);
+          return match ? match[1] : decoded.replace(/^content:\/\/.*\/tree\//, '');
+        };
+
+        const writeToDirectory = async (dirUri: string): Promise<boolean> => {
+          try {
+            const fileUri = await StorageAccessFramework.createFileAsync(dirUri, filename, 'application/json');
+            await StorageAccessFramework.writeAsStringAsync(fileUri, data, { encoding: LegacyFS.EncodingType.UTF8 });
+            return true;
+          } catch {
+            return false;
+          }
+        };
+
+        const showSuccess = (dirUri: string) => {
+          const folder = safDirToPath(dirUri);
+          setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Export Successful', message: `Saved to ${folder}/${filename}` });
+        };
+
+        // Try cached directory first
+        const cached = await settingsDb.get('export_directory_uri');
+        if (cached?.value) {
+          const ok = await writeToDirectory(cached.value);
+          if (ok) { showSuccess(cached.value); return; }
+          // Permission revoked — fall through to re-request
+        }
+
+        // Ask user to pick a directory
+        const perm = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!perm.granted) return;
+
+        await settingsDb.set('export_directory_uri', perm.directoryUri);
+        const ok = await writeToDirectory(perm.directoryUri);
+        if (ok) {
+          showSuccess(perm.directoryUri);
+        } else {
+          setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Export Failed', message: 'Could not save file to the selected folder.' });
+        }
       } else {
-        const file = new File(Paths.cache, filename);
-        file.write(data);
+        const fileUri = `${LegacyFS.cacheDirectory}${filename}`;
+        await LegacyFS.writeAsStringAsync(fileUri, data, { encoding: LegacyFS.EncodingType.UTF8 });
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Save backup' });
+          await Sharing.shareAsync(fileUri, { mimeType: 'application/json', UTI: 'public.json', dialogTitle: 'Save backup' });
         } else {
           setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Sharing Unavailable', message: 'Your device does not support sharing files.' });
         }
@@ -281,6 +315,30 @@ export default function SettingsScreen() {
       setImportConfirmData(parsed);
     } catch {
       setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Import Failed', message: 'Could not read the selected file.' });
+    }
+  };
+
+  const handleMonefyImport = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/csv', 'text/comma-separated-values', 'public.comma-separated-values-text', '*/*'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+
+      const text = await LegacyFS.readAsStringAsync(result.assets[0].uri);
+      const records = parseMonefyCsv(text);
+
+      if (records.length === 0) {
+        setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Invalid File', message: 'No records found in the Monefy CSV.' });
+        return;
+      }
+
+      const exportData = convertMonefyToExportData(records);
+      setImportRestoreSettings(false);
+      setImportConfirmData(exportData);
+    } catch {
+      setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Import Failed', message: 'Could not read the Monefy CSV file.' });
     }
   };
 
@@ -416,6 +474,15 @@ export default function SettingsScreen() {
             </View>
             <Text style={[styles.rowLabel, { color: textColor }]}>Import Data</Text>
             <Text style={[styles.rowValue, { color: subColor }]}>JSON</Text>
+            <MaterialIcons name="chevron-right" size={20} color={subColor} />
+          </TouchableOpacity>
+          <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
+          <TouchableOpacity style={styles.row} onPress={handleMonefyImport} activeOpacity={0.7}>
+            <View style={[styles.rowIcon, { backgroundColor: '#8b5cf620' }]}>
+              <MaterialIcons name="swap-horiz" size={20} color="#8b5cf6" />
+            </View>
+            <Text style={[styles.rowLabel, { color: textColor }]}>Import from Monefy</Text>
+            <Text style={[styles.rowValue, { color: subColor }]}>CSV</Text>
             <MaterialIcons name="chevron-right" size={20} color={subColor} />
           </TouchableOpacity>
         </View>
