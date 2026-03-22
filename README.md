@@ -30,12 +30,21 @@ A personal finance app for iOS and Android built with Expo. Track your income, e
 - Swipe left to delete (with cascade delete of linked transactions)
 - Running balance calculated from initial balance + net transactions
 
+**Cloud Backup**
+- Automatic Google Drive backup — daily, weekly, or monthly
+- Uses the same JSON format as manual export
+- Single file in a dedicated Drive folder, overwritten each backup
+- OS notifications when backup starts and completes
+- Connect/disconnect from Settings with one tap
+
 **Settings**
 - Currency picker (50+ currencies)
 - Accent color — 8 color presets to theme the whole app
 - Number format — US, European, French, Indian, or no-grouping
+- Biometric lock — fingerprint/Face ID to protect the app
 - Manage income and expense categories (add, edit, delete)
 - Export all data as JSON
+- Import from Monefy backup
 - Full data reset
 
 ---
@@ -46,9 +55,12 @@ A personal finance app for iOS and Android built with Expo. Track your income, e
 - [expo-router](https://expo.github.io/router) — file-based navigation
 - [expo-sqlite](https://docs.expo.dev/versions/latest/sdk/sqlite/) — local SQLite database, all data on-device
 - [Zustand](https://zustand-demo.pmnd.rs) — global state management
+- [@react-native-google-signin/google-signin](https://github.com/react-native-google-signin/google-signin) — Google OAuth for Drive backup
+- [expo-notifications](https://docs.expo.dev/versions/latest/sdk/notifications/) — local backup notifications
+- [expo-local-authentication](https://docs.expo.dev/versions/latest/sdk/local-authentication/) — biometric lock
 - TypeScript throughout
 
-All data is stored locally on your device. There is no backend, no sync, no login.
+All data is stored locally on your device. Cloud backup to Google Drive is optional and user-initiated.
 
 ---
 
@@ -67,6 +79,26 @@ pnpm ios
 # Run on Android emulator
 pnpm android
 ```
+
+### Environment setup
+
+Copy `.env.example` to `.env.local` and fill in your Google OAuth credentials:
+
+```bash
+cp .env.example .env.local
+```
+
+Google Drive backup requires OAuth client IDs from the [Google Cloud Console](https://console.cloud.google.com/). Create OAuth 2.0 credentials for Web, iOS, and Android clients with the `drive.file` scope.
+
+### Development builds
+
+Native modules (Google Sign-In, notifications) require a development build — Expo Go is not supported. Use [EAS Build](https://docs.expo.dev/develop/development-builds/create-a-build/) to create one:
+
+```bash
+npx eas build --profile development --platform android
+```
+
+Install the resulting APK/IPA on your device, then run `pnpm start` and scan the QR code.
 
 ---
 

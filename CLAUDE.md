@@ -10,6 +10,7 @@ Built with Expo (managed workflow), TypeScript, expo-router, and SQLite for full
 ## Rules
 
 - **Never commit without explicit permission.** Do not run `git commit` unless the user explicitly asks to commit.
+- **Always install Expo-compatible package versions.** Run `npx expo install --check` after adding any Expo-related dependency. The project uses Expo SDK 54 — packages from SDK 55+ will cause native build failures. Use `npx expo install <package>` instead of `pnpm add` for Expo packages to get the correct version automatically.
 
 ## Code Principles
 
@@ -91,14 +92,20 @@ features/transactions/useTransactionsStore.test.ts
 features/transfers/useTransfersStore.test.ts
 features/settings/useSettingsStore.test.ts
 features/settings/validation.test.ts
+features/settings/exportData.test.ts
+features/backup/googleDrive.test.ts
+features/backup/useBackupStore.test.ts
 shared/store/useUIStore.test.ts
 ```
 
 ## Architecture
 
 ### Tech Stack
-- **Expo** (managed workflow) + **expo-router** (file-based routing)
-- **expo-sqlite** — local SQLite database, all data on-device, no backend
+- **Expo SDK 54** (managed workflow) + **expo-router** (file-based routing)
+- **expo-sqlite** — local SQLite database, all data on-device
+- **expo-notifications** — local notifications for backup status
+- **expo-local-authentication** — biometric lock (fingerprint/Face ID)
+- **@react-native-google-signin/google-signin** — Google OAuth for Drive backup
 - **react-native-calendars** — cross-platform date picker (shared `DatePickerField` component)
 - **react-native-gifted-charts** — charts on the dashboard
 - **Zustand** — global state management
@@ -113,7 +120,7 @@ app/                                  # expo-router screens (file-based routing)
     index.tsx                         # Dashboard screen
     transactions.tsx                  # Transactions list screen
     accounts.tsx                      # Accounts list screen
-  _layout.tsx                         # Root layout — SQLiteProvider, migrations
+  _layout.tsx                         # Root layout — SQLiteProvider, migrations, auto backup, biometric lock
 
 features/                             # Feature modules (screens + logic co-located)
   accounts/
@@ -135,7 +142,17 @@ features/                             # Feature modules (screens + logic co-loca
     useSettingsStore.test.ts
     validation.ts                     # Export validation helpers
     validation.test.ts
+    exportData.ts                     # Reusable JSON export generator (used by manual export + Drive backup)
+    exportData.test.ts
     monefy/                           # Monefy backup CSV parser (stub)
+  backup/
+    googleDrive.ts                    # Google Drive API service (sign-in, upload, folder management)
+    googleDrive.test.ts
+    useBackupStore.ts                 # Zustand store for backup state
+    useBackupStore.test.ts
+    useAutoBackup.ts                  # AppState-based auto backup trigger
+    notifications.ts                  # expo-notifications wrapper for backup alerts
+    GoogleDriveSection.tsx            # Cloud Backup settings UI
 
 shared/                               # Cross-feature reusable code
   components/
@@ -153,6 +170,7 @@ constants/
   theme.ts                            # getColors(), ACCENT_COLORS, sheetErrorText
   theme.test.ts
   sheetStyles.ts                      # Shared bottom sheet + date picker styles
+  google.ts                           # Google OAuth client IDs (read from Expo constants)
 
 db/
   index.ts                            # Query helper hooks (useAccountsDb, useTransactionsDb, etc.)
@@ -165,6 +183,11 @@ types/
 
 __mocks__/
   expo-sqlite.ts                      # Jest mock for expo-sqlite
+
+app.config.ts                         # Dynamic Expo config (env vars for credentials, version from git tags)
+.env.local                            # Local env vars (gitignored) — Google client IDs, EAS project ID
+.env.example                          # Template for .env.local
+eas.json                              # EAS Build profiles (development + production)
 
 .github/
   workflows/
@@ -220,6 +243,36 @@ User preferences are persisted in SQLite (`settings` table, key-value) and synce
 - **Currency** — ISO code (e.g. `USD`). `formatAmount()` in `constants/currencies.ts` handles symbol + formatting.
 - **Accent color** — hex string stored as `accent_color`. All screens read it from the store; never hardcode `#2f95dc`.
 - **Number format** — locale string (`en-US`, `de-DE`, `fr-FR`, `en-IN`, `plain`). Pass as 4th arg to `formatAmount()`.
+- **Biometric lock** — boolean. When enabled, locks the app after 3+ seconds in background. Uses `expo-local-authentication`. The 3-second threshold prevents lock during brief external activities (Google Sign-In, share sheets).
+- **Cloud Backup** — Google Drive backup settings (see below).
+
+### Cloud Backup (Google Drive)
+Automatic backups to Google Drive using the same JSON format as manual export.
+
+- **Auth**: `@react-native-google-signin/google-signin` with `drive.file` scope (only accesses files the app creates)
+- **API**: Plain `fetch()` to Google Drive REST API v3 — no heavy SDK
+- **Storage**: Single file (`its-a-my-money-backup.json`) in a dedicated folder (`It's a My Money! Backups`), overwritten each backup
+- **Trigger**: `useAutoBackup` hook listens to `AppState` changes. When the app comes to foreground and the chosen interval (daily/weekly/monthly) has elapsed, it triggers a backup
+- **Notifications**: `expo-notifications` shows local notifications for backup start/completion
+- **State**: `useBackupStore` (Zustand) holds backup state; persisted in SQLite `settings` table as key-value pairs
+- **UI**: `GoogleDriveSection` component in Settings — connect/disconnect, frequency picker, backup now, last backup time
+
+Backup settings stored in SQLite: `google_drive_enabled`, `google_email`, `google_drive_folder_id`, `google_drive_folder_name`, `backup_frequency`, `last_backup_at`.
+
+### Environment Variables
+Google OAuth credentials and EAS config are injected via environment variables, not hardcoded.
+
+- **`.env.local`** — local env file (gitignored), see `.env.example` for template
+- **`app.config.ts`** — dynamic Expo config reads env vars and exposes them via `extra`
+- **`constants/google.ts`** — reads credentials from `expo-constants` at runtime
+
+Required env vars:
+- `GOOGLE_WEB_CLIENT_ID` — Google OAuth web client ID
+- `GOOGLE_IOS_CLIENT_ID` — Google OAuth iOS client ID
+- `GOOGLE_IOS_URL_SCHEME` — reversed iOS client ID for OAuth redirect
+- `GOOGLE_ANDROID_CLIENT_ID` — Google OAuth Android client ID (for SHA-1 certificate matching)
+- `EAS_PROJECT_ID` — EAS Build project ID (optional for local dev)
+- `APP_VERSION` — set automatically in CI from git tag (defaults to `0.0.1`)
 
 ### Theming
 `getColors(isDark)` in `constants/theme.ts` returns the full color set for light/dark mode. The tab bar, headers, and all screens share the same `bg` color — no separate header background.
@@ -261,10 +314,17 @@ Runs on every push to `main` and on all PRs. Runs `pnpm lint` and `pnpm tsc`.
 Triggers on GitHub Release published. Uses `expo prebuild --platform android --clean` + Gradle (no EAS account needed). Caches pnpm store and Gradle. Signs with keystore stored as GitHub secrets:
 - `KEYSTORE_BASE64` — base64-encoded `.keystore` file
 - `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
+- `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_IOS_URL_SCHEME`, `GOOGLE_ANDROID_CLIENT_ID` — Google OAuth credentials
+- `EAS_PROJECT_ID` — EAS project identifier
+
+`APP_VERSION` is set automatically from the release tag (e.g., `v.1.2.0` → `1.2.0`).
 
 Output APK is named `its-a-my-money-{tag}.apk` and uploaded as a release asset.
 
 The workflow job requires `permissions: contents: write` to upload to releases.
+
+### EAS Build
+Used for development builds (replacing Expo Go, which cannot handle native modules like Google Sign-In). Configured in `eas.json` with `development` and `production` profiles. `expo-dev-client` is a dev dependency only.
 
 ## Monefy Migration
 
