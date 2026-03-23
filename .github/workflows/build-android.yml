@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      APP_VERSION: ${{ github.ref_name }}
 
     steps:
       - name: Checkout repository
@@ -53,7 +55,6 @@ jobs:
 
       - name: Generate native Android project
         env:
-          APP_VERSION: ${{ github.ref_name }}
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
           GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
           GOOGLE_IOS_URL_SCHEME: ${{ secrets.GOOGLE_IOS_URL_SCHEME }}
