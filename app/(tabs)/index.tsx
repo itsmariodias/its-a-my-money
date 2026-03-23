@@ -24,7 +24,6 @@ import {
   getDateRange,
   shortPeriodLabel,
   periodNavLabel,
-  type PeriodMode,
 } from '@/shared/components/PeriodSelector';
 import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
@@ -96,8 +95,9 @@ export default function DashboardScreen() {
   const isDark = colorScheme === 'dark';
 
   const selectedId = useUIStore((s) => s.selectedAccountId);
-  const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
-  const [periodDate, setPeriodDate] = useState(new Date());
+  const periodMode = useUIStore((s) => s.periodMode);
+  const periodDate = useUIStore((s) => s.periodDate);
+  const setPeriod = useUIStore((s) => s.setPeriod);
   const [selectedSliceIdx, setSelectedSliceIdx] = useState<number | null>(null);
 
   const transactionsDb = useTransactionsDb();
@@ -270,7 +270,7 @@ export default function DashboardScreen() {
         <PeriodSelector
           mode={periodMode}
           date={periodDate}
-          onChange={(m, d) => { setPeriodMode(m); setPeriodDate(d); }}
+          onChange={setPeriod}
         />
       </View>
 

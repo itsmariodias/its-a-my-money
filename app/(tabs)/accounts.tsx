@@ -17,13 +17,13 @@ import {
   PeriodSelector,
   getDateRange,
   periodNavLabel,
-  type PeriodMode,
 } from '@/shared/components/PeriodSelector';
 import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
 import { getColors } from '@/constants/theme';
 import type { Account } from '@/types';
@@ -261,8 +261,9 @@ export default function AccountsScreen() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
-  const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
-  const [periodDate, setPeriodDate] = useState(new Date());
+  const periodMode = useUIStore((s) => s.periodMode);
+  const periodDate = useUIStore((s) => s.periodDate);
+  const setPeriod = useUIStore((s) => s.setPeriod);
   const [deletingAccount, setDeletingAccount] = useState<Account | null>(null);
   const [deleteTxCount, setDeleteTxCount] = useState(0);
 
@@ -353,7 +354,7 @@ export default function AccountsScreen() {
         <PeriodSelector
           mode={periodMode}
           date={periodDate}
-          onChange={(m, d) => { setPeriodMode(m); setPeriodDate(d); }}
+          onChange={setPeriod}
         />
       </View>
 

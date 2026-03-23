@@ -34,6 +34,7 @@ import { isValidExport } from './validation';
 import { parseMonefyCsv, convertMonefyToExportData } from './monefy';
 import { generateExportJson } from './exportData';
 import GoogleDriveSection from '@/features/backup/GoogleDriveSection';
+import { useUIStore } from '@/shared/store/useUIStore';
 
 // ─── Category row ─────────────────────────────────────────────────────────────
 
@@ -261,6 +262,7 @@ export default function SettingsScreen() {
         }
 
         // Ask user to pick a directory
+        useUIStore.getState().setExternalActivityActive(true);
         const perm = await StorageAccessFramework.requestDirectoryPermissionsAsync();
         if (!perm.granted) return;
 
@@ -275,16 +277,21 @@ export default function SettingsScreen() {
         const fileUri = `${LegacyFS.cacheDirectory}${filename}`;
         await LegacyFS.writeAsStringAsync(fileUri, data, { encoding: LegacyFS.EncodingType.UTF8 });
         if (await Sharing.isAvailableAsync()) {
+          useUIStore.getState().setExternalActivityActive(true);
           await Sharing.shareAsync(fileUri, { mimeType: 'application/json', UTI: 'public.json', dialogTitle: 'Save backup' });
         } else {
           setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Sharing Unavailable', message: 'Your device does not support sharing files.' });
         }
       }
-    } catch { setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Export Failed', message: 'Could not export data.' }); }
+    } catch {
+      useUIStore.getState().setExternalActivityActive(false);
+      setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Export Failed', message: 'Could not export data.' });
+    }
   };
 
   const handleImport = async () => {
     try {
+      useUIStore.getState().setExternalActivityActive(true);
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/json', 'public.json'],
         copyToCacheDirectory: true,
@@ -308,12 +315,14 @@ export default function SettingsScreen() {
       setImportRestoreSettings(true);
       setImportConfirmData(parsed);
     } catch {
+      useUIStore.getState().setExternalActivityActive(false);
       setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Import Failed', message: 'Could not read the selected file.' });
     }
   };
 
   const handleMonefyImport = async () => {
     try {
+      useUIStore.getState().setExternalActivityActive(true);
       const result = await DocumentPicker.getDocumentAsync({
         type: ['text/csv', 'text/comma-separated-values', 'public.comma-separated-values-text', '*/*'],
         copyToCacheDirectory: true,
@@ -332,6 +341,7 @@ export default function SettingsScreen() {
       setImportRestoreSettings(false);
       setImportConfirmData(exportData);
     } catch {
+      useUIStore.getState().setExternalActivityActive(false);
       setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Import Failed', message: 'Could not read the Monefy CSV file.' });
     }
   };

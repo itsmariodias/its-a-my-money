@@ -4,7 +4,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { SQLiteProvider } from 'expo-sqlite';
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import 'react-native-reanimated';
@@ -15,6 +15,7 @@ import { runMigrations } from '@/db/migrations';
 import { useSettingsDb } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useBackupStore } from '@/features/backup/useBackupStore';
+import { useUIStore } from '@/shared/store/useUIStore';
 import type { BackupFrequency } from '@/features/backup/useBackupStore';
 import { useAutoBackup } from '@/features/backup/useAutoBackup';
 import { getColors } from '@/constants/theme';
@@ -93,7 +94,16 @@ function RootLayoutNav() {
     settingsDb.get('currency').then((row) => { if (row) setCurrency(row.value); });
     settingsDb.get('accent_color').then((row) => { if (row) setAccentColor(row.value); });
     settingsDb.get('number_format').then((row) => { if (row) setNumberFormat(row.value); });
-    settingsDb.get('biometric_lock').then((row) => { if (row) setBiometricLock(row.value === 'true'); });
+    settingsDb.get('biometric_lock').then((row) => {
+      if (row) {
+        const enabled = row.value === 'true';
+        setBiometricLock(enabled);
+        if (enabled) {
+          setIsLocked(true);
+          authenticate();
+        }
+      }
+    });
     settingsDb.get('google_drive_enabled').then((row) => { if (row) setGoogleDriveEnabled(row.value === 'true'); });
     settingsDb.get('google_email').then((row) => { if (row) setGoogleEmail(row.value); });
     settingsDb.get('google_drive_folder_id').then((row) => {
@@ -117,25 +127,21 @@ function RootLayoutNav() {
     if (result.success) setIsLocked(false);
   }, []);
 
-  const backgroundAtRef = useRef<number | null>(null);
-
   useEffect(() => {
     if (!biometricLock) {
       setIsLocked(false);
       return;
     }
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'background' || nextState === 'inactive') {
-        backgroundAtRef.current = Date.now();
-      } else if (nextState === 'active') {
-        const gone = backgroundAtRef.current ? Date.now() - backgroundAtRef.current : Infinity;
-        backgroundAtRef.current = null;
-        // Only lock if the app was in the background for more than 3 seconds
-        // (brief trips like Google Sign-In or share sheets shouldn't trigger the lock)
-        if (gone > 3000) {
-          setIsLocked(true);
-          authenticate();
+      if (nextState === 'active') {
+        // Skip lock when returning from an app-initiated external activity
+        // (Google Sign-In, share sheets, document picker)
+        if (useUIStore.getState().externalActivityActive) {
+          useUIStore.getState().setExternalActivityActive(false);
+          return;
         }
+        setIsLocked(true);
+        authenticate();
       }
     });
     return () => subscription.remove();

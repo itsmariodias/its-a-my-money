@@ -13,6 +13,7 @@ import { Text } from '@/shared/components/Themed';
 import InfoModal from '@/shared/components/InfoModal';
 import { useSettingsDb } from '@/db';
 import { useBackupStore, initialBackupState } from './useBackupStore';
+import { useUIStore } from '@/shared/store/useUIStore';
 import type { BackupFrequency } from './useBackupStore';
 import { signIn, signOut, getAccessToken, ensureBackupFolder, uploadBackup } from './googleDrive';
 import { generateExportJson } from '@/features/settings/exportData';
@@ -77,6 +78,7 @@ export default function GoogleDriveSection({
   const handleConnect = async () => {
     setConnecting(true);
     try {
+      useUIStore.getState().setExternalActivityActive(true);
       const { email } = await signIn();
       const token = await getAccessToken();
       const folder = await ensureBackupFolder(token);
@@ -98,6 +100,7 @@ export default function GoogleDriveSection({
     } catch (e: any) {
       setErrorMessage(e?.message ?? 'Failed to connect to Google Drive');
     } finally {
+      useUIStore.getState().setExternalActivityActive(false);
       setConnecting(false);
     }
   };

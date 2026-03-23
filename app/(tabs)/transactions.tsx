@@ -16,7 +16,6 @@ import TransferSheet from '@/features/transfers/TransferSheet';
 import {
   PeriodSelector,
   getDateRange,
-  type PeriodMode,
 } from '@/shared/components/PeriodSelector';
 import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
@@ -373,8 +372,9 @@ export default function TransactionsScreen() {
   const isDark = colorScheme === 'dark';
 
   const selectedId = useUIStore((s) => s.selectedAccountId);
-  const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
-  const [periodDate, setPeriodDate] = useState(new Date());
+  const periodMode = useUIStore((s) => s.periodMode);
+  const periodDate = useUIStore((s) => s.periodDate);
+  const setPeriod = useUIStore((s) => s.setPeriod);
   const [editingTx, setEditingTx] = useState<TransactionWithDetails | null>(null);
   const [deletingTx, setDeletingTx] = useState<TransactionWithDetails | null>(null);
   const [editingTransfer, setEditingTransfer] = useState<TransferWithDetails | null>(null);
@@ -492,7 +492,7 @@ export default function TransactionsScreen() {
         <PeriodSelector
           mode={periodMode}
           date={periodDate}
-          onChange={(m, d) => { setPeriodMode(m); setPeriodDate(d); }}
+          onChange={setPeriod}
         />
       </View>
 
