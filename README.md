@@ -1,6 +1,6 @@
 # It's a My Money! 💰
 
-A personal finance app built with Expo. Track your income, expenses, transfers, and account balances — fully offline, no accounts, no cloud, no nonsense.
+A personal finance app built with Expo. Track your income, expenses, transfers, and account balances — all data stored locally on your device. Cloud backup is opt-in and only stores data in your own Google Drive.
 
 > **Platform support:** Android is fully supported. iOS is **not yet supported** — if you'd like to help test or contribute to iOS support, check the [issues](https://github.com/itsmariodias/its-a-my-money/issues) or open a new one!
 
