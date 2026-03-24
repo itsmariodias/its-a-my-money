@@ -41,12 +41,13 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 
 **Settings**
 - Currency picker (50+ currencies)
-- Accent color — 8 color presets to theme the whole app
+- Theme — 4 presets: Dark Blue (default), White, OLED Black, Super Mario
+- Accent color — 8 color presets
 - Number format — US, European, French, Indian, or no-grouping
 - Biometric lock — fingerprint/Face ID to protect the app
 - Manage income and expense categories (add, edit, delete)
-- Export all data as JSON
-- Import from Monefy backup
+- Export all data as JSON (includes theme preference)
+- Import from JSON backup or Monefy CSV
 - Full data reset
 
 ---
