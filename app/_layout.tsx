@@ -10,7 +10,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import 'react-native-reanimated';
 import { Text } from '@/shared/components/Themed';
 
-import { useColorScheme } from '@/shared/components/useColorScheme';
 import { runMigrations } from '@/db/migrations';
 import { useSettingsDb } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
@@ -18,16 +17,8 @@ import { useBackupStore } from '@/features/backup/useBackupStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import type { BackupFrequency } from '@/features/backup/useBackupStore';
 import { useAutoBackup } from '@/features/backup/useAutoBackup';
-import { getColors } from '@/constants/theme';
-
-const lightNavTheme = {
-  ...DefaultTheme,
-  colors: { ...DefaultTheme.colors, background: getColors(false).bg, card: getColors(false).bg },
-};
-const darkNavTheme = {
-  ...DarkTheme,
-  colors: { ...DarkTheme.colors, background: getColors(true).bg, card: getColors(true).bg },
-};
+import { useAppTheme } from '@/shared/components/useAppTheme';
+import type { ThemeId } from '@/constants/theme';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -73,12 +64,12 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
   const settingsDb = useSettingsDb();
   const setCurrency = useSettingsStore((s) => s.setCurrency);
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
   const setNumberFormat = useSettingsStore((s) => s.setNumberFormat);
   const setBiometricLock = useSettingsStore((s) => s.setBiometricLock);
+  const setThemeId = useSettingsStore((s) => s.setThemeId);
   const biometricLock = useSettingsStore((s) => s.biometricLock);
   const accentColor = useSettingsStore((s) => s.accentColor);
 
@@ -113,6 +104,7 @@ function RootLayoutNav() {
     });
     settingsDb.get('backup_frequency').then((row) => { if (row) setBackupFrequency(row.value as BackupFrequency); });
     settingsDb.get('last_backup_at').then((row) => { if (row) setLastBackupAt(row.value); });
+    settingsDb.get('theme_id').then((row) => { if (row) setThemeId(row.value as ThemeId); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -147,11 +139,13 @@ function RootLayoutNav() {
     return () => subscription.remove();
   }, [biometricLock, authenticate]);
 
-  const isDark = colorScheme === 'dark';
-  const { bg, textColor, subColor } = getColors(isDark);
+  const { isDark, bg, textColor, subColor } = useAppTheme();
+  const navTheme = isDark
+    ? { ...DarkTheme, colors: { ...DarkTheme.colors, background: bg, card: bg } }
+    : { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: bg, card: bg } };
 
   return (
-    <ThemeProvider value={isDark ? darkNavTheme : lightNavTheme}>
+    <ThemeProvider value={navTheme}>
       <Stack screenOptions={{ contentStyle: { backgroundColor: bg } }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />

@@ -9,7 +9,6 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 
@@ -21,7 +20,7 @@ import { useAccountsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
-import { getColors } from '@/constants/theme';
+import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { Account } from '@/types';
 
@@ -62,8 +61,6 @@ interface Props {
 }
 
 export default function AccountFormSheet({ isOpen, account, onClose, onDelete, deleteDisabled }: Props) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const accentColor = useSettingsStore((s) => s.accentColor);
   const currencySymbol = getCurrencySymbol(useSettingsStore((s) => s.currency));
 
@@ -111,7 +108,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
     }
   };
 
-  const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = getColors(isDark);
+  const { isDark, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;

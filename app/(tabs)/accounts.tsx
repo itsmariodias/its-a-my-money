@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -25,7 +24,7 @@ import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
-import { getColors } from '@/constants/theme';
+import { useAppTheme } from '@/shared/components/useAppTheme';
 import type { Account } from '@/types';
 
 // ─── DeleteConfirmModal ───────────────────────────────────────────────────────
@@ -38,9 +37,7 @@ interface DeleteModalProps {
 }
 
 function DeleteConfirmModal({ account, txCount, onCancel, onConfirm }: DeleteModalProps) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const { cardBg, inputBg, textColor, subColor, borderColor } = getColors(isDark);
+  const { isDark, cardBg, inputBg, textColor, subColor, borderColor } = useAppTheme();
 
   return (
     <Modal
@@ -224,11 +221,10 @@ interface CardProps {
   balance: number;
   currency: string;
   onPress: () => void;
-  isDark: boolean;
 }
 
-function AccountCard({ account, balance, currency, onPress, isDark }: CardProps) {
-  const { cardBg, textColor, subColor } = getColors(isDark);
+function AccountCard({ account, balance, currency, onPress }: CardProps) {
+  const { cardBg, textColor, subColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const iconBg = account.color ?? '#55A3FF';
   const balanceColor = balance >= 0 ? '#22c55e' : '#ef4444';
@@ -256,8 +252,7 @@ function AccountCard({ account, balance, currency, onPress, isDark }: CardProps)
 // ─── AccountsScreen ──────────────────────────────────────────────────────────
 
 export default function AccountsScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { isDark, bg, subColor, borderColor } = useAppTheme();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -345,8 +340,6 @@ export default function AccountsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deletingAccount]);
 
-  const { bg, subColor, borderColor } = getColors(isDark);
-
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
       {/* Period selector bar */}
@@ -386,7 +379,6 @@ export default function AccountsScreen() {
               account={acc}
               balance={balanceMap[acc.id] ?? acc.initial_balance}
               currency={currency}
-              isDark={isDark}
               onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
             />
           ))

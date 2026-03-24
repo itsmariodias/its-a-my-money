@@ -1,8 +1,8 @@
-import { Modal, Pressable, StyleSheet, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
-import { getColors } from '@/constants/theme';
+import { useAppTheme } from '@/shared/components/useAppTheme';
 
 interface Props {
   visible: boolean;
@@ -14,10 +14,8 @@ interface Props {
 }
 
 export default function InfoModal({ visible, onClose, icon, iconColor, title, message }: Props) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const accentColor = useSettingsStore((s) => s.accentColor);
-  const { cardBg, textColor, subColor, borderColor } = getColors(isDark);
+  const { cardBg, textColor, subColor, borderColor } = useAppTheme();
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>

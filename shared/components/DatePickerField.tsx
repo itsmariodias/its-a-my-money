@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 
@@ -13,7 +12,7 @@ import { Calendar } from 'react-native-calendars';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
-import { getColors } from '@/constants/theme';
+import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 
 const YEARS = Array.from({ length: new Date().getFullYear() - 1977 + 11 }, (_, i) => 1977 + i);
@@ -33,10 +32,8 @@ interface Props {
 }
 
 export default function DatePickerField({ date, onChange }: Props) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const accentColor = useSettingsStore((s) => s.accentColor);
-  const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = getColors(isDark);
+  const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
   const styles = { ...sheetStyles, ...localStyles };
 
   const [showDatePicker, setShowDatePicker] = useState(false);

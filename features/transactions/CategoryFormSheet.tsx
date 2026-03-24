@@ -9,7 +9,6 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 
@@ -18,7 +17,7 @@ import { Text } from '@/shared/components/Themed';
 import InfoModal from '@/shared/components/InfoModal';
 import { useCategoriesDb } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
-import { getColors } from '@/constants/theme';
+import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { Category } from '@/types';
 
@@ -52,8 +51,6 @@ interface Props {
 }
 
 export default function CategoryFormSheet({ isOpen, category, defaultType = 'expense', onClose, onSaved, onDelete, deleteDisabled }: Props) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const accentColor = useSettingsStore((s) => s.accentColor);
 
   const categoriesDb = useCategoriesDb();
@@ -97,7 +94,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
     }
   };
 
-  const { cardBg: bg, textColor, subColor, inputBg, borderColor } = getColors(isDark);
+  const { isDark, cardBg: bg, textColor, subColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;

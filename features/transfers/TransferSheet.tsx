@@ -9,7 +9,6 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 
@@ -23,7 +22,7 @@ import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
-import { getColors } from '@/constants/theme';
+import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { TransferWithDetails } from '@/types';
 
@@ -48,8 +47,6 @@ interface Props {
 }
 
 export default function TransferSheet({ isOpen, onClose, transfer = null, onDelete }: Props) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const accentColor = useSettingsStore((s) => s.accentColor);
 
   const accounts = useAccountsStore((s) => s.accounts);
@@ -138,7 +135,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     }
   }, [amount, fromAccountId, toAccountId, saveTransfer]);
 
-  const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = getColors(isDark);
+  const { isDark, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(600)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;

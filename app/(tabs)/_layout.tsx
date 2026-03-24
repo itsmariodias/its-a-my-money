@@ -5,7 +5,7 @@ import { useRouter, useSegments, withLayoutContext } from 'expo-router';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useColorScheme } from '@/shared/components/useColorScheme';
+import { useAppTheme } from '@/shared/components/useAppTheme';
 import AccountIcon from '@/shared/components/AccountIcon';
 import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
 import TransferSheet from '@/features/transfers/TransferSheet';
@@ -13,7 +13,6 @@ import SettingsScreen from '@/features/settings/SettingsScreen';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
-import { getColors } from '@/constants/theme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HEADER_HEIGHT = 52;
@@ -155,9 +154,7 @@ function CustomPager({ navigationState, onIndexChange, layout, children, positio
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const { bg, textColor, borderColor } = getColors(isDark);
+  const { isDark, bg, textColor, borderColor } = useAppTheme();
   const accentColor = useSettingsStore((s) => s.accentColor);
   const openAddTx = useUIStore((s) => s.openAddTx);
   const isAddTxOpen = useUIStore((s) => s.isAddTxOpen);

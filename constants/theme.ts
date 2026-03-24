@@ -7,6 +7,42 @@ export interface AppColors {
   borderColor: string;
 }
 
+export type ThemeId = 'dark-blue' | 'white' | 'oled' | 'mario';
+
+export interface AppTheme {
+  id: ThemeId;
+  label: string;
+  isDark: boolean;
+  colors: AppColors;
+}
+
+export const THEMES: Record<ThemeId, AppTheme> = {
+  'dark-blue': {
+    id: 'dark-blue',
+    label: 'Dark Blue',
+    isDark: true,
+    colors: { bg: '#0d0d1a', cardBg: '#1a1a2e', inputBg: '#1a2035', textColor: '#e0e0e0', subColor: '#a0a0b0', borderColor: '#2a2a44' },
+  },
+  'white': {
+    id: 'white',
+    label: 'White',
+    isDark: false,
+    colors: { bg: '#f2f2f7', cardBg: '#ffffff', inputBg: '#f0f4f8', textColor: '#1a1a2e', subColor: '#6b7280', borderColor: '#e2e8f0' },
+  },
+  'oled': {
+    id: 'oled',
+    label: 'OLED Black',
+    isDark: true,
+    colors: { bg: '#000000', cardBg: '#0d0d0d', inputBg: '#111111', textColor: '#e0e0e0', subColor: '#808090', borderColor: '#1c1c1c' },
+  },
+  'mario': {
+    id: 'mario',
+    label: 'Super Mario',
+    isDark: true,
+    colors: { bg: '#0a1a4a', cardBg: '#1a2a6e', inputBg: '#071040', textColor: '#ffd700', subColor: '#a0b8e0', borderColor: '#2a3a8a' },
+  },
+};
+
 export const ACCENT_COLORS = [
   '#2f95dc',
   '#6366f1',

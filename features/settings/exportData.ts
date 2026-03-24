@@ -13,6 +13,7 @@ export interface ExportJson {
     accent_color: string | null;
     number_format: string;
     biometric_lock: string;
+    theme_id: string | null;
   };
 }
 
@@ -24,11 +25,12 @@ export async function generateExportData(db: SQLiteDatabase): Promise<ExportJson
     db.getAllAsync<Transfer>('SELECT id, from_account_id, to_account_id, amount, note, date, created_at FROM transfers ORDER BY date DESC, created_at DESC'),
   ]);
 
-  const [currencyRow, accentRow, formatRow, biometricRow] = await Promise.all([
+  const [currencyRow, accentRow, formatRow, biometricRow, themeRow] = await Promise.all([
     db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'currency'),
     db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'accent_color'),
     db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'number_format'),
     db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'biometric_lock'),
+    db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'theme_id'),
   ]);
 
   return {
@@ -43,6 +45,7 @@ export async function generateExportData(db: SQLiteDatabase): Promise<ExportJson
       accent_color: accentRow?.value ?? null,
       number_format: formatRow?.value ?? 'en-US',
       biometric_lock: biometricRow?.value ?? 'false',
+      theme_id: themeRow?.value ?? null,
     },
   };
 }

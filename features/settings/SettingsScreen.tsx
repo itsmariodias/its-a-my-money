@@ -7,7 +7,6 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -27,7 +26,9 @@ import { useTransactionsStore } from '@/features/transactions/useTransactionsSto
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
 import { CURRENCIES, NUMBER_FORMATS, getCurrencyByCode } from '@/constants/currencies';
-import { ACCENT_COLORS, getColors } from '@/constants/theme';
+import { ACCENT_COLORS, THEMES } from '@/constants/theme';
+import type { ThemeId } from '@/constants/theme';
+import { useAppTheme } from '@/shared/components/useAppTheme';
 import Constants from 'expo-constants';
 import type { Category } from '@/types';
 import { isValidExport } from './validation';
@@ -39,12 +40,12 @@ import { useUIStore } from '@/shared/store/useUIStore';
 // ─── Category row ─────────────────────────────────────────────────────────────
 
 function CategoryRow({
-  category, onEdit, isFirst, isLast, isDark,
+  category, onEdit, isFirst, isLast,
 }: {
   category: Category; onEdit: () => void;
-  isFirst: boolean; isLast: boolean; isDark: boolean;
+  isFirst: boolean; isLast: boolean;
 }) {
-  const { cardBg, textColor, subColor, borderColor } = getColors(isDark);
+  const { cardBg, textColor, subColor, borderColor } = useAppTheme();
   const br = {
     borderTopLeftRadius: isFirst ? 12 : 0, borderTopRightRadius: isFirst ? 12 : 0,
     borderBottomLeftRadius: isLast ? 12 : 0, borderBottomRightRadius: isLast ? 12 : 0,
@@ -64,12 +65,12 @@ function CategoryRow({
 // ─── Delete confirm modal ─────────────────────────────────────────────────────
 
 function DeleteCategoryModal({
-  category, txCount, onCancel, onConfirm, isDark,
+  category, txCount, onCancel, onConfirm,
 }: {
   category: Category | null; txCount: number;
-  onCancel: () => void; onConfirm: () => void; isDark: boolean;
+  onCancel: () => void; onConfirm: () => void;
 }) {
-  const { cardBg: bg, inputBg, textColor, subColor, borderColor } = getColors(isDark);
+  const { isDark, cardBg: bg, inputBg, textColor, subColor, borderColor } = useAppTheme();
   return (
     <Modal visible={!!category} animationType="fade" transparent onRequestClose={onCancel}>
       <Pressable style={styles.modalBackdrop} onPress={onCancel} />
@@ -114,9 +115,7 @@ function DeleteCategoryModal({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const { bg, cardBg, inputBg, textColor, subColor, borderColor } = getColors(isDark);
+  const { isDark, bg, cardBg, inputBg, textColor, subColor, borderColor } = useAppTheme();
 
   const db = useSQLiteContext();
   const settingsDb = useSettingsDb();
@@ -131,6 +130,8 @@ export default function SettingsScreen() {
   const setCurrency = useSettingsStore((s) => s.setCurrency);
   const accentColor = useSettingsStore((s) => s.accentColor);
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
+  const themeId = useSettingsStore((s) => s.themeId);
+  const setThemeId = useSettingsStore((s) => s.setThemeId);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const setNumberFormat = useSettingsStore((s) => s.setNumberFormat);
   const biometricLock = useSettingsStore((s) => s.biometricLock);
@@ -154,6 +155,7 @@ export default function SettingsScreen() {
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
   const [currencySearch, setCurrencySearch] = useState('');
   const [accentOpen, setAccentOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
 
   const loadCategories = useCallback(async () => {
@@ -177,6 +179,10 @@ export default function SettingsScreen() {
   const handleAccentColor = async (color: string) => {
     await settingsDb.set('accent_color', color);
     setAccentColor(color);
+  };
+  const handleThemeChange = async (id: ThemeId) => {
+    await settingsDb.set('theme_id', id);
+    setThemeId(id);
   };
   const handleNumberFormat = async (format: string) => {
     await settingsDb.set('number_format', format);
@@ -363,6 +369,7 @@ export default function SettingsScreen() {
         if (data.settings.accent_color) { await settingsDb.set('accent_color', data.settings.accent_color); setAccentColor(data.settings.accent_color); }
         if (data.settings.number_format) { await settingsDb.set('number_format', data.settings.number_format); setNumberFormat(data.settings.number_format); }
         if (data.settings.biometric_lock) { await settingsDb.set('biometric_lock', data.settings.biometric_lock); setBiometricLock(data.settings.biometric_lock === 'true'); }
+        if (data.settings.theme_id) { await settingsDb.set('theme_id', data.settings.theme_id); setThemeId(data.settings.theme_id as ThemeId); }
       }
       await loadCategories();
       setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Import Successful', message: 'Your data has been restored.' });
@@ -406,7 +413,7 @@ export default function SettingsScreen() {
 
           <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
 
-          <TouchableOpacity style={styles.row} onPress={() => { setAccentOpen((v) => !v); setFormatOpen(false); }} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.row} onPress={() => { setAccentOpen((v) => !v); setFormatOpen(false); setThemeOpen(false); }} activeOpacity={0.7}>
             <View style={[styles.rowIcon, { backgroundColor: accentColor + '20' }]}>
               <MaterialIcons name="palette" size={20} color={accentColor} />
             </View>
@@ -428,7 +435,45 @@ export default function SettingsScreen() {
 
           <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
 
-          <TouchableOpacity style={styles.row} onPress={() => { setFormatOpen((v) => !v); setAccentOpen(false); }} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.row} onPress={() => { setThemeOpen((v) => !v); setAccentOpen(false); setFormatOpen(false); }} activeOpacity={0.7}>
+            <View style={[styles.rowIcon, { backgroundColor: accentColor + '20' }]}>
+              <MaterialIcons name="brightness-medium" size={20} color={accentColor} />
+            </View>
+            <Text style={[styles.rowLabel, { color: textColor }]}>Theme</Text>
+            <Text style={[styles.rowValue, { color: subColor }]}>{THEMES[themeId].label}</Text>
+            <MaterialIcons name={themeOpen ? 'expand-less' : 'expand-more'} size={20} color={subColor} />
+          </TouchableOpacity>
+          {themeOpen && (
+            <View style={[styles.dropdownPanel, { borderTopColor: borderColor }]}>
+              <View style={styles.themeGrid}>
+                {(Object.values(THEMES) as typeof THEMES[ThemeId][]).map((t) => {
+                  const isSelected = themeId === t.id;
+                  return (
+                    <TouchableOpacity
+                      key={t.id}
+                      style={[styles.themeCard, { borderColor: isSelected ? accentColor : borderColor, borderWidth: isSelected ? 2 : 1 }]}
+                      onPress={() => handleThemeChange(t.id)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.themePreview, { backgroundColor: t.colors.bg }]}>
+                        <View style={[styles.themePreviewCard, { backgroundColor: t.colors.cardBg }]} />
+                      </View>
+                      <Text style={[styles.themeLabel, { color: isSelected ? accentColor : subColor }]}>{t.label}</Text>
+                      {isSelected && (
+                        <View style={[styles.themeCheck, { backgroundColor: accentColor }]}>
+                          <MaterialIcons name="check" size={10} color="#fff" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
+
+          <TouchableOpacity style={styles.row} onPress={() => { setFormatOpen((v) => !v); setAccentOpen(false); setThemeOpen(false); }} activeOpacity={0.7}>
             <View style={[styles.rowIcon, { backgroundColor: accentColor + '20' }]}>
               <MaterialIcons name="tag" size={20} color={accentColor} />
             </View>
@@ -717,7 +762,6 @@ export default function SettingsScreen() {
                   onEdit={() => { setEditingCat(cat); setCatFormOpen(true); }}
                   isFirst={idx === 0}
                   isLast={idx === displayedCategories.length - 1}
-                  isDark={isDark}
                 />
               ))
             )}
@@ -746,7 +790,6 @@ export default function SettingsScreen() {
           txCount={deleteCatTxCount}
           onCancel={handleDeleteCatCancel}
           onConfirm={handleDeleteCatConfirm}
-          isDark={isDark}
         />
       </Modal>
     </View>
@@ -816,4 +859,10 @@ const styles = StyleSheet.create({
   importSummaryItem: { fontSize: 13, textAlign: 'center' },
   importSettingsRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12, gap: 8 },
   importSettingsLabel: { fontSize: 14, fontWeight: '500' },
+  themeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, paddingBottom: 14 },
+  themeCard: { width: '46%', borderRadius: 10, overflow: 'hidden', position: 'relative' },
+  themePreview: { height: 48, alignItems: 'flex-end', justifyContent: 'flex-end', padding: 6 },
+  themePreviewCard: { width: '60%', height: 20, borderRadius: 4, opacity: 0.9 },
+  themeLabel: { fontSize: 12, fontWeight: '600', paddingHorizontal: 8, paddingVertical: 6 },
+  themeCheck: { position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
 });

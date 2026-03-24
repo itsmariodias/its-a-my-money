@@ -5,7 +5,6 @@ import {
   SectionList,
   StyleSheet,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -24,7 +23,7 @@ import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
-import { getColors } from '@/constants/theme';
+import { useAppTheme } from '@/shared/components/useAppTheme';
 import type { TransactionWithDetails, TransferWithDetails } from '@/types';
 
 
@@ -50,9 +49,7 @@ interface DeleteTxModalProps {
 }
 
 function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const { cardBg, inputBg, textColor, subColor, borderColor } = getColors(isDark);
+  const { isDark, cardBg, inputBg, textColor, subColor, borderColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
 
   return (
@@ -368,8 +365,7 @@ interface Section {
 // ─── TransactionsScreen ───────────────────────────────────────────────────────
 
 export default function TransactionsScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { isDark, bg, cardBg, textColor, subColor: subTextColor, borderColor } = useAppTheme();
 
   const selectedId = useUIStore((s) => s.selectedAccountId);
   const periodMode = useUIStore((s) => s.periodMode);
@@ -483,7 +479,6 @@ export default function TransactionsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingTransfer]);
 
-  const { bg, cardBg, textColor, subColor: subTextColor, borderColor } = getColors(isDark);
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>

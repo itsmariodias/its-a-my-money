@@ -4,7 +4,6 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 import Animated, {
@@ -32,7 +31,7 @@ import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
-import { getColors } from '@/constants/theme';
+import { useAppTheme } from '@/shared/components/useAppTheme';
 
 const PIE_COLORS = [
   '#F44336', '#2196F3', '#9C27B0', '#FF9800', '#009688',
@@ -91,8 +90,7 @@ function DonutSlice({ fraction, cumulativeStart, color, resetKey, index }: Donut
 }
 
 export default function DashboardScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { isDark, bg, cardBg, textColor, subColor: subTextColor, borderColor } = useAppTheme();
 
   const selectedId = useUIStore((s) => s.selectedAccountId);
   const periodMode = useUIStore((s) => s.periodMode);
@@ -261,7 +259,6 @@ export default function DashboardScreen() {
   const selectedAccount = accounts.find((a) => a.id === selectedId) ?? null;
   const periodShort = shortPeriodLabel(periodMode, periodDate);
 
-  const { bg, cardBg, textColor, subColor: subTextColor, borderColor } = getColors(isDark);
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
