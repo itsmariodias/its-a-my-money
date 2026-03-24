@@ -15,7 +15,9 @@ import { useSettingsDb } from '@/db';
 import { useBackupStore, initialBackupState } from './useBackupStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import type { BackupFrequency } from './useBackupStore';
-import { signIn, signOut, getAccessToken, ensureBackupFolder, uploadBackup } from './googleDrive';
+import { signIn, signOut, getAccessToken, ensureBackupFolder, uploadBackup, downloadBackup } from './googleDrive';
+import { isValidExport } from '@/features/settings/validation';
+import type { ExportData } from '@/db';
 import { generateExportJson } from '@/features/settings/exportData';
 import { requestNotificationPermission, notifyBackupStarted, dismissBackupNotification } from './notifications';
 
@@ -46,10 +48,11 @@ interface Props {
   borderColor: string;
   inputBg: string;
   accentColor: string;
+  onRestoreRequest: (data: ExportData) => void;
 }
 
 export default function GoogleDriveSection({
-  isDark, cardBg, textColor, subColor, borderColor, inputBg, accentColor,
+  isDark, cardBg, textColor, subColor, borderColor, inputBg, accentColor, onRestoreRequest,
 }: Props) {
   const db = useSQLiteContext();
   const settingsDb = useSettingsDb();
@@ -72,6 +75,7 @@ export default function GoogleDriveSection({
   const clearLastError = useBackupStore((s) => s.clearLastError);
 
   const [connecting, setConnecting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [freqModalOpen, setFreqModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -142,6 +146,27 @@ export default function GoogleDriveSection({
       setErrorMessage(e?.message ?? 'Backup failed');
     } finally {
       setIsBackingUp(false);
+    }
+  };
+
+  const handleRestoreFromDrive = async () => {
+    const { folderId } = useBackupStore.getState();
+    if (!folderId || isRestoring) return;
+
+    setIsRestoring(true);
+    try {
+      const token = await getAccessToken();
+      const json = await downloadBackup(token, folderId);
+      const parsed: unknown = JSON.parse(json);
+      if (!isValidExport(parsed)) {
+        setErrorMessage('The Drive backup file is not a valid backup.');
+        return;
+      }
+      onRestoreRequest(parsed);
+    } catch (e: any) {
+      setErrorMessage(e?.message ?? 'Failed to download backup from Google Drive');
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -254,6 +279,22 @@ export default function GoogleDriveSection({
           </View>
           <Text style={[styles.rowLabel, { color: accentColor, fontWeight: '600' }]}>
             {isBackingUp ? 'Backing up...' : 'Backup Now'}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
+
+        {/* Restore from Backup */}
+        <TouchableOpacity style={styles.row} onPress={handleRestoreFromDrive} activeOpacity={0.7} disabled={isRestoring || isBackingUp}>
+          <View style={[styles.rowIcon, { backgroundColor: '#0ea5e920' }]}>
+            {isRestoring ? (
+              <ActivityIndicator size="small" color="#0ea5e9" />
+            ) : (
+              <MaterialIcons name="cloud-download" size={20} color="#0ea5e9" />
+            )}
+          </View>
+          <Text style={[styles.rowLabel, { color: '#0ea5e9', fontWeight: '600' }]}>
+            {isRestoring ? 'Restoring...' : 'Restore from Backup'}
           </Text>
         </TouchableOpacity>
 

@@ -477,6 +477,10 @@ export default function SettingsScreen() {
           borderColor={borderColor}
           inputBg={inputBg}
           accentColor={accentColor}
+          onRestoreRequest={(data) => {
+            setImportRestoreSettings(true);
+            setImportConfirmData(data);
+          }}
         />
 
         <Text style={[styles.sectionLabel, { color: subColor }]}>Data</Text>

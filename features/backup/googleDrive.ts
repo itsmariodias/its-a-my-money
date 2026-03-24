@@ -97,6 +97,23 @@ async function findBackupFile(
   return result.files?.[0]?.id ?? null;
 }
 
+export async function downloadBackup(
+  accessToken: string,
+  folderId: string
+): Promise<string> {
+  const fileId = await findBackupFile(accessToken, folderId);
+  if (!fileId) throw new Error('No backup found in Google Drive');
+
+  const res = await fetch(`${DRIVE_API}/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to download backup: ${text}`);
+  }
+  return res.text();
+}
+
 export async function uploadBackup(
   accessToken: string,
   folderId: string,
