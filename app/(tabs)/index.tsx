@@ -372,7 +372,7 @@ export default function DashboardScreen() {
             </View>
 
             {/* Legend */}
-            <View style={styles.legend}>
+            <ScrollView style={styles.legend} nestedScrollEnabled showsVerticalScrollIndicator={false}>
               {pieData.map((item, idx) => {
                 const pct = Math.round((item.value / periodExpenses) * 100);
                 const isSelected = selectedSliceIdx === idx;
@@ -404,7 +404,7 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                 );
               })}
-            </View>
+            </ScrollView>
           </View>
         )}
 
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
   pieCenterCategory: { fontSize: 11, textAlign: 'center', marginBottom: 2 },
   pieCenterPct: { fontSize: 13, fontWeight: '700', marginTop: 2 },
 
-  legend: { gap: 2, marginTop: 8 },
+  legend: { maxHeight: 168, marginTop: 8 },
   legendRow: {
     flexDirection: 'row',
     alignItems: 'center',
