@@ -31,6 +31,11 @@ const PRESET_COLORS = [
   '#FF9800', '#009688', '#E91E63', '#607D8B',
 ];
 
+const COLOR_NAMES: Record<string, string> = {
+  '#2196F3': 'Blue', '#F44336': 'Red', '#4CAF50': 'Green', '#9C27B0': 'Purple',
+  '#FF9800': 'Orange', '#009688': 'Teal', '#E91E63': 'Pink', '#607D8B': 'Blue grey',
+};
+
 const PRESET_ICONS: string[] = [
   // Wallet / bank
   'account-balance-wallet',
@@ -163,19 +168,19 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
       >
         <View style={styles.kvContainer}>
           <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: backdropOpacity }]}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={() => triggerCloseRef.current()} />
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => triggerCloseRef.current()} accessibilityLabel="Dismiss" accessibilityRole="button" />
           </Animated.View>
 
           <Animated.View style={[styles.sheet, { backgroundColor: bg, transform: [{ translateY: sheetTranslateY }] }]}>
             <View {...handlePan.panHandlers} style={styles.dragArea}>
-              <View style={[styles.handle, { backgroundColor: borderColor }]} />
+              <View style={[styles.handle, { backgroundColor: borderColor }]} accessible={false} />
             </View>
 
             <View style={styles.header}>
               <Text style={[styles.headerTitle, { color: textColor }]}>
                 {account ? 'Edit Account' : 'New Account'}
               </Text>
-              <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8}>
+              <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                 <MaterialIcons name="close" size={24} color={subTextColor} />
               </TouchableOpacity>
             </View>
@@ -222,6 +227,10 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                     key={c}
                     onPress={() => setColor(c)}
                     style={[styles.colorSwatch, { backgroundColor: c }, color === c && styles.colorSwatchSelected]}
+                    hitSlop={6}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: color === c }}
+                    accessibilityLabel={COLOR_NAMES[c] ?? c}
                   >
                     {color === c && <MaterialIcons name="check" size={16} color="#fff" />}
                   </TouchableOpacity>
@@ -236,6 +245,9 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                     key={ic}
                     onPress={() => setIcon(ic)}
                     style={[styles.iconItem, { backgroundColor: icon === ic ? color : inputBg }]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: icon === ic }}
+                    accessibilityLabel={ic.replace(/fa6:/g, '').replace(/-/g, ' ')}
                   >
                     <View style={styles.iconItemInner}>
                       <AccountIcon name={ic} size={24} color={icon === ic ? '#fff' : subTextColor} />
@@ -244,7 +256,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                 ))}
               </View>
 
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave}>
+              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
                 <Text style={styles.saveBtnText}>{account ? 'Save Changes' : 'Create Account'}</Text>
               </TouchableOpacity>
               {account && onDelete && (
@@ -252,6 +264,8 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                   style={[styles.deleteBtn, deleteDisabled && { opacity: 0.4 }]}
                   onPress={onDelete}
                   disabled={deleteDisabled}
+                  accessibilityRole="button"
+                  accessibilityHint="Double tap to permanently delete. This cannot be undone."
                 >
                   <Text style={styles.deleteBtnText}>Delete Account</Text>
                 </TouchableOpacity>

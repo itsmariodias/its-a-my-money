@@ -194,21 +194,21 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     >
       <View style={styles.kvContainer}>
         <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: backdropOpacity }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => triggerCloseRef.current()} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => triggerCloseRef.current()} accessibilityLabel="Dismiss" accessibilityRole="button" />
         </Animated.View>
 
         <Animated.View
           style={[styles.sheet, { backgroundColor: bg, transform: [{ translateY: sheetTranslateY }] }]}
         >
           <View {...handlePan.panHandlers} style={styles.dragArea}>
-            <View style={[styles.handle, { backgroundColor: borderColor }]} />
+            <View style={[styles.handle, { backgroundColor: borderColor }]} accessible={false} />
           </View>
 
           <View style={styles.header}>
             <Text style={[styles.headerTitle, { color: textColor }]}>
               {transfer ? 'Edit Transfer' : 'New Transfer'}
             </Text>
-            <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8}>
+            <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
               <MaterialIcons name="close" size={24} color={subTextColor} />
             </TouchableOpacity>
           </View>
@@ -263,6 +263,8 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
                       }
                     }}
                     activeOpacity={0.7}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
                   >
                     <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
                       <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
@@ -306,6 +308,8 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
                       }
                     }}
                     activeOpacity={0.7}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
                   >
                     <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
                       <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
@@ -341,18 +345,18 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
               returnKeyType="done"
             />
 
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave}>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
               <Text style={styles.saveBtnText}>
                 {transfer ? 'Save Changes' : 'Save Transfer'}
               </Text>
             </TouchableOpacity>
             {!transfer && (
-              <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleSaveAndContinue}>
+              <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleSaveAndContinue} accessibilityRole="button">
                 <Text style={[styles.saveAndContinueBtnText, { color: accentColor }]}>Save & Add Another</Text>
               </TouchableOpacity>
             )}
             {transfer && onDelete && (
-              <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
+              <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button" accessibilityHint="Double tap to permanently delete. This cannot be undone.">
                 <Text style={styles.deleteBtnText}>Delete Transfer</Text>
               </TouchableOpacity>
             )}

@@ -88,6 +88,7 @@ function DeleteConfirmModal({ account, txCount, onCancel, onConfirm }: DeleteMod
               style={[dlStyles.btn, dlStyles.cancelBtn, { borderColor }]}
               onPress={onCancel}
               activeOpacity={0.7}
+              accessibilityRole="button"
             >
               <Text style={[dlStyles.btnText, { color: textColor }]}>Cancel</Text>
             </TouchableOpacity>
@@ -95,6 +96,8 @@ function DeleteConfirmModal({ account, txCount, onCancel, onConfirm }: DeleteMod
               style={[dlStyles.btn, dlStyles.deleteBtn]}
               onPress={onConfirm}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityHint="Double tap to permanently delete this account and all its transactions"
             >
               <MaterialIcons name="delete" size={16} color="#fff" />
               <Text style={[dlStyles.btnText, { color: '#fff' }]}>Delete</Text>
@@ -234,6 +237,9 @@ function AccountCard({ account, balance, currency, onPress }: CardProps) {
       style={[styles.card, { backgroundColor: cardBg }]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${account.name}, balance ${formatAmount(balance, currency, undefined, numberFormat)}`}
+      accessibilityHint="Double tap to edit"
     >
       <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
         <AccountIcon name={account.icon ?? 'account-balance-wallet'} size={22} color="#fff" />
@@ -388,6 +394,7 @@ export default function AccountsScreen() {
           style={[styles.newAccountBtn, { borderColor }]}
           onPress={() => { setEditingAccount(null); setFormOpen(true); }}
           activeOpacity={0.7}
+          accessibilityRole="button"
         >
           <MaterialIcons name="add" size={20} color={accentColor} />
           <Text style={[styles.newAccountBtnText, { color: accentColor }]}>New Account</Text>

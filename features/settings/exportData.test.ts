@@ -27,7 +27,8 @@ describe('exportData', () => {
       .mockResolvedValueOnce({ value: 'EUR' })
       .mockResolvedValueOnce({ value: '#ff0000' })
       .mockResolvedValueOnce({ value: 'de-DE' })
-      .mockResolvedValueOnce({ value: 'true' });
+      .mockResolvedValueOnce({ value: 'true' })
+      .mockResolvedValueOnce(null);
 
     // When: generating export data
     const result = await generateExportData(mockDb);
@@ -44,6 +45,7 @@ describe('exportData', () => {
       accent_color: '#ff0000',
       number_format: 'de-DE',
       biometric_lock: 'true',
+      theme_id: null,
     });
   });
 

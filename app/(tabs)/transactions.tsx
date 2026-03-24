@@ -98,10 +98,11 @@ function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps
               style={[dlStyles.btn, dlStyles.cancelBtn, { borderColor }]}
               onPress={onCancel}
               activeOpacity={0.7}
+              accessibilityRole="button"
             >
               <Text style={[dlStyles.btnText, { color: textColor }]}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={dlStyles.btn} onPress={onConfirm} activeOpacity={0.7}>
+            <TouchableOpacity style={dlStyles.btn} onPress={onConfirm} activeOpacity={0.7} accessibilityRole="button" accessibilityHint="Double tap to permanently delete">
               <MaterialIcons name="delete" size={16} color="#ef4444" />
               <Text style={[dlStyles.btnText, { color: '#ef4444' }]}>Delete</Text>
             </TouchableOpacity>
@@ -256,6 +257,9 @@ function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, s
       ]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${tx.category_name}, ${formatAmount(tx.amount, currency, tx.type, numberFormat)}, ${tx.date}`}
+      accessibilityHint="Double tap to edit"
     >
       <View style={[rowStyles.icon, { backgroundColor: tx.category_color || '#6b7280' }]}>
         <MaterialIcons name={(tx.category_icon as any) || 'attach-money'} size={18} color="#fff" />
@@ -307,6 +311,9 @@ function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, bor
       ]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${formatAmount(transfer.amount, currency, amountType, numberFormat)}, ${transfer.date}`}
+      accessibilityHint="Double tap to edit"
     >
       <View style={[rowStyles.icon, { backgroundColor: '#6b7280' }]}>
         <MaterialIcons name="swap-horiz" size={18} color="#fff" />

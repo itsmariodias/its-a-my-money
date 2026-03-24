@@ -29,6 +29,12 @@ const PRESET_COLORS = [
   '#FF9800', '#FF5722', '#795548', '#607D8B',
 ];
 
+const COLOR_NAMES: Record<string, string> = {
+  '#F44336': 'Red', '#E91E63': 'Pink', '#9C27B0': 'Purple', '#673AB7': 'Deep purple',
+  '#2196F3': 'Blue', '#03A9F4': 'Light blue', '#009688': 'Teal', '#4CAF50': 'Green',
+  '#FF9800': 'Orange', '#FF5722': 'Deep orange', '#795548': 'Brown', '#607D8B': 'Blue grey',
+};
+
 const PRESET_ICONS: (keyof typeof MaterialIcons.glyphMap)[] = [
   'restaurant', 'directions-car', 'shopping-cart', 'movie',
   'local-hospital', 'receipt', 'home', 'flight',
@@ -144,19 +150,19 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
     <Modal visible={isOpen} animationType="none" transparent onRequestClose={() => triggerCloseRef.current()}>
       <View style={styles.kvContainer}>
         <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: backdropOpacity }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => triggerCloseRef.current()} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => triggerCloseRef.current()} accessibilityLabel="Dismiss" accessibilityRole="button" />
         </Animated.View>
 
         <Animated.View style={[styles.sheet, { backgroundColor: bg, transform: [{ translateY: sheetTranslateY }] }]}>
           <View {...handlePan.panHandlers} style={styles.dragArea}>
-            <View style={[styles.handle, { backgroundColor: borderColor }]} />
+            <View style={[styles.handle, { backgroundColor: borderColor }]} accessible={false} />
           </View>
 
           <View style={styles.header}>
             <Text style={[styles.headerTitle, { color: textColor }]}>
               {category ? 'Edit Category' : 'New Category'}
             </Text>
-            <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8}>
+            <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
               <MaterialIcons name="close" size={24} color={subColor} />
             </TouchableOpacity>
           </View>
@@ -167,6 +173,8 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               <TouchableOpacity
                 style={[styles.typeBtn, type === 'expense' && { backgroundColor: '#ef4444' }]}
                 onPress={() => setType('expense')}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: type === 'expense' }}
               >
                 <Text style={[styles.typeBtnText, { color: type === 'expense' ? '#fff' : subColor }]}>
                   Expense
@@ -175,6 +183,8 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               <TouchableOpacity
                 style={[styles.typeBtn, type === 'income' && { backgroundColor: '#22c55e' }]}
                 onPress={() => setType('income')}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: type === 'income' }}
               >
                 <Text style={[styles.typeBtnText, { color: type === 'income' ? '#fff' : subColor }]}>
                   Income
@@ -208,6 +218,10 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
                   key={c}
                   onPress={() => setColor(c)}
                   style={[styles.colorSwatch, { backgroundColor: c }, color === c && styles.colorSwatchSelected]}
+                  hitSlop={6}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: color === c }}
+                  accessibilityLabel={COLOR_NAMES[c] ?? c}
                 >
                   {color === c && <MaterialIcons name="check" size={16} color="#fff" />}
                 </TouchableOpacity>
@@ -222,6 +236,9 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
                   key={ic}
                   style={[styles.iconItem, { backgroundColor: icon === ic ? color : inputBg }]}
                   onPress={() => setIcon(ic)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: icon === ic }}
+                  accessibilityLabel={ic.replace(/-/g, ' ')}
                 >
                   <View style={styles.iconItemInner}>
                     <MaterialIcons name={ic as any} size={22} color={icon === ic ? '#fff' : subColor} />
@@ -244,7 +261,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               </View>
             </View>
 
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave}>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
               <Text style={styles.saveBtnText}>{category ? 'Save Changes' : 'Create Category'}</Text>
             </TouchableOpacity>
             {category && onDelete && (
@@ -252,6 +269,8 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
                 style={[styles.deleteBtn, deleteDisabled && { opacity: 0.4 }]}
                 onPress={onDelete}
                 disabled={deleteDisabled}
+                accessibilityRole="button"
+                accessibilityHint="Double tap to permanently delete. This cannot be undone."
               >
                 <Text style={styles.deleteBtnText}>Delete Category</Text>
               </TouchableOpacity>
@@ -274,7 +293,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
 
 const localStyles = StyleSheet.create({
   iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  iconItem: { width: '11%', aspectRatio: 1, borderRadius: 10 },
+  iconItem: { width: '11%', minWidth: 44, minHeight: 44, borderRadius: 10 },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 20 },
   previewCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   previewName: { flex: 1, fontSize: 15, fontWeight: '500' },

@@ -19,7 +19,7 @@ export default function InfoModal({ visible, onClose, icon, iconColor, title, me
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Dismiss" accessibilityRole="button" />
       <View style={styles.center} pointerEvents="box-none">
         <View style={[styles.card, { backgroundColor: cardBg }]}>
           <View style={[styles.iconWrap, { backgroundColor: iconColor + '20' }]}>
@@ -28,7 +28,7 @@ export default function InfoModal({ visible, onClose, icon, iconColor, title, me
           <Text style={[styles.title, { color: textColor }]}>{title}</Text>
           <Text style={[styles.message, { color: subColor }]}>{message}</Text>
           <View style={[styles.divider, { backgroundColor: borderColor }]} />
-          <TouchableOpacity style={styles.btn} onPress={onClose}>
+          <TouchableOpacity style={styles.btn} onPress={onClose} accessibilityRole="button">
             <Text style={{ color: accentColor, fontSize: 15, fontWeight: '600' }}>OK</Text>
           </TouchableOpacity>
         </View>

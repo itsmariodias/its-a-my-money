@@ -385,6 +385,8 @@ export default function DashboardScreen() {
                     ]}
                     onPress={() => selectSlice(idx)}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${item.label}, ${formatAmount(item.value, currency, undefined, numberFormat)}, ${pct}%`}
                   >
                     <View style={[styles.legendDot, { backgroundColor: item.color }]}>
                       <MaterialIcons name={(item.icon as any) || 'label'} size={12} color="#fff" />
@@ -410,7 +412,7 @@ export default function DashboardScreen() {
         <View style={[styles.section, { backgroundColor: cardBg }]}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: textColor, marginBottom: 0 }]}>Recent Transactions</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/transactions')}>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/transactions')} accessibilityRole="link" accessibilityLabel="See all transactions">
               <Text style={[styles.seeAll, { color: accentColor }]}>See all</Text>
             </TouchableOpacity>
           </View>

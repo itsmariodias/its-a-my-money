@@ -84,6 +84,8 @@ export function PeriodSelector({ mode, date, onChange }: Props) {
         <TouchableOpacity
           onPress={() => onChange(mode, navigatePeriod(mode, date, -1))}
           hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={`Previous ${mode}`}
         >
           <MaterialIcons name="chevron-left" size={24} color={textColor} />
         </TouchableOpacity>
@@ -91,6 +93,8 @@ export function PeriodSelector({ mode, date, onChange }: Props) {
         <TouchableOpacity
           onPress={() => onChange(mode, navigatePeriod(mode, date, 1))}
           hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={`Next ${mode}`}
         >
           <MaterialIcons name="chevron-right" size={24} color={textColor} />
         </TouchableOpacity>
@@ -103,6 +107,7 @@ export function PeriodSelector({ mode, date, onChange }: Props) {
           onPress={() => onChange(mode, new Date())}
           hitSlop={6}
           disabled={!showToday}
+          accessibilityRole="button"
         >
           <Text style={[styles.todayText, { color: accentColor }]}>Today</Text>
         </TouchableOpacity>
@@ -114,6 +119,8 @@ export function PeriodSelector({ mode, date, onChange }: Props) {
               key={m}
               style={[styles.tab, mode === m && { backgroundColor: accentColor }]}
               onPress={() => onChange(m, date)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: mode === m }}
             >
               <Text style={[styles.tabText, { color: mode === m ? '#fff' : subColor }]}>
                 {m === 'day' ? 'Day' : m === 'month' ? 'Month' : 'Year'}
@@ -142,7 +149,7 @@ const styles = StyleSheet.create({
   },
   todayBtn: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 12,
     borderRadius: 6,
     borderWidth: 1,
   },
@@ -168,7 +175,7 @@ const styles = StyleSheet.create({
   },
   tab: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 10,
     borderRadius: 6,
   },
   tabActive: {},

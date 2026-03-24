@@ -220,7 +220,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     >
       <View style={styles.kvContainer}>
         <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: backdropOpacity }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => triggerCloseRef.current()} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => triggerCloseRef.current()} accessibilityLabel="Dismiss" accessibilityRole="button" />
         </Animated.View>
 
         <Animated.View
@@ -228,7 +228,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
         >
           {/* Handle pill — drag zone only, no interactive children */}
           <View {...handlePan.panHandlers} style={styles.dragArea}>
-            <View style={[styles.handle, { backgroundColor: borderColor }]} />
+            <View style={[styles.handle, { backgroundColor: borderColor }]} accessible={false} />
           </View>
 
           {/* Header — completely outside the PanResponder so close button always works */}
@@ -236,7 +236,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
             <Text style={[styles.headerTitle, { color: textColor }]}>
               {transaction ? 'Edit Transaction' : 'Add Transaction'}
             </Text>
-            <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8}>
+            <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
               <MaterialIcons name="close" size={24} color={subTextColor} />
             </TouchableOpacity>
           </View>
@@ -270,6 +270,8 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
               <TouchableOpacity
                 style={[styles.typeBtn, type === 'expense' && { backgroundColor: '#ef4444' }]}
                 onPress={() => setType('expense')}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: type === 'expense' }}
               >
                 <Text style={[styles.typeBtnText, { color: type === 'expense' ? '#fff' : subTextColor }]}>
                   Expense
@@ -278,6 +280,8 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
               <TouchableOpacity
                 style={[styles.typeBtn, type === 'income' && { backgroundColor: '#22c55e' }]}
                 onPress={() => setType('income')}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: type === 'income' }}
               >
                 <Text style={[styles.typeBtnText, { color: type === 'income' ? '#fff' : subTextColor }]}>
                   Income
@@ -295,6 +299,8 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
                     key={cat.id}
                     style={styles.categoryItem}
                     onPress={() => setSelectedCategory(cat)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: selectedCategory?.id === cat.id }}
                   >
                     <View
                       style={[
@@ -338,6 +344,8 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
                     ]}
                     onPress={() => setSelectedAccountId(acc.id)}
                     activeOpacity={0.7}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
                   >
                     <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
                       <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
@@ -370,18 +378,18 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
               returnKeyType="done"
             />
 
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave}>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
               <Text style={styles.saveBtnText}>
                 {transaction ? 'Save Changes' : 'Save Transaction'}
               </Text>
             </TouchableOpacity>
             {!transaction && (
-              <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleSaveAndContinue}>
+              <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleSaveAndContinue} accessibilityRole="button">
                 <Text style={[styles.saveAndContinueBtnText, { color: accentColor }]}>Save & Add Another</Text>
               </TouchableOpacity>
             )}
             {transaction && onDelete && (
-              <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
+              <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button" accessibilityHint="Double tap to permanently delete. This cannot be undone.">
                 <Text style={styles.deleteBtnText}>Delete Transaction</Text>
               </TouchableOpacity>
             )}

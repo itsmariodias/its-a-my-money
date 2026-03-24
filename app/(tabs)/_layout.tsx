@@ -244,6 +244,9 @@ export default function TabLayout() {
               onPress={() => setAccountDropdownOpen((v) => !v)}
               hitSlop={8}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={selectedAccount ? `${selectedAccount.name}, account filter` : 'All accounts, account filter'}
+              accessibilityHint="Double tap to change account filter"
             >
               {selectedAccount ? (
                 <View style={[styles.accountBtnIcon, { backgroundColor: selectedAccount.color ?? '#55A3FF' }]}>
@@ -255,7 +258,7 @@ export default function TabLayout() {
               <MaterialIcons name="expand-more" size={16} color={textColor} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={openSettings} hitSlop={8}>
+          <TouchableOpacity onPress={openSettings} hitSlop={8} accessibilityRole="button" accessibilityLabel="Settings">
             <MaterialIcons name="settings" size={24} color={textColor} />
           </TouchableOpacity>
         </View>
@@ -316,6 +319,8 @@ export default function TabLayout() {
               style={styles.tabItem}
               onPress={() => router.navigate(tab.href as any)}
               activeOpacity={0.7}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
             >
               <MaterialIcons name={tab.icon as any} size={24} color={isActive ? accentColor : textColor} />
               <Text style={{ fontSize: 10, color: isActive ? accentColor : textColor, marginTop: 2 }}>{tab.label}</Text>
@@ -349,6 +354,8 @@ export default function TabLayout() {
               onPress={() => { collapseFab(); openTransfer(); }}
               activeOpacity={0.8}
               disabled={accounts.length < 2}
+              accessibilityRole="button"
+              accessibilityLabel="Add transfer"
             >
               <MaterialIcons name="swap-horiz" size={22} color={accentColor} />
             </TouchableOpacity>
@@ -371,6 +378,8 @@ export default function TabLayout() {
               style={[styles.fabSpeedBtn, { backgroundColor: bg, borderColor }]}
               onPress={() => { collapseFab(); openAddTx(); }}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Add transaction"
             >
               <MaterialIcons name="add" size={22} color={accentColor} />
             </TouchableOpacity>
@@ -381,6 +390,8 @@ export default function TabLayout() {
             style={[styles.fab, { bottom: fabBottom, backgroundColor: accentColor }]}
             onPress={fabExpanded ? collapseFab : expandFab}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={fabExpanded ? 'Close menu' : 'Add transaction or transfer'}
           >
             <Animated.View style={{ transform: [{ rotate: fabRotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) }] }}>
               <MaterialIcons name="add" size={28} color="#fff" />
@@ -394,7 +405,7 @@ export default function TabLayout() {
       {/* Settings overlay — slides in from the right, includes its own header */}
       <Animated.View style={[styles.settingsOverlay, { backgroundColor: bg, top: insets.top, transform: [{ translateX: settingsTranslateX }] }]}>
         <View style={[styles.header, { backgroundColor: bg, borderBottomColor: borderColor }]}>
-          <TouchableOpacity onPress={closeSettings} hitSlop={8}>
+          <TouchableOpacity onPress={closeSettings} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close settings">
             <MaterialIcons name="arrow-back" size={24} color={textColor} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: textColor, marginLeft: 8 }]}>Settings</Text>
