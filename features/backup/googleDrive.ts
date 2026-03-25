@@ -52,7 +52,7 @@ export async function ensureBackupFolder(
   accessToken: string
 ): Promise<{ id: string; name: string }> {
   // Search for existing folder created by this app
-  const escapedName = BACKUP_FOLDER_NAME.replace(/'/g, "\\'");
+  const escapedName = BACKUP_FOLDER_NAME.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const query = `name='${escapedName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   const result = await driveGet(
     accessToken,
