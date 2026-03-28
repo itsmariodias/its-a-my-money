@@ -19,7 +19,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   splash: {
     image: './assets/images/splash-icon.png',
     resizeMode: 'contain',
-    backgroundColor: '#1A1A2E',
+    backgroundColor: '#81D4FA',
   },
   ios: {
     supportsTablet: true,
@@ -32,7 +32,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
-      monochromeImage: './assets/images/android-icon-monochrome.png',
     },
   },
   web: {
