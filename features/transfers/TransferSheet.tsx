@@ -22,6 +22,7 @@ import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
+import { Snackbar } from 'react-native-snackbar';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
@@ -117,12 +118,13 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
       await saveTransfer(parsedAmount);
+      Snackbar.show({ text: transfer ? 'Transfer updated' : 'Transfer saved', duration: Snackbar.LENGTH_SHORT });
       triggerCloseRef.current();
     } catch {
       setErrorModal('Failed to save transfer.');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, fromAccountId, toAccountId, saveTransfer]);
+  }, [amount, fromAccountId, toAccountId, saveTransfer, transfer]);
 
   const handleSaveAndContinue = useCallback(async () => {
     setAttempted(true);
@@ -130,13 +132,14 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
       await saveTransfer(parsedAmount);
+      Snackbar.show({ text: transfer ? 'Transfer updated' : 'Transfer saved', duration: Snackbar.LENGTH_SHORT });
       setAmount('');
       setNote('');
       setAttempted(false);
     } catch {
       setErrorModal('Failed to save transfer.');
     }
-  }, [amount, fromAccountId, toAccountId, saveTransfer]);
+  }, [amount, fromAccountId, toAccountId, saveTransfer, transfer]);
 
   const { isDark, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 

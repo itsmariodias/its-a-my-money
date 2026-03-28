@@ -17,6 +17,7 @@ import { Text } from '@/shared/components/Themed';
 import InfoModal from '@/shared/components/InfoModal';
 import { useCategoriesDb } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import { Snackbar } from 'react-native-snackbar';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { Category } from '@/types';
@@ -93,6 +94,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
       } else {
         await categoriesDb.insert({ name: name.trim(), type, color, icon, is_default: 0 });
       }
+      Snackbar.show({ text: category ? 'Category updated' : 'Category created', duration: Snackbar.LENGTH_SHORT });
       onSaved();
       onClose();
     } catch {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Snackbar } from 'react-native-snackbar';
 import {
   Modal,
   Platform,
@@ -230,6 +231,7 @@ export default function SettingsScreen() {
     } catch { /* ignore */ }
     setDeletingCat(null);
     loadCategories();
+    Snackbar.show({ text: 'Category deleted', duration: Snackbar.LENGTH_SHORT });
   };
 
   const handleExport = async () => {

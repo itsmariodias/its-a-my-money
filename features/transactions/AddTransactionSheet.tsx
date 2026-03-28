@@ -22,6 +22,7 @@ import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
+import { Snackbar } from 'react-native-snackbar';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
@@ -141,11 +142,12 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
     try {
       await saveTransaction(parsedAmount);
+      Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       triggerCloseRef.current();
     } catch {
       setErrorModal('Failed to save transaction.');
     }
-  }, [amount, selectedCategory, selectedAccountId, saveTransaction]);
+  }, [amount, selectedCategory, selectedAccountId, saveTransaction, transaction]);
 
   const handleSaveAndContinue = useCallback(async () => {
     setAttempted(true);
@@ -153,13 +155,14 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
     try {
       await saveTransaction(parsedAmount);
+      Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       setAmount('');
       setNote('');
       setAttempted(false);
     } catch {
       setErrorModal('Failed to save transaction.');
     }
-  }, [amount, selectedCategory, selectedAccountId, saveTransaction]);
+  }, [amount, selectedCategory, selectedAccountId, saveTransaction, transaction]);
 
   const { isDark, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 

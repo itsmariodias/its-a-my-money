@@ -57,7 +57,7 @@ pnpm test -- path/to/file.test.ts
 pnpm lint
 
 # Type-check
-pnpm tsc --noEmit
+pnpm typecheck
 ```
 
 ## Testing
@@ -308,7 +308,7 @@ Both `transactions.tsx` and `accounts.tsx` have inline `SwipeableTransactionRow`
 ## CI/CD
 
 ### CI (`ci.yml`)
-Runs on every push to `main` and on all PRs. Runs `pnpm lint` and `pnpm tsc`.
+Runs on every push to `main` and on all PRs. Runs `pnpm lint` and `pnpm typecheck`.
 
 ### Android APK build (`build-android.yml`)
 Triggers on tag push (`v*`). Uses `expo prebuild --platform android --clean` + Gradle (no EAS account needed). Caches pnpm store and Gradle. Signs with keystore stored as GitHub secrets:

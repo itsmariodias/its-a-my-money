@@ -18,6 +18,7 @@ import AccountIcon from '@/shared/components/AccountIcon';
 import InfoModal from '@/shared/components/InfoModal';
 import { useAccountsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { Snackbar } from 'react-native-snackbar';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
@@ -107,6 +108,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
       }
       const updated = await accountsDb.getAll();
       setAccounts(updated);
+      Snackbar.show({ text: account ? 'Account updated' : 'Account created', duration: Snackbar.LENGTH_SHORT });
       onClose();
     } catch {
       setErrorModal('Failed to save account.');

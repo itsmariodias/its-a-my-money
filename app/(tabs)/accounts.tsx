@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { Snackbar } from 'react-native-snackbar';
 import {
   Modal,
   Pressable,
@@ -343,6 +344,7 @@ export default function AccountsScreen() {
     setAccounts(accs);
     setTransactions(txns);
     setTransfers(tfrs);
+    Snackbar.show({ text: 'Account deleted', duration: Snackbar.LENGTH_SHORT });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deletingAccount]);
 

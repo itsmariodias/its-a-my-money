@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { Snackbar } from 'react-native-snackbar';
 import {
   Modal,
   Pressable,
@@ -228,6 +229,73 @@ const dlStyles = StyleSheet.create({
   },
 });
 
+// ─── DeleteTransferModal ──────────────────────────────────────────────────────
+
+interface DeleteTransferModalProps {
+  transfer: TransferWithDetails | null;
+  currency: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function DeleteTransferModal({ transfer, currency, onCancel, onConfirm }: DeleteTransferModalProps) {
+  const { cardBg, inputBg, textColor, subColor, borderColor } = useAppTheme();
+  const numberFormat = useSettingsStore((s) => s.numberFormat);
+
+  return (
+    <Modal visible={transfer !== null} transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable style={dlStyles.backdrop} onPress={onCancel}>
+        <Pressable style={[dlStyles.card, { backgroundColor: cardBg }]} onPress={() => {}}>
+          <View style={dlStyles.iconCircle}>
+            <MaterialIcons name="delete-forever" size={30} color="#fff" />
+          </View>
+
+          <Text style={[dlStyles.title, { color: textColor }]}>Delete Transfer?</Text>
+
+          {transfer && (
+            <View style={[dlStyles.txChip, { backgroundColor: inputBg, borderColor }]}>
+              <View style={dlStyles.chipInfo}>
+                <Text style={[dlStyles.chipName, { color: textColor }]} numberOfLines={1}>
+                  {transfer.from_account_name} → {transfer.to_account_name}
+                </Text>
+                <Text style={[dlStyles.chipSub, { color: subColor }]}>{transfer.date}</Text>
+              </View>
+              <Text style={[dlStyles.chipAmount, { color: textColor }]}>
+                {formatAmount(transfer.amount, currency, 'expense', numberFormat)}
+              </Text>
+            </View>
+          )}
+
+          <Text style={[dlStyles.message, { color: subColor }]}>
+            This transfer will be permanently removed from your records.
+          </Text>
+
+          <View style={dlStyles.warningRow}>
+            <MaterialIcons name="warning-amber" size={14} color="#f59e0b" />
+            <Text style={dlStyles.warningText}>This action cannot be undone.</Text>
+          </View>
+
+          <View style={[dlStyles.divider, { backgroundColor: borderColor }]} />
+          <View style={dlStyles.buttons}>
+            <TouchableOpacity
+              style={[dlStyles.btn, dlStyles.cancelBtn, { borderColor }]}
+              onPress={onCancel}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+            >
+              <Text style={[dlStyles.btnText, { color: textColor }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={dlStyles.btn} onPress={onConfirm} activeOpacity={0.7} accessibilityRole="button" accessibilityHint="Double tap to permanently delete">
+              <MaterialIcons name="delete" size={16} color="#ef4444" />
+              <Text style={[dlStyles.btnText, { color: '#ef4444' }]}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 // ─── TransactionRow ───────────────────────────────────────────────────────────
 
 interface RowProps {
@@ -381,6 +449,7 @@ export default function TransactionsScreen() {
   const [editingTx, setEditingTx] = useState<TransactionWithDetails | null>(null);
   const [deletingTx, setDeletingTx] = useState<TransactionWithDetails | null>(null);
   const [editingTransfer, setEditingTransfer] = useState<TransferWithDetails | null>(null);
+  const [deletingTransfer, setDeletingTransfer] = useState<TransferWithDetails | null>(null);
 
   const transactionsDb = useTransactionsDb();
   const accountsDb = useAccountsDb();
@@ -474,17 +543,19 @@ export default function TransactionsScreen() {
     await transactionsDb.remove(id);
     const txns = await transactionsDb.getAll();
     setTransactions(txns);
+    Snackbar.show({ text: 'Transaction deleted', duration: Snackbar.LENGTH_SHORT });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deletingTx]);
 
-  const handleTransferDelete = useCallback(async () => {
-    if (!editingTransfer) return;
-    const id = editingTransfer.id;
-    setEditingTransfer(null);
+  const handleTransferDeleteConfirm = useCallback(async () => {
+    if (!deletingTransfer) return;
+    const id = deletingTransfer.id;
+    setDeletingTransfer(null);
     await transfersDb.remove(id);
     removeTransfer(id);
+    Snackbar.show({ text: 'Transfer deleted', duration: Snackbar.LENGTH_SHORT });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingTransfer]);
+  }, [deletingTransfer]);
 
 
   return (
@@ -558,7 +629,14 @@ export default function TransactionsScreen() {
         isOpen={editingTransfer !== null}
         onClose={() => setEditingTransfer(null)}
         transfer={editingTransfer}
-        onDelete={handleTransferDelete}
+        onDelete={() => { const t = editingTransfer; setEditingTransfer(null); setDeletingTransfer(t); }}
+      />
+
+      <DeleteTransferModal
+        transfer={deletingTransfer}
+        currency={currency}
+        onCancel={() => setDeletingTransfer(null)}
+        onConfirm={handleTransferDeleteConfirm}
       />
 
       <DeleteTxModal

@@ -8,7 +8,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "eslint .",
-    "tsc": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "jest"
   },
   "dependencies": {
@@ -42,6 +42,7 @@
     "react-native-reanimated": "4.1.6",
     "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.16.0",
+    "react-native-snackbar": "^3.0.1",
     "react-native-svg": "15.12.1",
     "react-native-tab-view": "^4.3.0",
     "react-native-web": "~0.21.0",
