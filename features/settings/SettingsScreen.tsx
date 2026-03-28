@@ -19,6 +19,7 @@ import * as LegacyFS from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { Text } from '@/shared/components/Themed';
 import InfoModal from '@/shared/components/InfoModal';
+import OperationLockModal from '@/shared/components/OperationLockModal';
 import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb } from '@/db';
 import type { ExportData } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
@@ -158,6 +159,7 @@ export default function SettingsScreen() {
   const [accentOpen, setAccentOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
+  const [operationMessage, setOperationMessage] = useState<string | null>(null);
 
   const loadCategories = useCallback(async () => {
     const [expense, income] = await Promise.all([
@@ -235,6 +237,7 @@ export default function SettingsScreen() {
   };
 
   const handleExport = async () => {
+    setOperationMessage('Exporting…');
     try {
       const data = await generateExportJson(db);
       const filename = `its-a-my-money-${new Date().toISOString().split('T')[0]}.json`;
@@ -269,11 +272,13 @@ export default function SettingsScreen() {
           // Permission revoked — fall through to re-request
         }
 
-        // Ask user to pick a directory
+        // Dismiss overlay before OS directory picker
+        setOperationMessage(null);
         useUIStore.getState().setExternalActivityActive(true);
         const perm = await StorageAccessFramework.requestDirectoryPermissionsAsync();
         if (!perm.granted) return;
 
+        setOperationMessage('Exporting…');
         await settingsDb.set('export_directory_uri', perm.directoryUri);
         const ok = await writeToDirectory(perm.directoryUri);
         if (ok) {
@@ -284,6 +289,8 @@ export default function SettingsScreen() {
       } else {
         const fileUri = `${LegacyFS.cacheDirectory}${filename}`;
         await LegacyFS.writeAsStringAsync(fileUri, data, { encoding: LegacyFS.EncodingType.UTF8 });
+        // Dismiss overlay before OS share sheet
+        setOperationMessage(null);
         if (await Sharing.isAvailableAsync()) {
           useUIStore.getState().setExternalActivityActive(true);
           await Sharing.shareAsync(fileUri, { mimeType: 'application/json', UTI: 'public.json', dialogTitle: 'Save backup' });
@@ -294,6 +301,8 @@ export default function SettingsScreen() {
     } catch {
       useUIStore.getState().setExternalActivityActive(false);
       setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Export Failed', message: 'Could not export data.' });
+    } finally {
+      setOperationMessage(null);
     }
   };
 
@@ -356,6 +365,7 @@ export default function SettingsScreen() {
 
   const doImport = async (data: ExportData) => {
     setImportConfirmData(null);
+    setOperationMessage('Importing…');
     try {
       await importDb.importAll(data);
       const [accs, txns, trfs] = await Promise.all([
@@ -377,10 +387,14 @@ export default function SettingsScreen() {
       setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Import Successful', message: 'Your data has been restored.' });
     } catch {
       setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Import Failed', message: 'Could not import the backup.' });
+    } finally {
+      setOperationMessage(null);
     }
   };
 
   const handleReset = async () => {
+    setResetModalOpen(false);
+    setOperationMessage('Resetting…');
     try {
       await resetDb.resetAll();
       const [accs, txns] = await Promise.all([accountsDb.getAll(), transactionsDb.getAll()]);
@@ -391,9 +405,12 @@ export default function SettingsScreen() {
       setNumberFormat('en-US');
       setBiometricLock(false);
       await loadCategories();
-      setResetModalOpen(false);
       setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Reset Successful', message: 'All data has been cleared and the app restored to its default state.' });
-    } catch { setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Error', message: 'Failed to reset app data.' }); }
+    } catch {
+      setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Error', message: 'Failed to reset app data.' });
+    } finally {
+      setOperationMessage(null);
+    }
   };
 
   const displayedCategories = activeType === 'expense' ? expenseCategories : incomeCategories;
@@ -670,6 +687,12 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Operation lock overlay — blocks UI during export/import/reset */}
+      <OperationLockModal
+        visible={operationMessage !== null}
+        message={operationMessage ?? ''}
+      />
 
       {/* Info modal (success / error) */}
       <InfoModal
