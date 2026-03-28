@@ -21,6 +21,7 @@ import { useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import { useUIStore } from '@/shared/store/useUIStore';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
@@ -74,8 +75,10 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
       setDate(transfer.date);
     } else {
       setAmount('');
-      setFromAccountId(accounts[0]?.id ?? null);
-      setToAccountId(accounts.length > 1 ? accounts[1]?.id ?? null : null);
+      const filteredAccountId = useUIStore.getState().selectedAccountId;
+      const defaultFromId = filteredAccountId ?? accounts[0]?.id ?? null;
+      setFromAccountId(defaultFromId);
+      setToAccountId(accounts.find((a) => a.id !== defaultFromId)?.id ?? null);
       setNote('');
       setDate(today());
     }

@@ -21,6 +21,7 @@ import { useCategoriesDb, useTransactionsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import { useUIStore } from '@/shared/store/useUIStore';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
@@ -85,7 +86,8 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       setNote('');
       setDate(today());
       setSelectedCategory(null);
-      setSelectedAccountId(accounts[0]?.id ?? null);
+      const filteredAccountId = useUIStore.getState().selectedAccountId;
+      setSelectedAccountId(filteredAccountId ?? accounts[0]?.id ?? null);
       categoriesDb.getByType('expense').then(setCategories);
     }
     setAttempted(false);
