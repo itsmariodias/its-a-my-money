@@ -49,7 +49,6 @@ interface Props {
 }
 
 export default function TransferSheet({ isOpen, onClose, transfer = null, onDelete }: Props) {
-  const accentColor = useSettingsStore((s) => s.accentColor);
 
   const accounts = useAccountsStore((s) => s.accounts);
   const addTransfer = useTransfersStore((s) => s.addTransfer);
@@ -141,7 +140,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     }
   }, [amount, fromAccountId, toAccountId, saveTransfer, transfer]);
 
-  const { isDark, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
+  const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(600)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -352,7 +351,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
             />
 
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-              <Text style={styles.saveBtnText}>
+              <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
                 {transfer ? 'Save Changes' : 'Save Transfer'}
               </Text>
             </TouchableOpacity>

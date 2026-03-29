@@ -67,7 +67,6 @@ interface Props {
 }
 
 export default function AccountFormSheet({ isOpen, account, onClose, onDelete, deleteDisabled }: Props) {
-  const accentColor = useSettingsStore((s) => s.accentColor);
   const currencySymbol = getCurrencySymbol(useSettingsStore((s) => s.currency));
 
   const accountsDb = useAccountsDb();
@@ -115,7 +114,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
     }
   };
 
-  const { isDark, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
+  const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -259,7 +258,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
               </View>
 
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-                <Text style={styles.saveBtnText}>{account ? 'Save Changes' : 'Create Account'}</Text>
+                <Text style={[styles.saveBtnText, { color: onAccentColor }]}>{account ? 'Save Changes' : 'Create Account'}</Text>
               </TouchableOpacity>
               {account && onDelete && (
                 <TouchableOpacity

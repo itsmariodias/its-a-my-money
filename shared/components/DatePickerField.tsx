@@ -11,7 +11,6 @@ import {
 import { Calendar } from 'react-native-calendars';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
-import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 
@@ -32,8 +31,7 @@ interface Props {
 }
 
 export default function DatePickerField({ date, onChange }: Props) {
-  const accentColor = useSettingsStore((s) => s.accentColor);
-  const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
+  const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
   const styles = { ...sheetStyles, ...localStyles };
 
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -90,7 +88,7 @@ export default function DatePickerField({ date, onChange }: Props) {
                             setShowYearPicker(false);
                           }}
                         >
-                          <Text style={{ color: isSelected ? '#fff' : textColor, fontWeight: isSelected ? '700' : '400', fontSize: 14 }}>
+                          <Text style={{ color: isSelected ? onAccentColor : textColor, fontWeight: isSelected ? '700' : '400', fontSize: 14 }}>
                             {year}
                           </Text>
                         </TouchableOpacity>
@@ -120,7 +118,7 @@ export default function DatePickerField({ date, onChange }: Props) {
                     calendarBackground: bg,
                     textSectionTitleColor: subTextColor,
                     selectedDayBackgroundColor: accentColor,
-                    selectedDayTextColor: '#ffffff',
+                    selectedDayTextColor: onAccentColor,
                     todayTextColor: accentColor,
                     dayTextColor: textColor,
                     textDisabledColor: subTextColor,

@@ -43,18 +43,41 @@ export const THEMES: Record<ThemeId, AppTheme> = {
   },
 };
 
-export const ACCENT_COLORS = [
-  '#2f95dc',
-  '#6366f1',
-  '#8b5cf6',
-  '#ec4899',
-  '#ef4444',
-  '#f97316',
-  '#22c55e',
-  '#14b8a6',
+export interface AccentColor {
+  label: string;
+  color: string; // MD2 shade 600 — works on both light and dark themes
+}
+
+export const ACCENT_COLORS: AccentColor[] = [
+  { label: 'Amber',       color: '#FFB300' },
+  { label: 'Red',         color: '#E53935' },
+  { label: 'Pink',        color: '#D81B60' },
+  { label: 'Purple',      color: '#8E24AA' },
+  { label: 'Deep Purple', color: '#5E35B1' },
+  { label: 'Indigo',      color: '#3949AB' },
+  { label: 'Blue',        color: '#1E88E5' },
+  { label: 'Light Blue',  color: '#039BE5' },
+  { label: 'Cyan',        color: '#00ACC1' },
+  { label: 'Teal',        color: '#00897B' },
+  { label: 'Green',       color: '#43A047' },
+  { label: 'Light Green', color: '#7CB342' },
+  { label: 'Lime',        color: '#C0CA33' },
+  { label: 'Yellow',      color: '#FDD835' },
+  { label: 'Orange',      color: '#FB8C00' },
+  { label: 'Deep Orange', color: '#F4511E' },
+  { label: 'Brown',       color: '#6D4C41' },
+  { label: 'Grey',        color: '#757575' },
+  { label: 'Blue Grey',   color: '#546E7A' },
 ];
 
 import { TextStyle } from 'react-native';
+
+export function isLightColor(hex: string): boolean {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 128;
+}
 
 /** Shared validation error style — use as the `errorText` entry in any sheet's StyleSheet. */
 export const sheetErrorText: TextStyle = {

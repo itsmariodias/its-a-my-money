@@ -28,7 +28,8 @@ import { useTransactionsStore } from '@/features/transactions/useTransactionsSto
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
 import { CURRENCIES, NUMBER_FORMATS, getCurrencyByCode } from '@/constants/currencies';
-import { ACCENT_COLORS, THEMES } from '@/constants/theme';
+import { ACCENT_COLORS, THEMES, isLightColor } from '@/constants/theme';
+import type { AccentColor } from '@/constants/theme';
 import type { ThemeId } from '@/constants/theme';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import Constants from 'expo-constants';
@@ -118,7 +119,7 @@ function DeleteCategoryModal({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
-  const { isDark, bg, cardBg, inputBg, textColor, subColor, borderColor } = useAppTheme();
+  const { isDark, bg, cardBg, inputBg, textColor, subColor, borderColor, accentColor, onAccentColor } = useAppTheme();
 
   const db = useSQLiteContext();
   const settingsDb = useSettingsDb();
@@ -131,7 +132,7 @@ export default function SettingsScreen() {
 
   const currency = useSettingsStore((s) => s.currency);
   const setCurrency = useSettingsStore((s) => s.setCurrency);
-  const accentColor = useSettingsStore((s) => s.accentColor);
+  const accentColorValue = useSettingsStore((s) => s.accentColor);
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
   const themeId = useSettingsStore((s) => s.themeId);
   const setThemeId = useSettingsStore((s) => s.setThemeId);
@@ -180,9 +181,9 @@ export default function SettingsScreen() {
     setCurrency(code);
     setCurrencyPickerOpen(false);
   };
-  const handleAccentColor = async (color: string) => {
-    await settingsDb.set('accent_color', color);
-    setAccentColor(color);
+  const handleAccentColor = async (ac: AccentColor) => {
+    await settingsDb.set('accent_color', ac.color);
+    setAccentColor(ac.color);
   };
   const handleThemeChange = async (id: ThemeId) => {
     await settingsDb.set('theme_id', id);
@@ -402,7 +403,7 @@ export default function SettingsScreen() {
       setAccounts(accs);
       setTransactions(txns);
       setCurrency('USD');
-      setAccentColor('#2f95dc');
+      setAccentColor('#FFB300');
       setNumberFormat('en-US');
       setBiometricLock(false);
       await loadCategories();
@@ -444,11 +445,15 @@ export default function SettingsScreen() {
           {accentOpen && (
             <View style={[styles.dropdownPanel, { borderTopColor: borderColor }]}>
               <View style={styles.swatchRow}>
-                {ACCENT_COLORS.map((c) => (
-                  <TouchableOpacity key={c} style={[styles.swatch, { backgroundColor: c }]} onPress={() => handleAccentColor(c)} activeOpacity={0.8}>
-                    {accentColor === c && <MaterialIcons name="check" size={16} color="#fff" />}
-                  </TouchableOpacity>
-                ))}
+                {ACCENT_COLORS.map((ac) => {
+                  const isSelected = accentColorValue === ac.color;
+                  const checkColor = isLightColor(ac.color) ? '#000' : '#fff';
+                  return (
+                    <TouchableOpacity key={ac.label} style={[styles.swatch, { backgroundColor: ac.color }]} onPress={() => handleAccentColor(ac)} activeOpacity={0.8}>
+                      {isSelected && <MaterialIcons name="check" size={16} color={checkColor} />}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           )}
@@ -481,7 +486,7 @@ export default function SettingsScreen() {
                       <Text style={[styles.themeLabel, { color: isSelected ? accentColor : subColor }]}>{t.label}</Text>
                       {isSelected && (
                         <View style={[styles.themeCheck, { backgroundColor: accentColor }]}>
-                          <MaterialIcons name="check" size={10} color="#fff" />
+                          <MaterialIcons name="check" size={10} color={onAccentColor} />
                         </View>
                       )}
                     </TouchableOpacity>
@@ -511,8 +516,8 @@ export default function SettingsScreen() {
                     onPress={() => { handleNumberFormat(f.id); setFormatOpen(false); }}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.fmtLabel, { color: numberFormat === f.id ? '#fff' : textColor }]}>{f.label}</Text>
-                    <Text style={[styles.fmtDesc, { color: numberFormat === f.id ? 'rgba(255,255,255,0.75)' : subColor }]}>{f.description}</Text>
+                    <Text style={[styles.fmtLabel, { color: numberFormat === f.id ? onAccentColor : textColor }]}>{f.label}</Text>
+                    <Text style={[styles.fmtDesc, { color: numberFormat === f.id ? onAccentColor + 'BF' : subColor }]}>{f.description}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

@@ -16,7 +16,7 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   currency: 'USD',
-  accentColor: '#2f95dc',
+  accentColor: '#FFB300',
   numberFormat: 'en-US',
   biometricLock: false,
   themeId: 'dark-blue',

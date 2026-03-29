@@ -71,7 +71,6 @@ function RootLayoutNav() {
   const setBiometricLock = useSettingsStore((s) => s.setBiometricLock);
   const setThemeId = useSettingsStore((s) => s.setThemeId);
   const biometricLock = useSettingsStore((s) => s.biometricLock);
-  const accentColor = useSettingsStore((s) => s.accentColor);
 
   const setGoogleDriveEnabled = useBackupStore((s) => s.setGoogleDriveEnabled);
   const setGoogleEmail = useBackupStore((s) => s.setGoogleEmail);
@@ -139,7 +138,7 @@ function RootLayoutNav() {
     return () => subscription.remove();
   }, [biometricLock, authenticate]);
 
-  const { isDark, bg, textColor, subColor } = useAppTheme();
+  const { isDark, bg, textColor, subColor, accentColor, onAccentColor } = useAppTheme();
   const navTheme = isDark
     ? { ...DarkTheme, colors: { ...DarkTheme.colors, background: bg, card: bg } }
     : { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: bg, card: bg } };
@@ -156,7 +155,7 @@ function RootLayoutNav() {
           <Text style={[lockStyles.title, { color: textColor }]}>App Locked</Text>
           <Text style={[lockStyles.subtitle, { color: subColor }]}>Authenticate to continue</Text>
           <TouchableOpacity onPress={authenticate} style={[lockStyles.retryBtn, { backgroundColor: accentColor }]}>
-            <Text style={lockStyles.retryBtnText}>Try Again</Text>
+            <Text style={[lockStyles.retryBtnText, { color: onAccentColor }]}>Try Again</Text>
           </TouchableOpacity>
         </View>
       </Modal>

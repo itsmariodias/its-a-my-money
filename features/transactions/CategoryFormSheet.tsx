@@ -16,7 +16,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
 import InfoModal from '@/shared/components/InfoModal';
 import { useCategoriesDb } from '@/db';
-import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { Snackbar } from 'react-native-snackbar';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
@@ -58,7 +57,6 @@ interface Props {
 }
 
 export default function CategoryFormSheet({ isOpen, category, defaultType = 'expense', onClose, onSaved, onDelete, deleteDisabled }: Props) {
-  const accentColor = useSettingsStore((s) => s.accentColor);
 
   const categoriesDb = useCategoriesDb();
 
@@ -102,7 +100,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
     }
   };
 
-  const { isDark, cardBg: bg, textColor, subColor, inputBg, borderColor } = useAppTheme();
+  const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -264,7 +262,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
             </View>
 
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-              <Text style={styles.saveBtnText}>{category ? 'Save Changes' : 'Create Category'}</Text>
+              <Text style={[styles.saveBtnText, { color: onAccentColor }]}>{category ? 'Save Changes' : 'Create Category'}</Text>
             </TouchableOpacity>
             {category && onDelete && (
               <TouchableOpacity

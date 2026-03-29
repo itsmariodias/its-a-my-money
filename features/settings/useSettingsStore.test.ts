@@ -2,16 +2,16 @@ import { useSettingsStore } from './useSettingsStore';
 
 describe('useSettingsStore', () => {
   beforeEach(() => {
-    useSettingsStore.setState({ currency: 'USD', accentColor: '#2f95dc', numberFormat: 'en-US', biometricLock: false });
+    useSettingsStore.setState({ currency: 'USD', accentColor: '#FFB300', numberFormat: 'en-US', biometricLock: false });
   });
 
   it('should have correct defaults', () => {
     // Given a fresh settings store
     // When getState is called
     const state = useSettingsStore.getState();
-    // Then defaults should be USD, #2f95dc, en-US
+    // Then defaults should be USD, MD3 yellow, en-US
     expect(state.currency).toBe('USD');
-    expect(state.accentColor).toBe('#2f95dc');
+    expect(state.accentColor).toBe('#FFB300');
     expect(state.numberFormat).toBe('en-US');
   });
 

@@ -12,7 +12,6 @@ import TransferSheet from '@/features/transfers/TransferSheet';
 import SettingsScreen from '@/features/settings/SettingsScreen';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
-import { useSettingsStore } from '@/features/settings/useSettingsStore';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HEADER_HEIGHT = 52;
@@ -154,8 +153,7 @@ function CustomPager({ navigationState, onIndexChange, layout, children, positio
 }
 
 export default function TabLayout() {
-  const { isDark, bg, textColor, borderColor } = useAppTheme();
-  const accentColor = useSettingsStore((s) => s.accentColor);
+  const { isDark, accentColor, onAccentColor, bg, textColor, borderColor } = useAppTheme();
   const openAddTx = useUIStore((s) => s.openAddTx);
   const isAddTxOpen = useUIStore((s) => s.isAddTxOpen);
   const closeAddTx = useUIStore((s) => s.closeAddTx);
@@ -394,7 +392,7 @@ export default function TabLayout() {
             accessibilityLabel={fabExpanded ? 'Close menu' : 'Add transaction or transfer'}
           >
             <Animated.View style={{ transform: [{ rotate: fabRotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) }] }}>
-              <MaterialIcons name="add" size={28} color="#fff" />
+              <MaterialIcons name="add" size={28} color={onAccentColor} />
             </Animated.View>
           </TouchableOpacity>
         </>

@@ -1,7 +1,6 @@
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
-import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 
 export type PeriodMode = 'day' | 'month' | 'year';
@@ -72,8 +71,7 @@ function isToday(date: Date): boolean {
 }
 
 export function PeriodSelector({ mode, date, onChange }: Props) {
-  const accentColor = useSettingsStore((s) => s.accentColor);
-  const { textColor, subColor, inputBg: tabBg, borderColor } = useAppTheme();
+  const { accentColor, onAccentColor, textColor, subColor, inputBg: tabBg, borderColor } = useAppTheme();
 
   const showToday = !isToday(date);
 
@@ -122,7 +120,7 @@ export function PeriodSelector({ mode, date, onChange }: Props) {
               accessibilityRole="radio"
               accessibilityState={{ selected: mode === m }}
             >
-              <Text style={[styles.tabText, { color: mode === m ? '#fff' : subColor }]}>
+              <Text style={[styles.tabText, { color: mode === m ? onAccentColor : subColor }]}>
                 {m === 'day' ? 'Day' : m === 'month' ? 'Month' : 'Year'}
               </Text>
             </TouchableOpacity>

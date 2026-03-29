@@ -259,7 +259,7 @@ function AccountCard({ account, balance, currency, onPress }: CardProps) {
 // ─── AccountsScreen ──────────────────────────────────────────────────────────
 
 export default function AccountsScreen() {
-  const { isDark, bg, subColor, borderColor } = useAppTheme();
+  const { isDark, accentColor, onAccentColor, bg, subColor, borderColor } = useAppTheme();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -280,7 +280,6 @@ export default function AccountsScreen() {
   const transactionsDb = useTransactionsDb();
   const transfersDb = useTransfersDb();
   const currency = useSettingsStore((s) => s.currency);
-  const accentColor = useSettingsStore((s) => s.accentColor);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
 
   useFocusEffect(
@@ -366,11 +365,11 @@ export default function AccountsScreen() {
       >
         {/* Total balance card */}
         <View style={[styles.totalCard, { backgroundColor: accentColor }]}>
-          <Text style={styles.totalLabel}>Total Balance</Text>
-          <Text style={styles.totalAmount}>
+          <Text style={[styles.totalLabel, { color: onAccentColor + 'CC' }]}>Total Balance</Text>
+          <Text style={[styles.totalAmount, { color: onAccentColor }]}>
             {formatAmount(totalBalance, currency, undefined, numberFormat)}
           </Text>
-          <Text style={styles.totalSub}>
+          <Text style={[styles.totalSub, { color: onAccentColor + 'A6' }]}>
             as of {periodNavLabel(periodMode, periodDate)} · {accounts.length} account{accounts.length !== 1 ? 's' : ''}
           </Text>
         </View>

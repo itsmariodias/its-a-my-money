@@ -48,7 +48,6 @@ interface Props {
 }
 
 export default function AddTransactionSheet({ isOpen, onClose, transaction = null, onDelete }: Props) {
-  const accentColor = useSettingsStore((s) => s.accentColor);
 
   const accounts = useAccountsStore((s) => s.accounts);
   const addTransaction = useTransactionsStore((s) => s.addTransaction);
@@ -164,7 +163,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     }
   }, [amount, selectedCategory, selectedAccountId, saveTransaction, transaction]);
 
-  const { isDark, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
+  const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(600)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -384,7 +383,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
             />
 
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-              <Text style={styles.saveBtnText}>
+              <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
                 {transaction ? 'Save Changes' : 'Save Transaction'}
               </Text>
             </TouchableOpacity>

@@ -90,7 +90,7 @@ function DonutSlice({ fraction, cumulativeStart, color, resetKey, index }: Donut
 }
 
 export default function DashboardScreen() {
-  const { isDark, bg, cardBg, textColor, subColor: subTextColor, borderColor } = useAppTheme();
+  const { isDark, accentColor, onAccentColor, bg, cardBg, textColor, subColor: subTextColor, borderColor } = useAppTheme();
 
   const selectedId = useUIStore((s) => s.selectedAccountId);
   const periodMode = useUIStore((s) => s.periodMode);
@@ -108,7 +108,6 @@ export default function DashboardScreen() {
   const transfers = useTransfersStore((s) => s.transfers);
   const setTransfers = useTransfersStore((s) => s.setTransfers);
   const currency = useSettingsStore((s) => s.currency);
-  const accentColor = useSettingsStore((s) => s.accentColor);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
 
   useFocusEffect(
@@ -278,11 +277,11 @@ export default function DashboardScreen() {
       >
         {/* Balance card */}
         <View style={[styles.balanceCard, { backgroundColor: accentColor }]}>
-          <Text style={styles.balanceLabel}>
+          <Text style={[styles.balanceLabel, { color: onAccentColor + 'CC' }]}>
             {selectedAccount ? `${selectedAccount.name} Balance` : 'Total Balance'}
           </Text>
-          <Text style={styles.balanceAmount}>{formatAmount(totalBalance, currency, undefined, numberFormat)}</Text>
-          <Text style={styles.balanceSub}>as of {periodNavLabel(periodMode, periodDate)}</Text>
+          <Text style={[styles.balanceAmount, { color: onAccentColor }]}>{formatAmount(totalBalance, currency, undefined, numberFormat)}</Text>
+          <Text style={[styles.balanceSub, { color: onAccentColor + 'A6' }]}>as of {periodNavLabel(periodMode, periodDate)}</Text>
         </View>
 
         {/* Income / Expense Summary */}
