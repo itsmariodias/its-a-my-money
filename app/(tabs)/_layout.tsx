@@ -234,7 +234,7 @@ export default function TabLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: bg, paddingTop: insets.top }}>
       <View style={[styles.header, { backgroundColor: bg, borderBottomColor: borderColor }]}>
-        <Text style={[currentTitle === "It's a My Money!" ? styles.headerTitleLogo : styles.headerTitle, { color: textColor }]}>{currentTitle}</Text>
+        <Text style={[styles.headerTitleLogo, { color: textColor }]}>{currentTitle}</Text>
         <View style={styles.headerActions}>
           {showAccountFilter && (
             <TouchableOpacity
@@ -406,7 +406,7 @@ export default function TabLayout() {
           <TouchableOpacity onPress={closeSettings} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close settings">
             <MaterialIcons name="arrow-back" size={24} color={textColor} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: textColor, marginLeft: 8 }]}>Settings</Text>
+          <Text style={[styles.headerTitleLogo, { color: textColor, marginLeft: 8 }]}>Settings</Text>
           <View style={{ width: 24 }} />
         </View>
         <SettingsScreen />
@@ -423,11 +423,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    flex: 1,
   },
   headerTitleLogo: {
     fontFamily: 'LilitaOne',
