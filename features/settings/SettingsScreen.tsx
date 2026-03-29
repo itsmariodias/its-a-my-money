@@ -834,7 +834,7 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 14 },
   rowDivider: { height: StyleSheet.hairlineWidth, marginLeft: 62 },
   appInfo: { alignItems: 'center', marginTop: 12, gap: 2 },
-  appInfoIcon: { marginBottom: 6 },
+  appInfoIcon: { marginBottom: 2 },
   appName: { fontSize: 15, fontFamily: 'LilitaOne' },
   appVersion: { fontSize: 12 },
   appCredit: { fontSize: 11, marginTop: 2 },

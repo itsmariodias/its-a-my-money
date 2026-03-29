@@ -5,7 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { SQLiteProvider } from 'expo-sqlite';
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, AppState, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import 'react-native-reanimated';
 import { Text } from '@/shared/components/Themed';
@@ -150,7 +150,7 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
-      {isLocked && biometricLock && (
+      <Modal visible={!!(isLocked && biometricLock)} transparent={false} animationType="fade" statusBarTranslucent>
         <View style={[lockStyles.overlay, { backgroundColor: bg }]}>
           <MaterialIcons name="lock" size={48} color={subColor} />
           <Text style={[lockStyles.title, { color: textColor }]}>App Locked</Text>
@@ -159,13 +159,13 @@ function RootLayoutNav() {
             <Text style={lockStyles.retryBtnText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      )}
+      </Modal>
     </ThemeProvider>
   );
 }
 
 const lockStyles = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', zIndex: 999 },
+  overlay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 18, fontWeight: '600', marginTop: 16 },
   subtitle: { fontSize: 14, marginTop: 8 },
   retryBtn: { marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
