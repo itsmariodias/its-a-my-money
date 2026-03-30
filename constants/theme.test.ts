@@ -34,19 +34,24 @@ describe('getColors', () => {
 });
 
 describe('ACCENT_COLORS', () => {
-  it('should include the default accent color', () => {
+  it('should contain objects with label and color fields', () => {
     // Given the ACCENT_COLORS array
-    // When checked
-    // Then it should include the default accent color
-    expect(ACCENT_COLORS).toContain('#2f95dc');
+    // When each entry is inspected
+    // Then every entry should have a label string and a color string
+    for (const entry of ACCENT_COLORS) {
+      expect(entry).toHaveProperty('label');
+      expect(entry).toHaveProperty('color');
+      expect(typeof entry.label).toBe('string');
+      expect(typeof entry.color).toBe('string');
+    }
   });
 
   it('should only contain valid hex color strings', () => {
     // Given the ACCENT_COLORS array
-    // When each entry is validated
-    // Then every entry should be a valid 6-digit hex color
-    for (const color of ACCENT_COLORS) {
-      expect(color).toMatch(/^#[0-9a-f]{6}$/i);
+    // When each entry's color is validated
+    // Then every color should be a valid 6-digit hex color
+    for (const entry of ACCENT_COLORS) {
+      expect(entry.color).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });
 });
