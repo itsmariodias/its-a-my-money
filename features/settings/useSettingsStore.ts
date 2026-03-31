@@ -19,7 +19,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   accentColor: '#FFB300',
   numberFormat: 'en-US',
   biometricLock: false,
-  themeId: 'dark-blue',
+  themeId: 'mario-light',
   setCurrency: (currency) => set({ currency }),
   setAccentColor: (accentColor) => set({ accentColor }),
   setNumberFormat: (numberFormat) => set({ numberFormat }),

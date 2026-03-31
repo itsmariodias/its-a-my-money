@@ -78,7 +78,7 @@ function DeleteConfirmModal({ account, txCount, onCancel, onConfirm }: DeleteMod
 
           {/* Warning */}
           <View style={dlStyles.warningRow}>
-            <MaterialIcons name="warning-amber" size={14} color="#f59e0b" />
+            <MaterialIcons name="warning-amber" size={14} color="#FFC107" />
             <Text style={dlStyles.warningText}>This action cannot be undone.</Text>
           </View>
 
@@ -135,11 +135,11 @@ const dlStyles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#ef4444',
+    backgroundColor: '#F44336',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    shadowColor: '#ef4444',
+    shadowColor: '#F44336',
     shadowOpacity: 0.4,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
@@ -188,7 +188,7 @@ const dlStyles = StyleSheet.create({
   warningText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#f59e0b',
+    color: '#FFC107',
   },
   divider: {
     width: '120%',
@@ -231,7 +231,7 @@ function AccountCard({ account, balance, currency, onPress }: CardProps) {
   const { cardBg, textColor, subColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const iconBg = account.color ?? '#55A3FF';
-  const balanceColor = balance >= 0 ? '#22c55e' : '#ef4444';
+  const balanceColor = balance >= 0 ? '#4CAF50' : '#F44336';
 
   return (
     <TouchableOpacity

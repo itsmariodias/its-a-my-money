@@ -25,14 +25,18 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 const PRESET_COLORS = [
   '#F44336', '#E91E63', '#9C27B0', '#673AB7',
-  '#2196F3', '#03A9F4', '#009688', '#4CAF50',
-  '#FF9800', '#FF5722', '#795548', '#607D8B',
+  '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4',
+  '#009688', '#4CAF50', '#8BC34A', '#CDDC39',
+  '#FFEB3B', '#FFC107', '#FF9800', '#FF5722',
+  '#795548', '#9E9E9E', '#607D8B',
 ];
 
 const COLOR_NAMES: Record<string, string> = {
-  '#F44336': 'Red', '#E91E63': 'Pink', '#9C27B0': 'Purple', '#673AB7': 'Deep purple',
-  '#2196F3': 'Blue', '#03A9F4': 'Light blue', '#009688': 'Teal', '#4CAF50': 'Green',
-  '#FF9800': 'Orange', '#FF5722': 'Deep orange', '#795548': 'Brown', '#607D8B': 'Blue grey',
+  '#F44336': 'Red',         '#E91E63': 'Pink',        '#9C27B0': 'Purple',      '#673AB7': 'Deep purple',
+  '#3F51B5': 'Indigo',      '#2196F3': 'Blue',         '#03A9F4': 'Light blue',  '#00BCD4': 'Cyan',
+  '#009688': 'Teal',        '#4CAF50': 'Green',        '#8BC34A': 'Light green', '#CDDC39': 'Lime',
+  '#FFEB3B': 'Yellow',      '#FFC107': 'Amber',        '#FF9800': 'Orange',      '#FF5722': 'Deep orange',
+  '#795548': 'Brown',       '#9E9E9E': 'Grey',         '#607D8B': 'Blue grey',
 };
 
 const PRESET_ICONS: (keyof typeof MaterialIcons.glyphMap)[] = [
@@ -100,7 +104,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
     }
   };
 
-  const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor, inputBg, borderColor } = useAppTheme();
+  const { accentColor, onAccentColor, cardBg: bg, textColor, subColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -171,7 +175,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
             {/* Type toggle */}
             <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
               <TouchableOpacity
-                style={[styles.typeBtn, type === 'expense' && { backgroundColor: '#ef4444' }]}
+                style={[styles.typeBtn, type === 'expense' && { backgroundColor: '#F44336' }]}
                 onPress={() => setType('expense')}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: type === 'expense' }}
@@ -181,7 +185,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.typeBtn, type === 'income' && { backgroundColor: '#22c55e' }]}
+                style={[styles.typeBtn, type === 'income' && { backgroundColor: '#4CAF50' }]}
                 onPress={() => setType('income')}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: type === 'income' }}
@@ -193,11 +197,11 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
             </View>
 
             {/* Name */}
-            <Text style={[styles.sectionLabel, { color: attempted && !name.trim() ? '#ef4444' : subColor }]}>
+            <Text style={[styles.sectionLabel, { color: attempted && !name.trim() ? '#F44336' : subColor }]}>
               {attempted && !name.trim() ? 'Category Name — required' : 'Category Name'}
             </Text>
             <TextInput
-              style={[styles.textInput, { backgroundColor: inputBg, borderColor: attempted && !name.trim() ? '#ef4444' : borderColor, color: textColor }]}
+              style={[styles.textInput, { backgroundColor: inputBg, borderColor: attempted && !name.trim() ? '#F44336' : borderColor, color: textColor }]}
               value={name}
               onChangeText={setName}
               placeholder="e.g. Groceries"
@@ -254,8 +258,8 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
                 <MaterialIcons name={icon as any} size={22} color="#fff" />
               </View>
               <Text style={[styles.previewName, { color: textColor }]}>{name || 'Category Name'}</Text>
-              <View style={[styles.previewBadge, { backgroundColor: type === 'expense' ? '#ef444420' : '#22c55e20' }]}>
-                <Text style={[styles.previewBadgeText, { color: type === 'expense' ? '#ef4444' : '#22c55e' }]}>
+              <View style={[styles.previewBadge, { backgroundColor: type === 'expense' ? '#F4433620' : '#4CAF5020' }]}>
+                <Text style={[styles.previewBadgeText, { color: type === 'expense' ? '#F44336' : '#4CAF50' }]}>
                   {type}
                 </Text>
               </View>
@@ -283,7 +287,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
       visible={!!errorModal}
       onClose={() => setErrorModal(null)}
       icon="error"
-      iconColor="#ef4444"
+      iconColor="#F44336"
       title="Error"
       message={errorModal ?? ''}
     />

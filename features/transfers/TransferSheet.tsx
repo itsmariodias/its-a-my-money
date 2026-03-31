@@ -225,7 +225,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
             automaticallyAdjustKeyboardInsets
           >
             {/* Amount */}
-            <View style={[styles.amountContainer, { backgroundColor: inputBg, borderColor: attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) ? '#ef4444' : borderColor }]}>
+            <View style={[styles.amountContainer, { backgroundColor: inputBg, borderColor: attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) ? '#F44336' : borderColor }]}>
               <Text style={[styles.currencySymbol, { color: subTextColor }]}>{currencySymbol}</Text>
               <TextInput
                 style={[styles.amountInput, { color: textColor }]}
@@ -373,7 +373,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
       visible={!!errorModal}
       onClose={() => setErrorModal(null)}
       icon="error"
-      iconColor="#ef4444"
+      iconColor="#F44336"
       title="Error"
       message={errorModal ?? ''}
     />

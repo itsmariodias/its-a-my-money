@@ -7,39 +7,40 @@ export interface AppColors {
   borderColor: string;
 }
 
-export type ThemeId = 'dark-blue' | 'white' | 'oled' | 'mario';
+export type ThemeId = 'mario-light' | 'white' | 'oled' | 'mario' | 'auto-mario' | 'auto-bw';
+export type ResolvedThemeId = Exclude<ThemeId, 'auto-mario' | 'auto-bw'>;
 
 export interface AppTheme {
-  id: ThemeId;
+  id: ResolvedThemeId;
   label: string;
   isDark: boolean;
   colors: AppColors;
 }
 
-export const THEMES: Record<ThemeId, AppTheme> = {
-  'dark-blue': {
-    id: 'dark-blue',
-    label: 'Dark Blue',
+export const THEMES: Record<ResolvedThemeId, AppTheme> = {
+  'mario-light': {
+    id: 'mario-light',
+    label: 'Sky Blue',
+    isDark: false,
+    colors: { bg: '#E6F4FE', cardBg: '#FFFFFF', inputBg: '#D0EAF8', textColor: '#1a1a2e', subColor: '#78909C', borderColor: '#B3D9F7' },
+  },
+  'mario': {
+    id: 'mario',
+    label: 'Starry Blue',
     isDark: true,
-    colors: { bg: '#0d0d1a', cardBg: '#1a1a2e', inputBg: '#1a2035', textColor: '#e0e0e0', subColor: '#a0a0b0', borderColor: '#2a2a44' },
+    colors: { bg: '#0a1a4a', cardBg: '#1a2a6e', inputBg: '#071040', textColor: '#ffffff', subColor: '#a0b8e0', borderColor: '#2a3a8a' },
   },
   'white': {
     id: 'white',
     label: 'White',
     isDark: false,
-    colors: { bg: '#f2f2f7', cardBg: '#ffffff', inputBg: '#f0f4f8', textColor: '#1a1a2e', subColor: '#6b7280', borderColor: '#e2e8f0' },
+    colors: { bg: '#f2f2f7', cardBg: '#ffffff', inputBg: '#f0f4f8', textColor: '#1a1a2e', subColor: '#9E9E9E', borderColor: '#e2e8f0' },
   },
   'oled': {
     id: 'oled',
     label: 'OLED Black',
     isDark: true,
     colors: { bg: '#000000', cardBg: '#0d0d0d', inputBg: '#111111', textColor: '#e0e0e0', subColor: '#808090', borderColor: '#1c1c1c' },
-  },
-  'mario': {
-    id: 'mario',
-    label: 'Super Mario',
-    isDark: true,
-    colors: { bg: '#0a1a4a', cardBg: '#1a2a6e', inputBg: '#071040', textColor: '#ffd700', subColor: '#a0b8e0', borderColor: '#2a3a8a' },
   },
 };
 
@@ -85,7 +86,7 @@ export const sheetErrorText: TextStyle = {
   fontWeight: '600',
   textTransform: 'uppercase',
   letterSpacing: 0.5,
-  color: '#ef4444',
+  color: '#F44336',
   marginTop: -8,
   marginBottom: 8,
 };
@@ -105,7 +106,7 @@ export function getColors(isDark: boolean): AppColors {
         cardBg: '#ffffff',
         inputBg: '#f0f4f8',
         textColor: '#1a1a2e',
-        subColor: '#6b7280',
+        subColor: '#9E9E9E',
         borderColor: '#e2e8f0',
       };
 }

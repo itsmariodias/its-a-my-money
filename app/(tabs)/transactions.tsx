@@ -67,7 +67,7 @@ function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps
           {/* Transaction chip */}
           {tx && (
             <View style={[dlStyles.txChip, { backgroundColor: inputBg, borderColor }]}>
-              <View style={[dlStyles.chipIcon, { backgroundColor: tx.category_color || '#6b7280' }]}>
+              <View style={[dlStyles.chipIcon, { backgroundColor: tx.category_color || '#9E9E9E' }]}>
                 <MaterialIcons name={(tx.category_icon as any) || 'attach-money'} size={14} color="#fff" />
               </View>
               <View style={dlStyles.chipInfo}>
@@ -78,7 +78,7 @@ function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps
                   {tx.account_name} · {tx.date}
                 </Text>
               </View>
-              <Text style={[dlStyles.chipAmount, { color: tx.type === 'income' ? '#22c55e' : '#ef4444' }]}>
+              <Text style={[dlStyles.chipAmount, { color: tx.type === 'income' ? '#4CAF50' : '#F44336' }]}>
                 {formatAmount(tx.amount, currency, tx.type, numberFormat)}
               </Text>
             </View>
@@ -89,7 +89,7 @@ function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps
           </Text>
 
           <View style={dlStyles.warningRow}>
-            <MaterialIcons name="warning-amber" size={14} color="#f59e0b" />
+            <MaterialIcons name="warning-amber" size={14} color="#FFC107" />
             <Text style={dlStyles.warningText}>This action cannot be undone.</Text>
           </View>
 
@@ -104,8 +104,8 @@ function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps
               <Text style={[dlStyles.btnText, { color: textColor }]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={dlStyles.btn} onPress={onConfirm} activeOpacity={0.7} accessibilityRole="button" accessibilityHint="Double tap to permanently delete">
-              <MaterialIcons name="delete" size={16} color="#ef4444" />
-              <Text style={[dlStyles.btnText, { color: '#ef4444' }]}>Delete</Text>
+              <MaterialIcons name="delete" size={16} color="#F44336" />
+              <Text style={[dlStyles.btnText, { color: '#F44336' }]}>Delete</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -139,11 +139,11 @@ const dlStyles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#ef4444',
+    backgroundColor: '#F44336',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    shadowColor: '#ef4444',
+    shadowColor: '#F44336',
     shadowOpacity: 0.4,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
@@ -202,7 +202,7 @@ const dlStyles = StyleSheet.create({
   warningText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#f59e0b',
+    color: '#FFC107',
   },
   divider: {
     width: '120%',
@@ -271,7 +271,7 @@ function DeleteTransferModal({ transfer, currency, onCancel, onConfirm }: Delete
           </Text>
 
           <View style={dlStyles.warningRow}>
-            <MaterialIcons name="warning-amber" size={14} color="#f59e0b" />
+            <MaterialIcons name="warning-amber" size={14} color="#FFC107" />
             <Text style={dlStyles.warningText}>This action cannot be undone.</Text>
           </View>
 
@@ -286,8 +286,8 @@ function DeleteTransferModal({ transfer, currency, onCancel, onConfirm }: Delete
               <Text style={[dlStyles.btnText, { color: textColor }]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={dlStyles.btn} onPress={onConfirm} activeOpacity={0.7} accessibilityRole="button" accessibilityHint="Double tap to permanently delete">
-              <MaterialIcons name="delete" size={16} color="#ef4444" />
-              <Text style={[dlStyles.btnText, { color: '#ef4444' }]}>Delete</Text>
+              <MaterialIcons name="delete" size={16} color="#F44336" />
+              <Text style={[dlStyles.btnText, { color: '#F44336' }]}>Delete</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -312,7 +312,7 @@ interface RowProps {
 
 function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, currency, onPress }: RowProps) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
-  const amountColor = tx.type === 'income' ? '#22c55e' : '#ef4444';
+  const amountColor = tx.type === 'income' ? '#4CAF50' : '#F44336';
 
   return (
     <TouchableOpacity
@@ -329,7 +329,7 @@ function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, s
       accessibilityLabel={`${tx.category_name}, ${formatAmount(tx.amount, currency, tx.type, numberFormat)}, ${tx.date}`}
       accessibilityHint="Double tap to edit"
     >
-      <View style={[rowStyles.icon, { backgroundColor: tx.category_color || '#6b7280' }]}>
+      <View style={[rowStyles.icon, { backgroundColor: tx.category_color || '#9E9E9E' }]}>
         <MaterialIcons name={(tx.category_icon as any) || 'attach-money'} size={18} color="#fff" />
       </View>
       <View style={rowStyles.info}>
@@ -365,7 +365,7 @@ function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, bor
   const isOutgoing = transfer.from_account_id === selectedAccountId;
   const otherName = isOutgoing ? transfer.to_account_name : transfer.from_account_name;
   const label = isOutgoing ? `To ${otherName}` : `From ${otherName}`;
-  const amountColor = isOutgoing ? '#ef4444' : '#22c55e';
+  const amountColor = isOutgoing ? '#F44336' : '#4CAF50';
   const amountType = isOutgoing ? 'expense' : 'income';
 
   return (
@@ -383,7 +383,7 @@ function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, bor
       accessibilityLabel={`${label}, ${formatAmount(transfer.amount, currency, amountType, numberFormat)}, ${transfer.date}`}
       accessibilityHint="Double tap to edit"
     >
-      <View style={[rowStyles.icon, { backgroundColor: '#6b7280' }]}>
+      <View style={[rowStyles.icon, { backgroundColor: '#9E9E9E' }]}>
         <MaterialIcons name="swap-horiz" size={18} color="#fff" />
       </View>
       <View style={rowStyles.info}>
@@ -588,7 +588,7 @@ export default function TransactionsScreen() {
           renderSectionHeader={({ section }) => (
             <View style={[styles.sectionHeader, { backgroundColor: bg }]}>
               <Text style={[styles.sectionDate, { color: textColor }]}>{section.title}</Text>
-              <Text style={[styles.sectionNet, { color: section.net >= 0 ? '#22c55e' : '#ef4444' }]}>
+              <Text style={[styles.sectionNet, { color: section.net >= 0 ? '#4CAF50' : '#F44336' }]}>
                 {formatAmount(section.net, currency, undefined, numberFormat)}
               </Text>
             </View>

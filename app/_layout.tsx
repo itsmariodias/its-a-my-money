@@ -103,7 +103,12 @@ function RootLayoutNav() {
     });
     settingsDb.get('backup_frequency').then((row) => { if (row) setBackupFrequency(row.value as BackupFrequency); });
     settingsDb.get('last_backup_at').then((row) => { if (row) setLastBackupAt(row.value); });
-    settingsDb.get('theme_id').then((row) => { if (row) setThemeId(row.value as ThemeId); });
+    settingsDb.get('theme_id').then((row) => {
+      if (row) {
+        const v = row.value === 'dark-blue' ? 'mario-light' : row.value === 'auto' ? 'auto-mario' : row.value;
+        setThemeId(v as ThemeId);
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

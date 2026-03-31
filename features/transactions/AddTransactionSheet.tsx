@@ -252,7 +252,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
             automaticallyAdjustKeyboardInsets
           >
             {/* Amount */}
-            <View style={[styles.amountContainer, { backgroundColor: inputBg, borderColor: attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) ? '#ef4444' : borderColor }]}>
+            <View style={[styles.amountContainer, { backgroundColor: inputBg, borderColor: attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) ? '#F44336' : borderColor }]}>
               <Text style={[styles.currencySymbol, { color: subTextColor }]}>{currencySymbol}</Text>
               <TextInput
                 style={[styles.amountInput, { color: textColor }]}
@@ -272,7 +272,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
             {/* Type toggle */}
             <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
               <TouchableOpacity
-                style={[styles.typeBtn, type === 'expense' && { backgroundColor: '#ef4444' }]}
+                style={[styles.typeBtn, type === 'expense' && { backgroundColor: '#F44336' }]}
                 onPress={() => setType('expense')}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: type === 'expense' }}
@@ -282,7 +282,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.typeBtn, type === 'income' && { backgroundColor: '#22c55e' }]}
+                style={[styles.typeBtn, type === 'income' && { backgroundColor: '#4CAF50' }]}
                 onPress={() => setType('income')}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: type === 'income' }}
@@ -405,7 +405,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       visible={!!errorModal}
       onClose={() => setErrorModal(null)}
       icon="error"
-      iconColor="#ef4444"
+      iconColor="#F44336"
       title="Error"
       message={errorModal ?? ''}
     />

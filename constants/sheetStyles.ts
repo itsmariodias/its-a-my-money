@@ -67,6 +67,6 @@ export const sheetStyles = StyleSheet.create({
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   saveAndContinueBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 0, marginBottom: 8, borderWidth: 1.5 },
   saveAndContinueBtnText: { fontSize: 16, fontWeight: '600' },
-  deleteBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 8, marginBottom: 8, backgroundColor: '#ef444420' },
-  deleteBtnText: { color: '#ef4444', fontSize: 16, fontWeight: '700' },
+  deleteBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 8, marginBottom: 8, backgroundColor: '#F4433620' },
+  deleteBtnText: { color: '#F44336', fontSize: 16, fontWeight: '700' },
 });

@@ -59,26 +59,26 @@ function convertDate(ddmmyyyy: string): string {
 const CATEGORY_META: Record<string, { color: string; icon: string }> = {
   'Bills':          { color: '#607D8B', icon: 'receipt' },
   'Car':            { color: '#2196F3', icon: 'directions-car' },
-  'Clothes':        { color: '#9C27B0', icon: 'shopping-cart' },
+  'Clothes':        { color: '#9C27B0', icon: 'checkroom' },
   'Communications': { color: '#00BCD4', icon: 'phone' },
-  'Deposits':       { color: '#03A9F4', icon: 'savings' },
-  'Eating out':     { color: '#F44336', icon: 'restaurant' },
+  'Deposits':       { color: '#03A9F4', icon: 'account-balance' },
+  'Eating out':     { color: '#FF5722', icon: 'restaurant' },
   'Entertainment':  { color: '#FF9800', icon: 'movie' },
-  'Food':           { color: '#FF5722', icon: 'restaurant' },
+  'Food':           { color: '#4CAF50', icon: 'local-grocery-store' },
   'Gifts':          { color: '#E91E63', icon: 'card-giftcard' },
-  'Health':         { color: '#009688', icon: 'local-hospital' },
+  'Health':         { color: '#F44336', icon: 'local-hospital' },
   'House':          { color: '#795548', icon: 'home' },
-  'Pets':           { color: '#FF9800', icon: 'pets' },
+  'Pets':           { color: '#8BC34A', icon: 'pets' },
   'Salary':         { color: '#4CAF50', icon: 'work' },
-  'Savings':        { color: '#43A047', icon: 'savings' },
-  'Sports':         { color: '#F44336', icon: 'sports-soccer' },
+  'Savings':        { color: '#009688', icon: 'savings' },
+  'Sports':         { color: '#CDDC39', icon: 'sports-soccer' },
   'Taxi':           { color: '#FFC107', icon: 'local-taxi' },
-  'Toiletry':       { color: '#26C6DA', icon: 'soap' },
-  'Transport':      { color: '#2196F3', icon: 'directions-car' },
+  'Toiletry':       { color: '#FFEB3B', icon: 'soap' },
+  'Transport':      { color: '#3F51B5', icon: 'directions-bus' },
 };
 
 const FALLBACK_EXPENSE = { color: '#9E9E9E', icon: 'more-horiz' };
-const FALLBACK_INCOME  = { color: '#78909C', icon: 'more-horiz' };
+const FALLBACK_INCOME  = { color: '#9E9E9E', icon: 'attach-money' };
 
 const ACCOUNT_COLORS = [
   '#55A3FF', '#4CAF50', '#FF9800', '#E91E63',

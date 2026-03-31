@@ -208,7 +208,7 @@ export default function GoogleDriveSection({
           visible={!!visibleError}
           onClose={dismissError}
           icon="cloud-off"
-          iconColor="#ef4444"
+          iconColor="#F44336"
           title="Backup Error"
           message={visibleError ?? ''}
         />
@@ -234,8 +234,8 @@ export default function GoogleDriveSection({
 
         {/* Folder row */}
         <View style={styles.row}>
-          <View style={[styles.rowIcon, { backgroundColor: '#f59e0b20' }]}>
-            <MaterialIcons name="folder" size={20} color="#f59e0b" />
+          <View style={[styles.rowIcon, { backgroundColor: '#FFC10720' }]}>
+            <MaterialIcons name="folder" size={20} color="#FFC107" />
           </View>
           <Text style={[styles.rowLabel, { color: textColor }]}>Folder</Text>
           <Text style={[styles.rowValue, { color: subColor }]} numberOfLines={1}>{folderName}</Text>
@@ -259,8 +259,8 @@ export default function GoogleDriveSection({
 
         {/* Last backup row */}
         <View style={styles.row}>
-          <View style={[styles.rowIcon, { backgroundColor: '#22c55e20' }]}>
-            <MaterialIcons name="history" size={20} color="#22c55e" />
+          <View style={[styles.rowIcon, { backgroundColor: '#4CAF5020' }]}>
+            <MaterialIcons name="history" size={20} color="#4CAF50" />
           </View>
           <Text style={[styles.rowLabel, { color: textColor }]}>Last Backup</Text>
           <Text style={[styles.rowValue, { color: subColor }]}>{formatRelativeTime(lastBackupAt)}</Text>
@@ -302,10 +302,10 @@ export default function GoogleDriveSection({
 
         {/* Disconnect */}
         <TouchableOpacity style={styles.row} onPress={handleDisconnect} activeOpacity={0.7}>
-          <View style={[styles.rowIcon, { backgroundColor: '#ef444420' }]}>
-            <MaterialIcons name="link-off" size={20} color="#ef4444" />
+          <View style={[styles.rowIcon, { backgroundColor: '#F4433620' }]}>
+            <MaterialIcons name="link-off" size={20} color="#F44336" />
           </View>
-          <Text style={[styles.rowLabel, { color: '#ef4444' }]}>Disconnect</Text>
+          <Text style={[styles.rowLabel, { color: '#F44336' }]}>Disconnect</Text>
         </TouchableOpacity>
       </View>
 
@@ -341,7 +341,7 @@ export default function GoogleDriveSection({
         visible={!!visibleError}
         onClose={dismissError}
         icon="cloud-off"
-        iconColor="#ef4444"
+        iconColor="#F44336"
         title="Backup Error"
         message={visibleError ?? ''}
       />

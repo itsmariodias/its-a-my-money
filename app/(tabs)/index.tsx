@@ -287,15 +287,15 @@ export default function DashboardScreen() {
         {/* Income / Expense Summary */}
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { backgroundColor: cardBg }]}>
-            <MaterialIcons name="arrow-downward" size={20} color="#22c55e" />
+            <MaterialIcons name="arrow-downward" size={20} color="#4CAF50" />
             <Text style={[styles.summaryLabel, { color: subTextColor }]}>Income</Text>
-            <Text style={[styles.summaryAmount, { color: '#22c55e' }]}>{formatAmount(periodIncome, currency, undefined, numberFormat)}</Text>
+            <Text style={[styles.summaryAmount, { color: '#4CAF50' }]}>{formatAmount(periodIncome, currency, undefined, numberFormat)}</Text>
             <Text style={[styles.summaryPeriod, { color: subTextColor }]}>{periodShort}</Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: cardBg }]}>
-            <MaterialIcons name="arrow-upward" size={20} color="#ef4444" />
+            <MaterialIcons name="arrow-upward" size={20} color="#F44336" />
             <Text style={[styles.summaryLabel, { color: subTextColor }]}>Expenses</Text>
-            <Text style={[styles.summaryAmount, { color: '#ef4444' }]}>{formatAmount(periodExpenses, currency, undefined, numberFormat)}</Text>
+            <Text style={[styles.summaryAmount, { color: '#F44336' }]}>{formatAmount(periodExpenses, currency, undefined, numberFormat)}</Text>
             <Text style={[styles.summaryPeriod, { color: subTextColor }]}>{periodShort}</Text>
           </View>
         </View>
@@ -424,11 +424,11 @@ export default function DashboardScreen() {
                 const t = listItem.item;
                 const isOutgoing = t.from_account_id === selectedId;
                 const otherName = isOutgoing ? t.to_account_name : t.from_account_name;
-                const amountColor = isOutgoing ? '#ef4444' : '#22c55e';
+                const amountColor = isOutgoing ? '#F44336' : '#4CAF50';
                 const amountType = isOutgoing ? 'expense' : 'income';
                 return (
                   <View key={`transfer-${t.id}`} style={styles.txRow}>
-                    <View style={[styles.txIcon, { backgroundColor: '#6b7280' }]}>
+                    <View style={[styles.txIcon, { backgroundColor: '#9E9E9E' }]}>
                       <MaterialIcons name="swap-horiz" size={18} color="#fff" />
                     </View>
                     <View style={styles.txInfo}>
@@ -446,7 +446,7 @@ export default function DashboardScreen() {
               const tx = listItem.item;
               return (
                 <View key={`tx-${tx.id}`} style={styles.txRow}>
-                  <View style={[styles.txIcon, { backgroundColor: tx.category_color || '#6b7280' }]}>
+                  <View style={[styles.txIcon, { backgroundColor: tx.category_color || '#9E9E9E' }]}>
                     <MaterialIcons
                       name={(tx.category_icon as any) || 'attach-money'}
                       size={18}
@@ -460,7 +460,7 @@ export default function DashboardScreen() {
                   <Text
                     style={[
                       styles.txAmount,
-                      { color: tx.type === 'income' ? '#22c55e' : '#ef4444' },
+                      { color: tx.type === 'income' ? '#4CAF50' : '#F44336' },
                     ]}
                   >
                     {formatAmount(tx.amount, currency, tx.type, numberFormat)}

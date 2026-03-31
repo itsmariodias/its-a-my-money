@@ -28,13 +28,19 @@ import type { Account } from '@/types';
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 const PRESET_COLORS = [
-  '#2196F3', '#F44336', '#4CAF50', '#9C27B0',
-  '#FF9800', '#009688', '#E91E63', '#607D8B',
+  '#F44336', '#E91E63', '#9C27B0', '#673AB7',
+  '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4',
+  '#009688', '#4CAF50', '#8BC34A', '#CDDC39',
+  '#FFEB3B', '#FFC107', '#FF9800', '#FF5722',
+  '#795548', '#9E9E9E', '#607D8B',
 ];
 
 const COLOR_NAMES: Record<string, string> = {
-  '#2196F3': 'Blue', '#F44336': 'Red', '#4CAF50': 'Green', '#9C27B0': 'Purple',
-  '#FF9800': 'Orange', '#009688': 'Teal', '#E91E63': 'Pink', '#607D8B': 'Blue grey',
+  '#F44336': 'Red',         '#E91E63': 'Pink',        '#9C27B0': 'Purple',      '#673AB7': 'Deep purple',
+  '#3F51B5': 'Indigo',      '#2196F3': 'Blue',         '#03A9F4': 'Light blue',  '#00BCD4': 'Cyan',
+  '#009688': 'Teal',        '#4CAF50': 'Green',        '#8BC34A': 'Light green', '#CDDC39': 'Lime',
+  '#FFEB3B': 'Yellow',      '#FFC107': 'Amber',        '#FF9800': 'Orange',      '#FF5722': 'Deep orange',
+  '#795548': 'Brown',       '#9E9E9E': 'Grey',         '#607D8B': 'Blue grey',
 };
 
 const PRESET_ICONS: string[] = [
@@ -114,7 +120,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
     }
   };
 
-  const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
+  const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -188,11 +194,11 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
               {/* Name */}
-              <Text style={[styles.sectionLabel, { color: attempted && !name.trim() ? '#ef4444' : subTextColor }]}>
+              <Text style={[styles.sectionLabel, { color: attempted && !name.trim() ? '#F44336' : subTextColor }]}>
                 {attempted && !name.trim() ? 'Account Name — required' : 'Account Name'}
               </Text>
               <TextInput
-                style={[styles.textInput, { backgroundColor: inputBg, borderColor: attempted && !name.trim() ? '#ef4444' : borderColor, color: textColor }]}
+                style={[styles.textInput, { backgroundColor: inputBg, borderColor: attempted && !name.trim() ? '#F44336' : borderColor, color: textColor }]}
                 value={name}
                 onChangeText={setName}
                 placeholder="e.g. Cash, Bank Account"
@@ -279,7 +285,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
       visible={!!errorModal}
       onClose={() => setErrorModal(null)}
       icon="error"
-      iconColor="#ef4444"
+      iconColor="#F44336"
       title="Error"
       message={errorModal ?? ''}
     />

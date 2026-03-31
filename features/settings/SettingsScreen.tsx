@@ -29,7 +29,7 @@ import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
 import { CURRENCIES, NUMBER_FORMATS, getCurrencyByCode } from '@/constants/currencies';
 import { ACCENT_COLORS, THEMES, isLightColor } from '@/constants/theme';
-import type { AccentColor } from '@/constants/theme';
+import type { AccentColor, AppTheme, ResolvedThemeId } from '@/constants/theme';
 import type { ThemeId } from '@/constants/theme';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import Constants from 'expo-constants';
@@ -81,7 +81,7 @@ function DeleteCategoryModal({
       <View style={styles.modalCenter} pointerEvents="box-none">
         <View style={[styles.modalCard, { backgroundColor: bg }]}>
           <View style={styles.modalIconWrap}>
-            <MaterialIcons name="delete-forever" size={32} color="#ef4444" />
+            <MaterialIcons name="delete-forever" size={32} color="#F44336" />
           </View>
           <Text style={[styles.modalTitle, { color: textColor }]}>Delete Category?</Text>
           {category && (
@@ -94,8 +94,8 @@ function DeleteCategoryModal({
           )}
           {txCount > 0 && (
             <View style={[styles.modalWarn, { backgroundColor: isDark ? '#2d2000' : '#fffbeb' }]}>
-              <MaterialIcons name="warning" size={14} color="#f59e0b" />
-              <Text style={[styles.modalWarnText, { color: '#f59e0b' }]}>
+              <MaterialIcons name="warning" size={14} color="#FFC107" />
+              <Text style={[styles.modalWarnText, { color: '#FFC107' }]}>
                 Also deletes {txCount} transaction{txCount !== 1 ? 's' : ''}
               </Text>
             </View>
@@ -185,9 +185,17 @@ export default function SettingsScreen() {
     await settingsDb.set('accent_color', ac.color);
     setAccentColor(ac.color);
   };
+  const MARIO_THEMES: ThemeId[] = ['mario', 'mario-light', 'auto-mario'];
+  const isMarioTheme = MARIO_THEMES.includes(themeId);
+
   const handleThemeChange = async (id: ThemeId) => {
     await settingsDb.set('theme_id', id);
     setThemeId(id);
+    if (MARIO_THEMES.includes(id)) {
+      await settingsDb.set('accent_color', '#FFB300');
+      setAccentColor('#FFB300');
+      setAccentOpen(false);
+    }
   };
   const handleNumberFormat = async (format: string) => {
     await settingsDb.set('number_format', format);
@@ -198,12 +206,12 @@ export default function SettingsScreen() {
     if (!biometricLock) {
       const compatible = await LocalAuthentication.hasHardwareAsync();
       if (!compatible) {
-        setInfoModal({ icon: 'fingerprint', iconColor: '#ef4444', title: 'Not Available', message: 'Your device does not support biometric authentication.' });
+        setInfoModal({ icon: 'fingerprint', iconColor: '#F44336', title: 'Not Available', message: 'Your device does not support biometric authentication.' });
         return;
       }
       const enrolled = await LocalAuthentication.isEnrolledAsync();
       if (!enrolled) {
-        setInfoModal({ icon: 'fingerprint', iconColor: '#f59e0b', title: 'Not Set Up', message: 'No biometrics enrolled on this device. Set up fingerprint or face recognition in your device settings first.' });
+        setInfoModal({ icon: 'fingerprint', iconColor: '#FFC107', title: 'Not Set Up', message: 'No biometrics enrolled on this device. Set up fingerprint or face recognition in your device settings first.' });
         return;
       }
       const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Verify to enable biometric lock', disableDeviceFallback: false });
@@ -263,7 +271,7 @@ export default function SettingsScreen() {
 
         const showSuccess = (dirUri: string) => {
           const folder = safDirToPath(dirUri);
-          setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Export Successful', message: `Saved to ${folder}/${filename}` });
+          setInfoModal({ icon: 'check-circle', iconColor: '#4CAF50', title: 'Export Successful', message: `Saved to ${folder}/${filename}` });
         };
 
         // Try cached directory first
@@ -286,7 +294,7 @@ export default function SettingsScreen() {
         if (ok) {
           showSuccess(perm.directoryUri);
         } else {
-          setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Export Failed', message: 'Could not save file to the selected folder.' });
+          setInfoModal({ icon: 'error', iconColor: '#F44336', title: 'Export Failed', message: 'Could not save file to the selected folder.' });
         }
       } else {
         const fileUri = `${LegacyFS.cacheDirectory}${filename}`;
@@ -297,12 +305,12 @@ export default function SettingsScreen() {
           useUIStore.getState().setExternalActivityActive(true);
           await Sharing.shareAsync(fileUri, { mimeType: 'application/json', UTI: 'public.json', dialogTitle: 'Save backup' });
         } else {
-          setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Sharing Unavailable', message: 'Your device does not support sharing files.' });
+          setInfoModal({ icon: 'error', iconColor: '#F44336', title: 'Sharing Unavailable', message: 'Your device does not support sharing files.' });
         }
       }
     } catch {
       useUIStore.getState().setExternalActivityActive(false);
-      setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Export Failed', message: 'Could not export data.' });
+      setInfoModal({ icon: 'error', iconColor: '#F44336', title: 'Export Failed', message: 'Could not export data.' });
     } finally {
       setOperationMessage(null);
     }
@@ -322,12 +330,12 @@ export default function SettingsScreen() {
       try {
         parsed = JSON.parse(text);
       } catch {
-        setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Invalid File', message: 'The selected file is not valid JSON.' });
+        setInfoModal({ icon: 'error', iconColor: '#F44336', title: 'Invalid File', message: 'The selected file is not valid JSON.' });
         return;
       }
 
       if (!isValidExport(parsed)) {
-        setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Invalid Backup', message: 'The file does not appear to be a valid Its a My Money backup.' });
+        setInfoModal({ icon: 'error', iconColor: '#F44336', title: 'Invalid Backup', message: 'The file does not appear to be a valid Its a My Money backup.' });
         return;
       }
 
@@ -335,7 +343,7 @@ export default function SettingsScreen() {
       setImportConfirmData(parsed);
     } catch {
       useUIStore.getState().setExternalActivityActive(false);
-      setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Import Failed', message: 'Could not read the selected file.' });
+      setInfoModal({ icon: 'error', iconColor: '#F44336', title: 'Import Failed', message: 'Could not read the selected file.' });
     }
   };
 
@@ -352,7 +360,7 @@ export default function SettingsScreen() {
       const records = parseMonefyCsv(text);
 
       if (records.length === 0) {
-        setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Invalid File', message: 'No records found in the Monefy CSV.' });
+        setInfoModal({ icon: 'error', iconColor: '#F44336', title: 'Invalid File', message: 'No records found in the Monefy CSV.' });
         return;
       }
 
@@ -361,7 +369,7 @@ export default function SettingsScreen() {
       setImportConfirmData(exportData);
     } catch {
       useUIStore.getState().setExternalActivityActive(false);
-      setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Import Failed', message: 'Could not read the Monefy CSV file.' });
+      setInfoModal({ icon: 'error', iconColor: '#F44336', title: 'Import Failed', message: 'Could not read the Monefy CSV file.' });
     }
   };
 
@@ -386,9 +394,9 @@ export default function SettingsScreen() {
         if (data.settings.theme_id) { await settingsDb.set('theme_id', data.settings.theme_id); setThemeId(data.settings.theme_id as ThemeId); }
       }
       await loadCategories();
-      setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Import Successful', message: 'Your data has been restored.' });
+      setInfoModal({ icon: 'check-circle', iconColor: '#4CAF50', title: 'Import Successful', message: 'Your data has been restored.' });
     } catch {
-      setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Import Failed', message: 'Could not import the backup.' });
+      setInfoModal({ icon: 'error', iconColor: '#F44336', title: 'Import Failed', message: 'Could not import the backup.' });
     } finally {
       setOperationMessage(null);
     }
@@ -399,17 +407,19 @@ export default function SettingsScreen() {
     setOperationMessage('Resetting…');
     try {
       await resetDb.resetAll();
-      const [accs, txns] = await Promise.all([accountsDb.getAll(), transactionsDb.getAll()]);
+      await settingsDb.set('accent_color', '#FFB300');
+      const [accs, txns, trfs] = await Promise.all([accountsDb.getAll(), transactionsDb.getAll(), transfersDb.getAll()]);
       setAccounts(accs);
       setTransactions(txns);
+      setTransfers(trfs);
       setCurrency('USD');
       setAccentColor('#FFB300');
       setNumberFormat('en-US');
       setBiometricLock(false);
       await loadCategories();
-      setInfoModal({ icon: 'check-circle', iconColor: '#22c55e', title: 'Reset Successful', message: 'All data has been cleared and the app restored to its default state.' });
+      setInfoModal({ icon: 'check-circle', iconColor: '#4CAF50', title: 'Reset Successful', message: 'All data has been cleared and the app restored to its default state.' });
     } catch {
-      setInfoModal({ icon: 'error', iconColor: '#ef4444', title: 'Error', message: 'Failed to reset app data.' });
+      setInfoModal({ icon: 'error', iconColor: '#F44336', title: 'Error', message: 'Failed to reset app data.' });
     } finally {
       setOperationMessage(null);
     }
@@ -434,13 +444,15 @@ export default function SettingsScreen() {
 
           <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
 
-          <TouchableOpacity style={styles.row} onPress={() => { setAccentOpen((v) => !v); setFormatOpen(false); setThemeOpen(false); }} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.row} onPress={() => { if (!isMarioTheme) { setAccentOpen((v) => !v); setFormatOpen(false); setThemeOpen(false); } }} activeOpacity={isMarioTheme ? 1 : 0.7}>
             <View style={[styles.rowIcon, { backgroundColor: accentColor + '20' }]}>
               <MaterialIcons name="palette" size={20} color={accentColor} />
             </View>
             <Text style={[styles.rowLabel, { color: textColor }]}>Accent Color</Text>
             <View style={[styles.accentDot, { backgroundColor: accentColor }]} />
-            <MaterialIcons name={accentOpen ? 'expand-less' : 'expand-more'} size={20} color={subColor} />
+            {isMarioTheme
+              ? <MaterialIcons name="lock" size={20} color={subColor} />
+              : <MaterialIcons name={accentOpen ? 'expand-less' : 'expand-more'} size={20} color={subColor} />}
           </TouchableOpacity>
           {accentOpen && (
             <View style={[styles.dropdownPanel, { borderTopColor: borderColor }]}>
@@ -465,13 +477,40 @@ export default function SettingsScreen() {
               <MaterialIcons name="brightness-medium" size={20} color={accentColor} />
             </View>
             <Text style={[styles.rowLabel, { color: textColor }]}>Theme</Text>
-            <Text style={[styles.rowValue, { color: subColor }]}>{THEMES[themeId].label}</Text>
+            <Text style={[styles.rowValue, { color: subColor }]}>
+              {themeId === 'auto-mario' ? 'Auto Blue' : themeId === 'auto-bw' ? 'Auto B&W' : THEMES[themeId as ResolvedThemeId].label}
+            </Text>
             <MaterialIcons name={themeOpen ? 'expand-less' : 'expand-more'} size={20} color={subColor} />
           </TouchableOpacity>
           {themeOpen && (
             <View style={[styles.dropdownPanel, { borderTopColor: borderColor }]}>
               <View style={styles.themeGrid}>
-                {(Object.values(THEMES) as typeof THEMES[ThemeId][]).map((t) => {
+                {/* Auto cards */}
+                {([
+                  { id: 'auto-mario', label: 'Auto Blue' },
+                  { id: 'auto-bw',    label: 'Auto B&W'  },
+                ] as { id: ThemeId; label: string }[]).map(({ id, label }) => {
+                  const isSelected = themeId === id;
+                  return (
+                    <TouchableOpacity
+                      key={id}
+                      style={[styles.themeCard, { borderColor: isSelected ? accentColor : borderColor, borderWidth: isSelected ? 2 : 1 }]}
+                      onPress={() => handleThemeChange(id)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.themePreview, { backgroundColor: inputBg, alignItems: 'center', justifyContent: 'center' }]}>
+                        <MaterialIcons name="brightness-auto" size={22} color={isSelected ? accentColor : subColor} />
+                      </View>
+                      <Text style={[styles.themeLabel, { color: isSelected ? accentColor : subColor }]}>{label}</Text>
+                      {isSelected && (
+                        <View style={[styles.themeCheck, { backgroundColor: accentColor }]}>
+                          <MaterialIcons name="check" size={10} color={onAccentColor} />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+                {(Object.values(THEMES) as AppTheme[]).map((t) => {
                   const isSelected = themeId === t.id;
                   return (
                     <TouchableOpacity
@@ -556,16 +595,16 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionLabel, { color: subColor }]}>Data</Text>
         <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
           <TouchableOpacity style={styles.row} onPress={() => setCatModalOpen(true)} activeOpacity={0.7}>
-            <View style={[styles.rowIcon, { backgroundColor: '#f59e0b20' }]}>
-              <MaterialIcons name="label" size={20} color="#f59e0b" />
+            <View style={[styles.rowIcon, { backgroundColor: '#FFC10720' }]}>
+              <MaterialIcons name="label" size={20} color="#FFC107" />
             </View>
             <Text style={[styles.rowLabel, { color: textColor }]}>Manage Categories</Text>
             <MaterialIcons name="chevron-right" size={20} color={subColor} />
           </TouchableOpacity>
           <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
           <TouchableOpacity style={styles.row} onPress={handleExport} activeOpacity={0.7}>
-            <View style={[styles.rowIcon, { backgroundColor: '#22c55e20' }]}>
-              <MaterialIcons name="file-download" size={20} color="#22c55e" />
+            <View style={[styles.rowIcon, { backgroundColor: '#4CAF5020' }]}>
+              <MaterialIcons name="file-download" size={20} color="#4CAF50" />
             </View>
             <Text style={[styles.rowLabel, { color: textColor }]}>Export Data</Text>
             <Text style={[styles.rowValue, { color: subColor }]}>JSON</Text>
@@ -591,21 +630,21 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.sectionLabel, { color: '#ef4444' }]}>Danger Zone</Text>
-        <View style={[styles.card, { backgroundColor: cardBg, borderColor: '#ef444430' }]}>
+        <Text style={[styles.sectionLabel, { color: '#F44336' }]}>Danger Zone</Text>
+        <View style={[styles.card, { backgroundColor: cardBg, borderColor: '#F4433630' }]}>
           <TouchableOpacity style={styles.row} onPress={() => setResetModalOpen(true)} activeOpacity={0.7}>
-            <View style={[styles.rowIcon, { backgroundColor: '#ef444420' }]}>
-              <MaterialIcons name="restart-alt" size={20} color="#ef4444" />
+            <View style={[styles.rowIcon, { backgroundColor: '#F4433620' }]}>
+              <MaterialIcons name="restart-alt" size={20} color="#F44336" />
             </View>
-            <Text style={[styles.rowLabel, { color: '#ef4444' }]}>Reset All Data</Text>
-            <MaterialIcons name="chevron-right" size={20} color="#ef4444" />
+            <Text style={[styles.rowLabel, { color: '#F44336' }]}>Reset All Data</Text>
+            <MaterialIcons name="chevron-right" size={20} color="#F44336" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.appInfo}>
           <AppIcon width={36} height={36} style={styles.appInfoIcon} />
           <Text style={[styles.appName, { color: subColor }]}>It's a My Money!</Text>
-          <Text style={[styles.appVersion, { color: isDark ? '#3a4a6e' : '#d1d5db' }]}>v{Constants.expoConfig?.version}</Text>
+          <Text style={[styles.appVersion, { color: borderColor }]}>v{Constants.expoConfig?.version}</Text>
           <Text style={[styles.appCredit, { color: isDark ? '#3a4a6e' : '#d1d5db' }]}>
             by @itsmariodias · vibe coded with Claude Code
           </Text>
@@ -618,16 +657,16 @@ export default function SettingsScreen() {
         <Pressable style={styles.modalBackdrop} onPress={() => setResetModalOpen(false)} />
         <View style={styles.modalCenter} pointerEvents="box-none">
           <View style={[styles.modalCard, { backgroundColor: cardBg }]}>
-            <View style={[styles.modalIconWrap, { backgroundColor: '#ef444420' }]}>
-              <MaterialIcons name="warning" size={32} color="#ef4444" />
+            <View style={[styles.modalIconWrap, { backgroundColor: '#F4433620' }]}>
+              <MaterialIcons name="warning" size={32} color="#F44336" />
             </View>
             <Text style={[styles.modalTitle, { color: textColor }]}>Reset All Data?</Text>
             <Text style={[styles.resetWarningText, { color: subColor }]}>
               This will permanently delete all transactions, accounts, and custom categories, and restore the app to its default state.
             </Text>
             <View style={[styles.modalWarn, { backgroundColor: isDark ? '#2d2000' : '#fffbeb' }]}>
-              <MaterialIcons name="warning" size={14} color="#f59e0b" />
-              <Text style={[styles.modalWarnText, { color: '#f59e0b' }]}>This cannot be undone.</Text>
+              <MaterialIcons name="warning" size={14} color="#FFC107" />
+              <Text style={[styles.modalWarnText, { color: '#FFC107' }]}>This cannot be undone.</Text>
             </View>
             <View style={[styles.modalDivider, { backgroundColor: borderColor }]} />
             <View style={styles.modalBtns}>
@@ -678,8 +717,8 @@ export default function SettingsScreen() {
               <Text style={[styles.importSettingsLabel, { color: textColor }]}>Restore preferences</Text>
             </TouchableOpacity>
             <View style={[styles.modalWarn, { backgroundColor: isDark ? '#2d2000' : '#fffbeb' }]}>
-              <MaterialIcons name="warning" size={14} color="#f59e0b" />
-              <Text style={[styles.modalWarnText, { color: '#f59e0b' }]}>This cannot be undone.</Text>
+              <MaterialIcons name="warning" size={14} color="#FFC107" />
+              <Text style={[styles.modalWarnText, { color: '#FFC107' }]}>This cannot be undone.</Text>
             </View>
             <View style={[styles.modalDivider, { backgroundColor: borderColor }]} />
             <View style={styles.modalBtns}>
@@ -706,7 +745,7 @@ export default function SettingsScreen() {
         visible={!!infoModal}
         onClose={() => setInfoModal(null)}
         icon={infoModal?.icon ?? 'info'}
-        iconColor={infoModal?.iconColor ?? '#ef4444'}
+        iconColor={infoModal?.iconColor ?? '#F44336'}
         title={infoModal?.title ?? ''}
         message={infoModal?.message ?? ''}
       />
@@ -887,7 +926,7 @@ const styles = StyleSheet.create({
   modalBtnCancelText: { fontSize: 15, fontWeight: '500' },
   modalBtnDivider: { width: StyleSheet.hairlineWidth },
   modalBtnDelete: { flex: 1, paddingVertical: 16, alignItems: 'center' },
-  modalBtnDeleteText: { color: '#ef4444', fontSize: 15, fontWeight: '700' },
+  modalBtnDeleteText: { color: '#F44336', fontSize: 15, fontWeight: '700' },
   importSummary: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12, gap: 4 },
   importSummaryItem: { fontSize: 13, textAlign: 'center' },
   importSettingsRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12, gap: 8 },
