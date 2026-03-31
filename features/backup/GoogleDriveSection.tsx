@@ -15,9 +15,10 @@ import { useSettingsDb } from '@/db';
 import { useBackupStore, initialBackupState } from './useBackupStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import type { BackupFrequency } from './useBackupStore';
-import { signIn, signOut, getAccessToken, ensureBackupFolder, uploadBackup, downloadBackup } from './googleDrive';
+import { signIn, signOut, getAccessToken, ensureBackupFolder, findBackupFile, uploadBackup, downloadBackup } from './googleDrive';
 import { isValidExport } from '@/features/settings/validation';
 import type { ExportData } from '@/db';
+import type { ExportJson } from '@/features/settings/exportData';
 import { generateExportJson } from '@/features/settings/exportData';
 import { requestNotificationPermission, notifyBackupStarted, dismissBackupNotification } from './notifications';
 
@@ -78,6 +79,7 @@ export default function GoogleDriveSection({
   const [isRestoring, setIsRestoring] = useState(false);
   const [freqModalOpen, setFreqModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pendingRestoreData, setPendingRestoreData] = useState<ExportJson | null>(null);
 
   const handleConnect = async () => {
     setConnecting(true);
@@ -101,6 +103,15 @@ export default function GoogleDriveSection({
         settingsDb.set('google_drive_folder_name', folder.name),
         settingsDb.set('backup_frequency', 'weekly'),
       ]);
+
+      const backupFileId = await findBackupFile(token, folder.id);
+      if (backupFileId) {
+        const json = await downloadBackup(token, folder.id);
+        const parsed: unknown = JSON.parse(json);
+        if (isValidExport(parsed)) {
+          setPendingRestoreData(parsed as ExportJson);
+        }
+      }
     } catch (e: any) {
       setErrorMessage(e?.message ?? 'Failed to connect to Google Drive');
     } finally {
@@ -337,6 +348,37 @@ export default function GoogleDriveSection({
         </View>
       </Modal>
 
+      {/* Restore-on-connect prompt */}
+      <Modal visible={!!pendingRestoreData} animationType="fade" transparent onRequestClose={() => setPendingRestoreData(null)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setPendingRestoreData(null)} />
+        <View style={styles.modalCenter} pointerEvents="box-none">
+          <View style={[styles.modalCard, { backgroundColor: cardBg }]}>
+            <View style={[styles.restoreIconWrap, { backgroundColor: '#0ea5e920' }]}>
+              <MaterialIcons name="cloud-download" size={32} color="#0ea5e9" />
+            </View>
+            <Text style={[styles.modalTitle, { color: textColor }]}>Backup Found</Text>
+            <Text style={[styles.restoreMessage, { color: subColor }]}>
+              {pendingRestoreData
+                ? `A backup from ${new Date(pendingRestoreData.exported_at).toLocaleDateString()} was found in your Google Drive. Would you like to restore it now?\n\nThis will replace all current app data.`
+                : ''}
+            </Text>
+            <TouchableOpacity
+              style={[styles.freqOption, { backgroundColor: accentColor + '20', marginTop: 4 }]}
+              onPress={() => {
+                if (pendingRestoreData) onRestoreRequest(pendingRestoreData as ExportData);
+                setPendingRestoreData(null);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.freqLabel, { color: accentColor, textAlign: 'center', flex: 1 }]}>Restore</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.freqCancel} onPress={() => setPendingRestoreData(null)}>
+              <Text style={[styles.freqCancelText, { color: subColor }]}>Skip</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <InfoModal
         visible={!!visibleError}
         onClose={dismissError}
@@ -365,4 +407,6 @@ const styles = StyleSheet.create({
   freqLabel: { fontSize: 15, fontWeight: '500' },
   freqCancel: { paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   freqCancelText: { fontSize: 15, fontWeight: '500' },
+  restoreIconWrap: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 12 },
+  restoreMessage: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
 });

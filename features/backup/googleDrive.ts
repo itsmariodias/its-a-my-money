@@ -85,7 +85,7 @@ export async function ensureBackupFolder(
   return { id: folder.id, name: folder.name };
 }
 
-async function findBackupFile(
+export async function findBackupFile(
   accessToken: string,
   folderId: string
 ): Promise<string | null> {
