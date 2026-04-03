@@ -644,8 +644,8 @@ export default function SettingsScreen() {
         <View style={styles.appInfo}>
           <AppIcon width={36} height={36} style={styles.appInfoIcon} />
           <Text style={[styles.appName, { color: subColor }]}>It's a My Money!</Text>
-          <Text style={[styles.appVersion, { color: borderColor }]}>v{Constants.expoConfig?.version}</Text>
-          <Text style={[styles.appCredit, { color: isDark ? '#3a4a6e' : '#d1d5db' }]}>
+          <Text style={[styles.appVersion, { color: subColor }]}>v{Constants.expoConfig?.version}</Text>
+          <Text style={[styles.appCredit, { color: subColor }]}>
             by @itsmariodias · vibe coded with Claude Code
           </Text>
         </View>
