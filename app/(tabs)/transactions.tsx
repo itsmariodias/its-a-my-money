@@ -1,8 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Snackbar } from 'react-native-snackbar';
 import {
+  FlatList,
   Modal,
   Pressable,
+  ScrollView,
   SectionList,
   StyleSheet,
   TouchableOpacity,
@@ -424,6 +426,377 @@ const rowStyles = StyleSheet.create({
   amount: { fontSize: 14, fontWeight: '600' },
 });
 
+// ─── CategoryFilterBar ────────────────────────────────────────────────────────
+
+type CategoryInfo = { id: number; name: string; color: string; icon: string };
+
+interface CategoryFilterBarProps {
+  categories: CategoryInfo[];
+  selectedIds: number[];
+  onToggleCategory: (id: number) => void;
+  onClearFilter: () => void;
+  viewMode: 'list' | 'grouped';
+  onToggleViewMode: () => void;
+  accentColor: string;
+  inputBg: string;
+  textColor: string;
+  borderColor: string;
+  bg: string;
+}
+
+function CategoryFilterBar({
+  categories,
+  selectedIds,
+  onToggleCategory,
+  onClearFilter,
+  viewMode,
+  onToggleViewMode,
+  accentColor,
+  inputBg,
+  textColor,
+  borderColor,
+  bg,
+}: CategoryFilterBarProps) {
+  const allActive = selectedIds.length === 0;
+
+  return (
+    <View style={[filterStyles.bar, { backgroundColor: bg, borderBottomColor: borderColor }]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={filterStyles.chipsContainer}
+      >
+        {/* All chip */}
+        <TouchableOpacity
+          style={[
+            filterStyles.chip,
+            allActive
+              ? { backgroundColor: accentColor }
+              : { backgroundColor: inputBg, borderWidth: StyleSheet.hairlineWidth, borderColor },
+          ]}
+          onPress={onClearFilter}
+          activeOpacity={0.7}
+        >
+          <Text style={[filterStyles.chipText, { color: allActive ? '#fff' : textColor }]}>
+            All
+          </Text>
+        </TouchableOpacity>
+
+        {categories.map((cat) => {
+          const active = selectedIds.includes(cat.id);
+          return (
+            <TouchableOpacity
+              key={cat.id}
+              style={[
+                filterStyles.chip,
+                active
+                  ? { backgroundColor: cat.color }
+                  : { backgroundColor: inputBg, borderWidth: StyleSheet.hairlineWidth, borderColor },
+              ]}
+              onPress={() => onToggleCategory(cat.id)}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons
+                name={(cat.icon as any) || 'label'}
+                size={13}
+                color={active ? '#fff' : cat.color}
+              />
+              <Text style={[filterStyles.chipText, { color: active ? '#fff' : textColor }]}>
+                {cat.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* View mode toggle */}
+      <View style={[filterStyles.toggleGroup, { borderLeftColor: borderColor }]}>
+        <TouchableOpacity
+          style={filterStyles.toggleBtn}
+          onPress={viewMode === 'grouped' ? onToggleViewMode : undefined}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons
+            name="view-list"
+            size={20}
+            color={viewMode === 'list' ? accentColor : textColor}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={filterStyles.toggleBtn}
+          onPress={viewMode === 'list' ? onToggleViewMode : undefined}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons
+            name="table-rows"
+            size={20}
+            color={viewMode === 'grouped' ? accentColor : textColor}
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const filterStyles = StyleSheet.create({
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 8,
+  },
+  chipsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  toggleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    gap: 2,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+  },
+  toggleBtn: {
+    padding: 4,
+  },
+});
+
+// ─── CategoryGroupRow ─────────────────────────────────────────────────────────
+
+type CategoryGroup = {
+  category_id: number;      // -1 for the synthetic Transfers group
+  category_name: string;
+  category_color: string;
+  category_icon: string;
+  total: number;
+  count: number;
+  transactions: TransactionWithDetails[];
+  transfers?: TransferWithDetails[];
+};
+
+interface CategoryGroupRowProps {
+  group: CategoryGroup;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onPressTx: (tx: TransactionWithDetails) => void;
+  onPressTransfer: (t: TransferWithDetails) => void;
+  selectedAccountId: number | null;
+  currency: string;
+  cardBg: string;
+  borderColor: string;
+  textColor: string;
+  subColor: string;
+}
+
+function CategoryGroupRow({
+  group,
+  isExpanded,
+  onToggle,
+  onPressTx,
+  onPressTransfer,
+  selectedAccountId,
+  currency,
+  cardBg,
+  borderColor,
+  textColor,
+  subColor,
+}: CategoryGroupRowProps) {
+  const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const totalColor = group.total === 0 ? subColor : group.total >= 0 ? '#4CAF50' : '#F44336';
+  const totalType = group.total >= 0 ? 'income' : 'expense';
+  const countLabel = group.count === 1 ? '1 item' : `${group.count} items`;
+
+  return (
+    <View style={groupStyles.wrapper}>
+      {/* Category header row */}
+      <TouchableOpacity
+        style={[groupStyles.header, { backgroundColor: cardBg }]}
+        onPress={onToggle}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${group.category_name}, ${countLabel}`}
+      >
+        <View style={[groupStyles.icon, { backgroundColor: group.category_color || '#9E9E9E' }]}>
+          <MaterialIcons name={(group.category_icon as any) || 'label'} size={18} color="#fff" />
+        </View>
+        <View style={groupStyles.headerInfo}>
+          <Text style={[groupStyles.categoryName, { color: textColor }]}>{group.category_name}</Text>
+          <Text style={[groupStyles.countText, { color: subColor }]}>{countLabel}</Text>
+        </View>
+        <Text style={[groupStyles.total, { color: totalColor }]}>
+          {formatAmount(Math.abs(group.total), currency, totalType, numberFormat)}
+        </Text>
+        <MaterialIcons
+          name={isExpanded ? 'expand-less' : 'expand-more'}
+          size={20}
+          color={subColor}
+          style={groupStyles.chevron}
+        />
+      </TouchableOpacity>
+
+      {/* Expanded rows */}
+      {isExpanded && (
+        <View style={[groupStyles.expandedContainer, { borderTopColor: borderColor }]}>
+          {group.transfers
+            ? group.transfers.map((t, index) => {
+                const isLast = index === group.transfers!.length - 1;
+                const isOutgoing = t.from_account_id === selectedAccountId;
+                const label = isOutgoing ? `To ${t.to_account_name}` : `From ${t.from_account_name}`;
+                const amountColor = isOutgoing ? '#F44336' : '#4CAF50';
+                const amountType = isOutgoing ? 'expense' : 'income';
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={[
+                      groupStyles.txRow,
+                      { backgroundColor: cardBg },
+                      !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor },
+                      isLast && groupStyles.txRowLast,
+                    ]}
+                    onPress={() => onPressTransfer(t)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityHint="Double tap to edit"
+                  >
+                    <View style={groupStyles.txRowIndent} />
+                    <View style={groupStyles.txInfo}>
+                      <Text style={[groupStyles.txNote, { color: textColor }]} numberOfLines={1}>
+                        {label}
+                      </Text>
+                      <Text style={[groupStyles.txSub, { color: subColor }]}>
+                        {t.note ? `${t.note} · ` : ''}{formatDateHeader(t.date)}
+                      </Text>
+                    </View>
+                    <Text style={[groupStyles.txAmount, { color: amountColor }]}>
+                      {formatAmount(t.amount, currency, amountType, numberFormat)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })
+            : group.transactions.map((tx, index) => {
+                const isLast = index === group.transactions.length - 1;
+                const amountColor = tx.type === 'income' ? '#4CAF50' : '#F44336';
+                return (
+                  <TouchableOpacity
+                    key={tx.id}
+                    style={[
+                      groupStyles.txRow,
+                      { backgroundColor: cardBg },
+                      !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor },
+                      isLast && groupStyles.txRowLast,
+                    ]}
+                    onPress={() => onPressTx(tx)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityHint="Double tap to edit"
+                  >
+                    <View style={groupStyles.txRowIndent} />
+                    <View style={groupStyles.txInfo}>
+                      <Text style={[groupStyles.txNote, { color: textColor }]} numberOfLines={1}>
+                        {tx.note || tx.account_name}
+                      </Text>
+                      <Text style={[groupStyles.txSub, { color: subColor }]}>
+                        {tx.account_name}{tx.note ? ` · ${formatDateHeader(tx.date)}` : ` · ${formatDateHeader(tx.date)}`}
+                      </Text>
+                    </View>
+                    <Text style={[groupStyles.txAmount, { color: amountColor }]}>
+                      {formatAmount(tx.amount, currency, tx.type, numberFormat)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const groupStyles = StyleSheet.create({
+  wrapper: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  icon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  headerInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  categoryName: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  countText: {
+    fontSize: 12,
+  },
+  total: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginRight: 4,
+  },
+  chevron: {
+    marginLeft: 2,
+  },
+  expandedContainer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  txRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 14,
+    paddingVertical: 10,
+  },
+  txRowLast: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  txRowIndent: {
+    width: 52,
+  },
+  txInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  txNote: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  txSub: {
+    fontSize: 11,
+  },
+  txAmount: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+});
+
 // ─── List item union type ──────────────────────────────────────────────────────
 
 type ListItem =
@@ -440,7 +813,7 @@ interface Section {
 // ─── TransactionsScreen ───────────────────────────────────────────────────────
 
 export default function TransactionsScreen() {
-  const { isDark, bg, cardBg, textColor, subColor: subTextColor, borderColor } = useAppTheme();
+  const { isDark, bg, cardBg, inputBg, textColor, subColor: subTextColor, borderColor, accentColor } = useAppTheme();
 
   const selectedId = useUIStore((s) => s.selectedAccountId);
   const periodMode = useUIStore((s) => s.periodMode);
@@ -450,6 +823,10 @@ export default function TransactionsScreen() {
   const [deletingTx, setDeletingTx] = useState<TransactionWithDetails | null>(null);
   const [editingTransfer, setEditingTransfer] = useState<TransferWithDetails | null>(null);
   const [deletingTransfer, setDeletingTransfer] = useState<TransferWithDetails | null>(null);
+
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
+  const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
+  const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
 
   const transactionsDb = useTransactionsDb();
   const accountsDb = useAccountsDb();
@@ -488,9 +865,73 @@ export default function TransactionsScreen() {
     [transactions, selectedId, dateRange]
   );
 
+  // Reset category filter when the period/account context changes
+  useEffect(() => {
+    setSelectedCategoryIds([]);
+  }, [filteredTx]);
+
+  // Unique categories present in the current filtered set (+ Transfers chip if applicable)
+  const availableCategories = useMemo<CategoryInfo[]>(() => {
+    const seen = new Map<number, CategoryInfo>();
+    for (const tx of filteredTx) {
+      if (!seen.has(tx.category_id))
+        seen.set(tx.category_id, {
+          id: tx.category_id,
+          name: tx.category_name,
+          color: tx.category_color,
+          icon: tx.category_icon,
+        });
+    }
+    const result = Array.from(seen.values());
+    const hasTransfers =
+      selectedId !== null &&
+      transfers.some(
+        (t) =>
+          t.date >= dateRange.start &&
+          t.date <= dateRange.end &&
+          (t.from_account_id === selectedId || t.to_account_id === selectedId)
+      );
+    if (hasTransfers) {
+      result.push({ id: -1, name: 'Transfers', color: '#9E9E9E', icon: 'swap-horiz' });
+    }
+    return result;
+  }, [filteredTx, transfers, selectedId, dateRange]);
+
+  const categoryFilteredTx = useMemo(
+    () =>
+      selectedCategoryIds.length === 0
+        ? filteredTx
+        : filteredTx.filter((t) => selectedCategoryIds.includes(t.category_id)),
+    [filteredTx, selectedCategoryIds]
+  );
+
+  const toggleCategory = useCallback((id: number) => {
+    setSelectedCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
+  }, []);
+
+  const toggleViewMode = useCallback(() => {
+    setViewMode((m) => (m === 'list' ? 'grouped' : 'list'));
+    setExpandedCategories(new Set());
+  }, []);
+
+  const toggleExpand = useCallback((categoryId: number) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) next.delete(categoryId);
+      else next.add(categoryId);
+      return next;
+    });
+  }, []);
+
   const mergedItems = useMemo<ListItem[]>(() => {
-    const txItems: ListItem[] = filteredTx.map((item) => ({ kind: 'tx', item }));
+    const txItems: ListItem[] = categoryFilteredTx.map((item) => ({ kind: 'tx', item }));
     if (selectedId === null) return txItems;
+
+    // Hide transfers when a category filter is active and Transfers chip (-1) is not selected
+    const showTransfers = selectedCategoryIds.length === 0 || selectedCategoryIds.includes(-1);
+    if (!showTransfers) return txItems;
 
     const transferItems: ListItem[] = transfers
       .filter(
@@ -505,7 +946,7 @@ export default function TransactionsScreen() {
       if (b.item.date !== a.item.date) return b.item.date.localeCompare(a.item.date);
       return b.item.created_at.localeCompare(a.item.created_at);
     });
-  }, [filteredTx, transfers, selectedId, dateRange]);
+  }, [categoryFilteredTx, transfers, selectedId, dateRange, selectedCategoryIds]);
 
   const sections = useMemo<Section[]>(() => {
     const byDate: Record<string, ListItem[]> = {};
@@ -532,6 +973,58 @@ export default function TransactionsScreen() {
       }));
   }, [mergedItems, selectedId]);
 
+  const categoryGroups = useMemo<CategoryGroup[]>(() => {
+    if (viewMode !== 'grouped') return [];
+    const map = new Map<number, CategoryGroup>();
+    for (const tx of categoryFilteredTx) {
+      if (!map.has(tx.category_id))
+        map.set(tx.category_id, {
+          category_id: tx.category_id,
+          category_name: tx.category_name,
+          category_color: tx.category_color,
+          category_icon: tx.category_icon,
+          total: 0,
+          count: 0,
+          transactions: [],
+        });
+      const g = map.get(tx.category_id)!;
+      g.total += tx.type === 'income' ? tx.amount : -tx.amount;
+      g.count += 1;
+      g.transactions.push(tx);
+    }
+    const groups = Array.from(map.values()).sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+
+    // Append a synthetic Transfers group when an account is selected
+    const scopedTransfers = selectedId !== null
+      ? transfers.filter(
+          (t) =>
+            t.date >= dateRange.start &&
+            t.date <= dateRange.end &&
+            (t.from_account_id === selectedId || t.to_account_id === selectedId)
+        )
+      : [];
+    const showTransfers = selectedCategoryIds.length === 0 || selectedCategoryIds.includes(-1);
+    if (scopedTransfers.length > 0 && showTransfers) {
+      const transferTotal = scopedTransfers.reduce((sum, t) => {
+        if (t.from_account_id === selectedId) return sum - t.amount;
+        if (t.to_account_id === selectedId) return sum + t.amount;
+        return sum;
+      }, 0);
+      groups.push({
+        category_id: -1,
+        category_name: 'Transfers',
+        category_color: '#9E9E9E',
+        category_icon: 'swap-horiz',
+        total: transferTotal,
+        count: scopedTransfers.length,
+        transactions: [],
+        transfers: scopedTransfers,
+      });
+    }
+
+    return groups;
+  }, [viewMode, categoryFilteredTx, transfers, selectedId, dateRange, selectedCategoryIds]);
+
   const handleDeleteCancel = useCallback(() => {
     setDeletingTx(null);
   }, []);
@@ -557,6 +1050,7 @@ export default function TransactionsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deletingTransfer]);
 
+  const isEmpty = viewMode === 'grouped' ? categoryGroups.length === 0 : mergedItems.length === 0;
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
@@ -569,8 +1063,25 @@ export default function TransactionsScreen() {
         />
       </View>
 
+      {/* Category filter bar */}
+      {availableCategories.length > 0 && (
+        <CategoryFilterBar
+          categories={availableCategories}
+          selectedIds={selectedCategoryIds}
+          onToggleCategory={toggleCategory}
+          onClearFilter={() => setSelectedCategoryIds([])}
+          viewMode={viewMode}
+          onToggleViewMode={toggleViewMode}
+          accentColor={accentColor}
+          inputBg={inputBg}
+          textColor={textColor}
+          borderColor={borderColor}
+          bg={bg}
+        />
+      )}
+
       {/* Content */}
-      {mergedItems.length === 0 ? (
+      {isEmpty ? (
         <View style={[styles.emptyContainer, { backgroundColor: bg }]}>
           <MaterialIcons name="receipt-long" size={56} color={subTextColor} />
           <Text style={[styles.emptyTitle, { color: textColor }]}>No transactions</Text>
@@ -578,6 +1089,28 @@ export default function TransactionsScreen() {
             No transactions found for this period
           </Text>
         </View>
+      ) : viewMode === 'grouped' ? (
+        <FlatList
+          style={{ backgroundColor: bg, zIndex: 1 }}
+          contentContainerStyle={[styles.listContent, { backgroundColor: bg }]}
+          data={categoryGroups}
+          keyExtractor={(g) => String(g.category_id)}
+          renderItem={({ item }) => (
+            <CategoryGroupRow
+              group={item}
+              isExpanded={expandedCategories.has(item.category_id)}
+              onToggle={() => toggleExpand(item.category_id)}
+              onPressTx={setEditingTx}
+              onPressTransfer={setEditingTransfer}
+              selectedAccountId={selectedId}
+              currency={currency}
+              cardBg={cardBg}
+              borderColor={borderColor}
+              textColor={textColor}
+              subColor={subTextColor}
+            />
+          )}
+        />
       ) : (
         <SectionList
           style={{ backgroundColor: bg, zIndex: 1 }}
