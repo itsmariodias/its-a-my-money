@@ -17,6 +17,7 @@ import DatePickerField from '@/shared/components/DatePickerField';
 import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
 import AccountIcon from '@/shared/components/AccountIcon';
+import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
 import { useCategoriesDb, useTransactionsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
@@ -27,6 +28,9 @@ import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { Category, TransactionWithDetails } from '@/types';
+
+// Height for 3 rows of category items: 3 × (paddingV 8 + circle 44 + gap 4 + label 14) + 2 × row-gap 8
+const CATEGORY_GRID_3_ROWS = 230;
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -66,6 +70,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   const [date, setDate] = useState(today());
   const [attempted, setAttempted] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
+  const [catFormOpen, setCatFormOpen] = useState(false);
 
   // Populate / reset fields when the sheet opens or the target transaction changes
   useEffect(() => {
@@ -162,6 +167,13 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       setErrorModal('Failed to save transaction.');
     }
   }, [amount, selectedCategory, selectedAccountId, saveTransaction, transaction]);
+
+  const handleCategorySaved = useCallback(async () => {
+    const updatedCats = await categoriesDb.getByType(type);
+    setCategories(updatedCats);
+    const newCat = updatedCats.find((c) => !categories.some((existing) => existing.id === c.id));
+    if (newCat) setSelectedCategory(newCat);
+  }, [type, categories]);
 
   const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
@@ -295,36 +307,54 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
 
             {/* Category */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Category</Text>
-            <View style={styles.categoryGrid}>
-              {categories.map((cat) => {
-                const isSelected = selectedCategory?.id === cat.id;
-                return (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={styles.categoryItem}
-                    onPress={() => setSelectedCategory(cat)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: selectedCategory?.id === cat.id }}
-                  >
-                    <View
-                      style={[
-                        styles.categoryCircle,
-                        { backgroundColor: cat.color },
-                        isSelected && styles.categoryCircleSelected,
-                      ]}
+            <ScrollView
+              scrollEnabled={categories.length > 9}
+              style={categories.length > 9 ? styles.categoryGridScroll : undefined}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.categoryGrid}>
+                {categories.map((cat) => {
+                  const isSelected = selectedCategory?.id === cat.id;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={styles.categoryItem}
+                      onPress={() => setSelectedCategory(cat)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: selectedCategory?.id === cat.id }}
                     >
-                      <MaterialIcons name={(cat.icon as any) || 'label'} size={20} color="#fff" />
-                    </View>
-                    <Text
-                      style={[styles.categoryLabel, { color: isSelected ? textColor : subTextColor }]}
-                      numberOfLines={1}
-                    >
-                      {cat.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                      <View
+                        style={[
+                          styles.categoryCircle,
+                          { backgroundColor: cat.color },
+                          isSelected && styles.categoryCircleSelected,
+                        ]}
+                      >
+                        <MaterialIcons name={(cat.icon as any) || 'label'} size={20} color="#fff" />
+                      </View>
+                      <Text
+                        style={[styles.categoryLabel, { color: isSelected ? textColor : subTextColor }]}
+                        numberOfLines={1}
+                      >
+                        {cat.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                <TouchableOpacity
+                  style={styles.categoryItem}
+                  onPress={() => setCatFormOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="New Category"
+                >
+                  <View style={[styles.categoryCircle, styles.newCategoryCircle, { borderColor }]}>
+                    <MaterialIcons name="add" size={20} color={subTextColor} />
+                  </View>
+                  <Text style={[styles.categoryLabel, { color: subTextColor }]}>New</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
             {attempted && !selectedCategory && (
               <Text style={styles.errorText}>Please select a category</Text>
             )}
@@ -409,16 +439,25 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       title="Error"
       message={errorModal ?? ''}
     />
+    <CategoryFormSheet
+      isOpen={catFormOpen}
+      category={null}
+      defaultType={type}
+      onClose={() => setCatFormOpen(false)}
+      onSaved={handleCategorySaved}
+    />
     </>
   );
 }
 
 const localStyles = StyleSheet.create({
+  categoryGridScroll: { maxHeight: CATEGORY_GRID_3_ROWS, marginBottom: 0 },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   categoryItem: { width: '30%', alignItems: 'center', gap: 4, paddingVertical: 4 },
   categoryCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   categoryCircleSelected: { borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
   categoryLabel: { fontSize: 11, textAlign: 'center' },
+  newCategoryCircle: { backgroundColor: 'transparent', borderWidth: 1.5 },
 });
 
 const styles = { ...sheetStyles, ...localStyles };
