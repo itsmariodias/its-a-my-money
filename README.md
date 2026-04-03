@@ -21,6 +21,8 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Tap to edit, swipe left to delete
 - Filter by account and time period
 - Section totals per day
+- Category filter chips — tap one or more to narrow the list; Transfers chip appears when an account is selected
+- Group by category view — see per-category totals sorted by amount, expand each row to drill into individual entries
 
 **Transfers**
 - Move money between accounts with a dedicated transfer sheet

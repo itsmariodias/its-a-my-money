@@ -118,7 +118,7 @@ app/                                  # expo-router screens (file-based routing)
   (tabs)/                             # Bottom tab navigator
     _layout.tsx                       # Tab layout — FAB, sheets, tab swipe, header, account filter
     index.tsx                         # Dashboard screen
-    transactions.tsx                  # Transactions list screen
+    transactions.tsx                  # Transactions list screen — date-grouped list, category filter chips, group-by-category view
     accounts.tsx                      # Accounts list screen
   _layout.tsx                         # Root layout — SQLiteProvider, migrations, auto backup, biometric lock
 
@@ -304,6 +304,14 @@ The shared header lives in `app/(tabs)/_layout.tsx` (not in individual screens).
 
 ### Swipeable Cards
 Both `transactions.tsx` and `accounts.tsx` have inline `SwipeableTransactionRow` / `SwipeableAccountCard` components using pure RN `Animated` + `PanResponder`. No extra packages needed. Delete zone reveals at `REVEAL_WIDTH = 80` on swipe-left.
+
+### Transaction Filters (transactions.tsx)
+All filter state is local to `TransactionsScreen` — nothing in UIStore.
+
+- **`CategoryFilterBar`** — horizontal `ScrollView` of chips derived from the currently visible transactions. A **Transfers** chip is appended when an account is selected and transfers exist in the period. Multi-select; "All" resets. Includes a list/grouped view toggle (two icon buttons).
+- **`CategoryGroupRow`** — collapsible row showing category icon, name, count, and net total. Expanded view renders individual transaction or transfer rows. Transfers use `category_id: -1` as a sentinel.
+- Filter chain: `filteredTx` (period + account) → `categoryFilteredTx` (chip selection) → `mergedItems` / `categoryGroups`.
+- Transfers are hidden in filtered list view and grouped view when a category filter is active and the Transfers chip is not selected.
 
 ## CI/CD
 
