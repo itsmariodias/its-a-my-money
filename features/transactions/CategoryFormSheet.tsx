@@ -132,7 +132,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
   };
 
   const snapBack = () => {
-    Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }).start();
+    Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
   };
 
   const handlePan = useRef(PanResponder.create({

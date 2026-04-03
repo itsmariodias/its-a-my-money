@@ -204,7 +204,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   };
 
   const snapBack = () => {
-    Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }).start();
+    Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
   };
 
   // Drag handle — claims on a clear downward move so taps on the close button pass through
