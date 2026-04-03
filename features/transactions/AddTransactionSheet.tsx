@@ -72,6 +72,23 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   const [errorModal, setErrorModal] = useState<string | null>(null);
   const [catFormOpen, setCatFormOpen] = useState(false);
 
+  const accountScrollRef = useRef<ScrollView>(null);
+  const categoryScrollRef = useRef<ScrollView>(null);
+  const scrollToSelectedRef = useRef(() => {});
+  scrollToSelectedRef.current = () => {
+    const accountIndex = accounts.findIndex((a) => a.id === selectedAccountId);
+    if (accountIndex > 0) {
+      accountScrollRef.current?.scrollTo({ x: accountIndex * 110, animated: true });
+    }
+    if (categories.length > 9 && selectedCategory) {
+      const catIndex = categories.findIndex((c) => c.id === selectedCategory.id);
+      if (catIndex > 0) {
+        const row = Math.floor(catIndex / 3);
+        categoryScrollRef.current?.scrollTo({ y: row * 78, animated: true });
+      }
+    }
+  };
+
   // Populate / reset fields when the sheet opens or the target transaction changes
   useEffect(() => {
     if (!isOpen) return;
@@ -187,7 +204,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     if (isOpen) {
       sheetTranslateY.setValue(600);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start(() => scrollToSelectedRef.current());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -308,6 +325,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
             {/* Category */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Category</Text>
             <ScrollView
+              ref={categoryScrollRef}
               scrollEnabled={categories.length > 9}
               style={categories.length > 9 ? styles.categoryGridScroll : undefined}
               nestedScrollEnabled
@@ -361,7 +379,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
 
             {/* Account */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Account</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
+            <ScrollView ref={accountScrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
               {accounts.map((acc) => {
                 const isSelected = selectedAccountId === acc.id;
                 const accentBg = acc.color ?? '#55A3FF';
