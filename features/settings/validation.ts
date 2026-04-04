@@ -48,6 +48,21 @@ function isValidTransfer(item: unknown): boolean {
   );
 }
 
+function isValidRecurring(item: unknown): boolean {
+  if (!item || typeof item !== 'object') return false;
+  const r = item as Record<string, unknown>;
+  return (
+    typeof r.id === 'number' &&
+    typeof r.amount === 'number' &&
+    (r.type === 'income' || r.type === 'expense') &&
+    typeof r.category_id === 'number' &&
+    typeof r.account_id === 'number' &&
+    (r.frequency === 'daily' || r.frequency === 'weekly' || r.frequency === 'monthly' || r.frequency === 'yearly') &&
+    typeof r.start_date === 'string' &&
+    typeof r.next_due_date === 'string'
+  );
+}
+
 export function isValidExport(data: unknown): data is ExportData {
   if (!data || typeof data !== 'object') return false;
   const d = data as Record<string, unknown>;
@@ -60,6 +75,7 @@ export function isValidExport(data: unknown): data is ExportData {
     d.accounts.every(isValidAccount) &&
     d.categories.every(isValidCategory) &&
     d.transactions.every(isValidTransaction) &&
-    d.transfers.every(isValidTransfer)
+    d.transfers.every(isValidTransfer) &&
+    (d.recurring_transactions == null || (Array.isArray(d.recurring_transactions) && d.recurring_transactions.every(isValidRecurring)))
   );
 }

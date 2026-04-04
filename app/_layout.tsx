@@ -17,6 +17,7 @@ import { useBackupStore } from '@/features/backup/useBackupStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import type { BackupFrequency } from '@/features/backup/useBackupStore';
 import { useAutoBackup } from '@/features/backup/useAutoBackup';
+import { useRecurringCheck } from '@/features/recurring/useRecurringCheck';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import type { ThemeId } from '@/constants/theme';
 
@@ -113,6 +114,7 @@ function RootLayoutNav() {
   }, []);
 
   useAutoBackup();
+  useRecurringCheck();
 
   const authenticate = useCallback(async () => {
     const result = await LocalAuthentication.authenticateAsync({

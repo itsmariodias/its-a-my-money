@@ -1,5 +1,6 @@
 export type TransactionType = 'income' | 'expense';
 export type BudgetPeriod = 'monthly' | 'weekly' | 'yearly';
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface Account {
   id: number;
@@ -28,6 +29,7 @@ export interface Transaction {
   account_id: number;
   note: string | null;
   date: string;
+  recurring_transaction_id: number | null;
   created_at: string;
 }
 
@@ -47,6 +49,28 @@ export interface Budget {
   amount: number;
   period: BudgetPeriod;
   created_at: string;
+}
+
+export interface RecurringTransaction {
+  id: number;
+  amount: number;
+  type: TransactionType;
+  category_id: number;
+  account_id: number;
+  note: string | null;
+  frequency: RecurringFrequency;
+  start_date: string;
+  end_date: string | null;
+  next_due_date: string;
+  is_active: number; // SQLite stores booleans as 0/1
+  created_at: string;
+}
+
+export interface RecurringTransactionWithDetails extends RecurringTransaction {
+  category_name: string;
+  category_color: string;
+  category_icon: string;
+  account_name: string;
 }
 
 // Enriched types (joins)

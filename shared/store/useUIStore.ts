@@ -8,6 +8,11 @@ interface UIState {
   isTransferOpen: boolean;
   openTransfer: () => void;
   closeTransfer: () => void;
+  isRecurringFormOpen: boolean;
+  openRecurringForm: () => void;
+  closeRecurringForm: () => void;
+  editingRecurringId: number | null;
+  setEditingRecurringId: (id: number | null) => void;
   selectedAccountId: number | null;
   setSelectedAccountId: (id: number | null) => void;
   periodMode: PeriodMode;
@@ -24,6 +29,11 @@ export const useUIStore = create<UIState>((set) => ({
   isTransferOpen: false,
   openTransfer: () => set({ isTransferOpen: true }),
   closeTransfer: () => set({ isTransferOpen: false }),
+  isRecurringFormOpen: false,
+  openRecurringForm: () => set({ isRecurringFormOpen: true }),
+  closeRecurringForm: () => set({ isRecurringFormOpen: false }),
+  editingRecurringId: null,
+  setEditingRecurringId: (id) => set({ editingRecurringId: id }),
   selectedAccountId: null,
   setSelectedAccountId: (id) => set({ selectedAccountId: id }),
   periodMode: 'month',

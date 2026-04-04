@@ -18,7 +18,7 @@ import {
   getDateRange,
   periodNavLabel,
 } from '@/shared/components/PeriodSelector';
-import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
+import { useAccountsDb, useTransactionsDb, useTransfersDb, useRecurringDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
@@ -279,6 +279,7 @@ export default function AccountsScreen() {
   const accountsDb = useAccountsDb();
   const transactionsDb = useTransactionsDb();
   const transfersDb = useTransfersDb();
+  const recurringDb = useRecurringDb();
   const currency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
 
@@ -336,6 +337,7 @@ export default function AccountsScreen() {
     if (!deletingAccount) return;
     const account = deletingAccount;
     setDeletingAccount(null);
+    await recurringDb.removeByAccount(account.id);
     await transfersDb.removeByAccount(account.id);
     await transactionsDb.removeByAccount(account.id);
     await accountsDb.remove(account.id);

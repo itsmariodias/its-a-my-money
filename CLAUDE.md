@@ -90,6 +90,8 @@ db/index.test.ts                      # DB hook SQL verification
 features/accounts/useAccountsStore.test.ts
 features/transactions/useTransactionsStore.test.ts
 features/transfers/useTransfersStore.test.ts
+features/recurring/dateUtils.test.ts
+features/recurring/useRecurringStore.test.ts
 features/settings/useSettingsStore.test.ts
 features/settings/validation.test.ts
 features/settings/exportData.test.ts
@@ -120,7 +122,7 @@ app/                                  # expo-router screens (file-based routing)
     index.tsx                         # Dashboard screen
     transactions.tsx                  # Transactions list screen — date-grouped list, category filter chips, group-by-category view
     accounts.tsx                      # Accounts list screen
-  _layout.tsx                         # Root layout — SQLiteProvider, migrations, auto backup, biometric lock
+  _layout.tsx                         # Root layout — SQLiteProvider, migrations, auto backup, recurring check, biometric lock
 
 features/                             # Feature modules (screens + logic co-located)
   accounts/
@@ -136,6 +138,14 @@ features/                             # Feature modules (screens + logic co-loca
     TransferSheet.tsx                 # Create/edit transfer bottom sheet
     useTransfersStore.ts
     useTransfersStore.test.ts
+  recurring/
+    RecurringListScreen.tsx           # Full-screen modal listing recurring entries (opened from Settings)
+    RecurringFormSheet.tsx            # Create/edit recurring transaction bottom sheet
+    useRecurringStore.ts              # Zustand store
+    useRecurringStore.test.ts
+    useRecurringCheck.ts              # AppState-based auto-generation trigger (mirrors useAutoBackup pattern)
+    dateUtils.ts                      # advanceDate() — date math for recurring schedules with month-end clamping
+    dateUtils.test.ts
   settings/
     SettingsScreen.tsx                # Settings overlay
     useSettingsStore.ts
@@ -203,6 +213,7 @@ Core entities:
 - `categories` — income and expense categories with icons/colors
 - `transactions` — individual income/expense entries linked to an account and category
 - `transfers` — money movements between accounts (full CRUD via `TransferSheet`)
+- `recurring_transactions` — repeating transaction templates; auto-generate real transactions on app open via `useRecurringCheck`
 - `budgets` — optional monthly budget limits per category (schema exists, UI not yet built)
 
 `SQLiteProvider` wraps the app in `app/_layout.tsx` and calls `runMigrations` on init (via `useSuspense`).

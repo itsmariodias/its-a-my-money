@@ -51,12 +51,12 @@ describe('useTransactionsDb', () => {
   it('should pass 6 parameters for transaction insert', async () => {
     // Given a mocked SQLite context
     // When insert is called
-    await db.insert({ amount: 50, type: 'expense', category_id: 1, account_id: 1, note: 'lunch', date: '2026-03-21' });
-    // Then runAsync should receive 6 params
+    await db.insert({ amount: 50, type: 'expense', category_id: 1, account_id: 1, note: 'lunch', date: '2026-03-21', recurring_transaction_id: null });
+    // Then runAsync should receive 7 params
     const [sql, ...params] = mockDb.runAsync.mock.calls[0];
     expect(sql).toContain('INSERT INTO transactions');
-    expect(params).toHaveLength(6);
-    expect(params).toEqual([50, 'expense', 1, 1, 'lunch', '2026-03-21']);
+    expect(params).toHaveLength(7);
+    expect(params).toEqual([50, 'expense', 1, 1, 'lunch', '2026-03-21', null]);
   });
 
   it('should pass 7 parameters for transaction update', async () => {

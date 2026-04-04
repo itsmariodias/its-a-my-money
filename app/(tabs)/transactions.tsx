@@ -335,7 +335,12 @@ function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, s
         <MaterialIcons name={(tx.category_icon as any) || 'attach-money'} size={18} color="#fff" />
       </View>
       <View style={rowStyles.info}>
-        <Text style={[rowStyles.category, { color: textColor }]}>{tx.category_name}</Text>
+        <View style={rowStyles.categoryRow}>
+          <Text style={[rowStyles.category, { color: textColor }]}>{tx.category_name}</Text>
+          {tx.recurring_transaction_id != null && (
+            <MaterialIcons name="autorenew" size={13} color={subTextColor} style={rowStyles.recurringIcon} />
+          )}
+        </View>
         <Text style={[rowStyles.sub, { color: subTextColor }]} numberOfLines={1}>
           {[tx.account_name, tx.note].filter(Boolean).join(' · ')}
         </Text>
@@ -421,7 +426,9 @@ const rowStyles = StyleSheet.create({
     marginRight: 12,
   },
   info: { flex: 1 },
+  categoryRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   category: { fontSize: 14, fontWeight: '500' },
+  recurringIcon: { marginTop: 1 },
   sub: { fontSize: 12, marginTop: 2 },
   amount: { fontSize: 14, fontWeight: '600' },
 });

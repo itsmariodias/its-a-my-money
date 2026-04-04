@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Account, Category, Transaction, Transfer } from '@/types';
+import type { Account, Category, Transaction, Transfer, RecurringTransaction } from '@/types';
 
 export interface ExportJson {
   version: number;
@@ -8,6 +8,7 @@ export interface ExportJson {
   categories: Category[];
   transactions: Omit<Transaction, never>[];
   transfers: Omit<Transfer, never>[];
+  recurring_transactions: RecurringTransaction[];
   settings: {
     currency: string;
     accent_color: string | null;
@@ -18,11 +19,12 @@ export interface ExportJson {
 }
 
 export async function generateExportData(db: SQLiteDatabase): Promise<ExportJson> {
-  const [accounts, categories, rawTxns, rawTransfers] = await Promise.all([
+  const [accounts, categories, rawTxns, rawTransfers, rawRecurring] = await Promise.all([
     db.getAllAsync<Account>('SELECT * FROM accounts ORDER BY name ASC'),
     db.getAllAsync<Category>('SELECT * FROM categories ORDER BY type, name ASC'),
-    db.getAllAsync<Transaction>('SELECT id, amount, type, category_id, account_id, note, date, created_at FROM transactions ORDER BY date DESC, created_at DESC'),
+    db.getAllAsync<Transaction>('SELECT id, amount, type, category_id, account_id, note, date, recurring_transaction_id, created_at FROM transactions ORDER BY date DESC, created_at DESC'),
     db.getAllAsync<Transfer>('SELECT id, from_account_id, to_account_id, amount, note, date, created_at FROM transfers ORDER BY date DESC, created_at DESC'),
+    db.getAllAsync<RecurringTransaction>('SELECT * FROM recurring_transactions ORDER BY created_at ASC'),
   ]);
 
   const [currencyRow, accentRow, formatRow, biometricRow, themeRow] = await Promise.all([
@@ -40,6 +42,7 @@ export async function generateExportData(db: SQLiteDatabase): Promise<ExportJson
     categories,
     transactions: rawTxns,
     transfers: rawTransfers,
+    recurring_transactions: rawRecurring,
     settings: {
       currency: currencyRow?.value ?? 'USD',
       accent_color: accentRow?.value ?? null,

@@ -28,9 +28,10 @@ function formatDisplayDate(dateStr: string): string {
 interface Props {
   date: string;
   onChange: (date: string) => void;
+  minDate?: string;
 }
 
-export default function DatePickerField({ date, onChange }: Props) {
+export default function DatePickerField({ date, onChange, minDate }: Props) {
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
   const styles = { ...sheetStyles, ...localStyles };
 
@@ -111,6 +112,7 @@ export default function DatePickerField({ date, onChange }: Props) {
                 <Calendar
                   key={calendarKey}
                   current={calendarMonth + '-01'}
+                  minDate={minDate}
                   markedDates={{ [date]: { selected: true, selectedColor: accentColor } }}
                   onDayPress={(day) => { onChange(day.dateString); setShowDatePicker(false); }}
                   onMonthChange={(month) => setCalendarMonth(month.dateString.substring(0, 7))}

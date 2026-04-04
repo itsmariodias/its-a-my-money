@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useSQLiteContext } from 'expo-sqlite';
 import * as Sharing from 'expo-sharing';
@@ -20,7 +21,7 @@ import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { Text } from '@/shared/components/Themed';
 import InfoModal from '@/shared/components/InfoModal';
 import OperationLockModal from '@/shared/components/OperationLockModal';
-import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb } from '@/db';
+import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb, useRecurringDb } from '@/db';
 import type { ExportData } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
@@ -38,6 +39,7 @@ import { isValidExport } from './validation';
 import { parseMonefyCsv, convertMonefyToExportData } from './monefy';
 import { generateExportJson } from './exportData';
 import GoogleDriveSection from '@/features/backup/GoogleDriveSection';
+import RecurringListScreen from '@/features/recurring/RecurringListScreen';
 import { useUIStore } from '@/shared/store/useUIStore';
 import AppIcon from '@/assets/images/icon.svg';
 
@@ -120,6 +122,7 @@ function DeleteCategoryModal({
 
 export default function SettingsScreen() {
   const { isDark, bg, cardBg, inputBg, textColor, subColor, borderColor, accentColor, onAccentColor } = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const db = useSQLiteContext();
   const settingsDb = useSettingsDb();
@@ -129,6 +132,7 @@ export default function SettingsScreen() {
   const resetDb = useResetDb();
   const transfersDb = useTransfersDb();
   const importDb = useImportDb();
+  const recurringDb = useRecurringDb();
 
   const currency = useSettingsStore((s) => s.currency);
   const setCurrency = useSettingsStore((s) => s.setCurrency);
@@ -149,6 +153,7 @@ export default function SettingsScreen() {
   const [importRestoreSettings, setImportRestoreSettings] = useState(true);
   const [infoModal, setInfoModal] = useState<{ icon: string; iconColor: string; title: string; message: string } | null>(null);
   const [catModalOpen, setCatModalOpen] = useState(false);
+  const [recurringOpen, setRecurringOpen] = useState(false);
   const [activeType, setActiveType] = useState<'expense' | 'income'>('expense');
   const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
   const [incomeCategories, setIncomeCategories] = useState<Category[]>([]);
@@ -238,6 +243,7 @@ export default function SettingsScreen() {
   const handleDeleteCatConfirm = async () => {
     if (!deletingCat) return;
     try {
+      await recurringDb.removeByCategory(deletingCat.id);
       await transactionsDb.removeByCategory(deletingCat.id);
       await categoriesDb.remove(deletingCat.id);
     } catch { /* ignore */ }
@@ -602,6 +608,14 @@ export default function SettingsScreen() {
             <MaterialIcons name="chevron-right" size={20} color={subColor} />
           </TouchableOpacity>
           <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
+          <TouchableOpacity style={styles.row} onPress={() => setRecurringOpen(true)} activeOpacity={0.7}>
+            <View style={[styles.rowIcon, { backgroundColor: '#4CAF5020' }]}>
+              <MaterialIcons name="autorenew" size={20} color="#4CAF50" />
+            </View>
+            <Text style={[styles.rowLabel, { color: textColor }]}>Recurring Transactions</Text>
+            <MaterialIcons name="chevron-right" size={20} color={subColor} />
+          </TouchableOpacity>
+          <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
           <TouchableOpacity style={styles.row} onPress={handleExport} activeOpacity={0.7}>
             <View style={[styles.rowIcon, { backgroundColor: '#4CAF5020' }]}>
               <MaterialIcons name="file-download" size={20} color="#4CAF50" />
@@ -750,10 +764,13 @@ export default function SettingsScreen() {
         message={infoModal?.message ?? ''}
       />
 
+      {/* Recurring transactions screen */}
+      <RecurringListScreen isOpen={recurringOpen} onClose={() => setRecurringOpen(false)} />
+
       {/* Currency picker */}
       <Modal visible={currencyPickerOpen} animationType="slide" transparent={false} onRequestClose={() => setCurrencyPickerOpen(false)}>
         <View style={[styles.fullModal, { backgroundColor: bg }]}>
-          <View style={[styles.modalHeader, { backgroundColor: cardBg, borderBottomColor: borderColor }]}>
+          <View style={[styles.modalHeader, { backgroundColor: cardBg, borderBottomColor: borderColor, paddingTop: insets.top + 14 }]}>
             <TouchableOpacity onPress={() => setCurrencyPickerOpen(false)} hitSlop={8}>
               <MaterialIcons name="close" size={24} color={subColor} />
             </TouchableOpacity>
@@ -800,7 +817,7 @@ export default function SettingsScreen() {
       {/* Categories modal */}
       <Modal visible={catModalOpen} animationType="slide" transparent={false} onRequestClose={() => setCatModalOpen(false)}>
         <View style={[styles.fullModal, { backgroundColor: bg }]}>
-          <View style={[styles.modalHeader, { backgroundColor: cardBg, borderBottomColor: borderColor }]}>
+          <View style={[styles.modalHeader, { backgroundColor: cardBg, borderBottomColor: borderColor, paddingTop: insets.top + 14 }]}>
             <TouchableOpacity onPress={() => setCatModalOpen(false)} hitSlop={8}>
               <MaterialIcons name="close" size={24} color={subColor} />
             </TouchableOpacity>
@@ -899,7 +916,7 @@ const styles = StyleSheet.create({
   currencyCode: { fontSize: 15, fontWeight: '600' },
   currencyName: { fontSize: 12, marginTop: 1 },
   fullModal: { flex: 1 },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 56 : 20, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
   modalHeaderTitle: { fontSize: 17, fontWeight: '700' },
   typeTabs: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
   typeTab: { flex: 1, paddingVertical: 13, alignItems: 'center' },

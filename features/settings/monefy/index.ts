@@ -172,6 +172,7 @@ export function convertMonefyToExportData(records: MonefyRecord[]): ExportData {
     account_id:  accountIdByName.get(r.account)!,
     note:        r.description,
     date:        r.date,
+    recurring_transaction_id: null,
     created_at:  now,
   }));
 

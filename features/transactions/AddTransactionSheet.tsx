@@ -151,6 +151,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
         account_id: selectedAccountId!,
         note: note.trim() || null,
         date,
+        recurring_transaction_id: null,
       });
       const tx = await transactionsDb.getById(result.lastInsertRowId);
       if (tx) addTransaction(tx);
