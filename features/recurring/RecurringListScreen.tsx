@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Modal,
-  Pressable,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -12,6 +11,7 @@ import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Snackbar } from 'react-native-snackbar';
 import { Text } from '@/shared/components/Themed';
+import DeleteModal from '@/shared/components/DeleteModal';
 import InfoModal from '@/shared/components/InfoModal';
 import { useRecurringDb, useTransactionsDb } from '@/db';
 import { todayString } from './dateUtils';
@@ -180,42 +180,27 @@ export default function RecurringListScreen({ isOpen, onClose }: Props) {
       />
 
       {/* Delete confirmation */}
-      <Modal visible={!!deletingItem} animationType="fade" transparent onRequestClose={() => { setDeletingItem(null); setDeleteLinked(false); }}>
-        <Pressable style={styles.modalBackdrop} onPress={() => { setDeletingItem(null); setDeleteLinked(false); }} />
-        <View style={styles.modalCenter} pointerEvents="box-none">
-          <View style={[styles.modalCard, { backgroundColor: cardBg }]}>
-            <View style={[styles.modalIconWrap, { backgroundColor: '#F4433620' }]}>
-              <MaterialIcons name="delete-forever" size={32} color="#F44336" />
-            </View>
-            <Text style={[styles.modalTitle, { color: textColor }]}>Delete Recurring?</Text>
-            <Text style={[styles.modalBody, { color: subColor }]}>
-              This will stop future auto-generation.{'\n'}Past transactions are kept by default.
-            </Text>
-            <TouchableOpacity
-              style={[styles.modalLinkedRow]}
-              onPress={() => setDeleteLinked((v) => !v)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.modalCheckbox, { borderColor: deleteLinked ? '#F44336' : borderColor, backgroundColor: deleteLinked ? '#F44336' : 'transparent' }]}>
-                {deleteLinked && <MaterialIcons name="check" size={14} color="#fff" />}
-              </View>
-              <Text style={[styles.modalLinkedLabel, { color: deleteLinked ? '#F44336' : subColor }]}>
-                Also delete past transactions
-              </Text>
-            </TouchableOpacity>
-            <View style={[styles.modalDivider, { backgroundColor: borderColor }]} />
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => { setDeletingItem(null); setDeleteLinked(false); }}>
-                <Text style={[styles.modalBtnCancelText, { color: subColor }]}>Cancel</Text>
-              </TouchableOpacity>
-              <View style={[styles.modalBtnDivider, { backgroundColor: borderColor }]} />
-              <TouchableOpacity style={styles.modalBtnDelete} onPress={handleDelete}>
-                <Text style={styles.modalBtnDeleteText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
+      <DeleteModal
+        visible={!!deletingItem}
+        title="Delete Recurring?"
+        message={'This will stop future auto-generation.\nPast transactions are kept by default.'}
+        showWarning={false}
+        onCancel={() => { setDeletingItem(null); setDeleteLinked(false); }}
+        onConfirm={handleDelete}
+      >
+        <TouchableOpacity
+          style={styles.modalLinkedRow}
+          onPress={() => setDeleteLinked((v) => !v)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.modalCheckbox, { borderColor: deleteLinked ? '#F44336' : borderColor, backgroundColor: deleteLinked ? '#F44336' : 'transparent' }]}>
+            {deleteLinked && <MaterialIcons name="check" size={14} color="#fff" />}
           </View>
-        </View>
-      </Modal>
+          <Text style={[styles.modalLinkedLabel, { color: deleteLinked ? '#F44336' : subColor }]}>
+            Also delete past transactions
+          </Text>
+        </TouchableOpacity>
+      </DeleteModal>
 
       <InfoModal
         visible={!!errorModal}
@@ -252,21 +237,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 17, fontWeight: '600', marginBottom: 8 },
   emptySub: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
-  // Modal (delete confirmation)
-  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalCenter: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalCard: { borderRadius: 20, padding: 24, width: '100%', alignItems: 'center' },
-  modalIconWrap: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
-  modalBody: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
-  modalDivider: { height: StyleSheet.hairlineWidth, width: '100%', marginBottom: 0 },
-  modalBtns: { flexDirection: 'row', width: '100%' },
-  modalBtnCancel: { flex: 1, paddingVertical: 16, alignItems: 'center' },
-  modalBtnCancelText: { fontSize: 16 },
-  modalBtnDivider: { width: StyleSheet.hairlineWidth },
-  modalBtnDelete: { flex: 1, paddingVertical: 16, alignItems: 'center' },
-  modalBtnDeleteText: { fontSize: 16, fontWeight: '600', color: '#F44336' },
-  modalLinkedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16, paddingHorizontal: 4 },
+  modalLinkedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14, paddingHorizontal: 4 },
   modalCheckbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   modalLinkedLabel: { fontSize: 14 },
 });

@@ -1,8 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Snackbar } from 'react-native-snackbar';
 import {
-  Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -13,6 +11,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
 import AccountFormSheet from '@/features/accounts/AccountFormSheet';
 import AccountIcon from '@/shared/components/AccountIcon';
+import DeleteModal from '@/shared/components/DeleteModal';
 import {
   PeriodSelector,
   getDateRange,
@@ -33,123 +32,45 @@ import type { Account } from '@/types';
 interface DeleteModalProps {
   account: Account | null;
   txCount: number;
+  txferCount: number;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-function DeleteConfirmModal({ account, txCount, onCancel, onConfirm }: DeleteModalProps) {
-  const { isDark, cardBg, inputBg, textColor, subColor, borderColor } = useAppTheme();
+function buildDeleteMessage(txCount: number, txferCount: number): string {
+  const parts: string[] = [];
+  if (txCount > 0) parts.push(`${txCount} transaction${txCount !== 1 ? 's' : ''} will be permanently deleted.`);
+  if (txferCount > 0) parts.push(`${txferCount} transfer${txferCount !== 1 ? 's' : ''} will be kept and show "Unknown" for this account.`);
+  if (parts.length === 0) return 'This account has no transactions or transfers and will be permanently removed.';
+  return parts.join('\n');
+}
+
+function DeleteConfirmModal({ account, txCount, txferCount, onCancel, onConfirm }: DeleteModalProps) {
+  const { inputBg, textColor, borderColor } = useAppTheme();
 
   return (
-    <Modal
+    <DeleteModal
       visible={account !== null}
-      transparent
-      animationType="fade"
-      onRequestClose={onCancel}
+      title="Delete Account?"
+      message={buildDeleteMessage(txCount, txferCount)}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
     >
-      <Pressable style={dlStyles.backdrop} onPress={onCancel}>
-        <Pressable style={[dlStyles.card, { backgroundColor: cardBg }]} onPress={() => {}}>
-          {/* Red trash circle */}
-          <View style={dlStyles.iconCircle}>
-            <MaterialIcons name="delete-forever" size={30} color="#fff" />
+      {account && (
+        <View style={[chipStyles.accountChip, { backgroundColor: inputBg, borderColor }]}>
+          <View style={[chipStyles.chipDot, { backgroundColor: account.color ?? '#55A3FF' }]}>
+            <AccountIcon name={account.icon ?? 'account-balance-wallet'} size={14} color="#fff" />
           </View>
-
-          {/* Title */}
-          <Text style={[dlStyles.title, { color: textColor }]}>Delete Account?</Text>
-
-          {/* Account chip */}
-          {account && (
-            <View style={[dlStyles.accountChip, { backgroundColor: inputBg, borderColor }]}>
-              <View style={[dlStyles.chipDot, { backgroundColor: account.color ?? '#55A3FF' }]}>
-                <AccountIcon name={account.icon ?? 'account-balance-wallet'} size={14} color="#fff" />
-              </View>
-              <Text style={[dlStyles.chipName, { color: textColor }]} numberOfLines={1}>
-                {account.name}
-              </Text>
-            </View>
-          )}
-
-          {/* Message */}
-          <Text style={[dlStyles.message, { color: subColor }]}>
-            {txCount > 0
-              ? `This will also permanently delete ${txCount} transaction${txCount !== 1 ? 's' : ''} linked to this account.`
-              : 'This account has no transactions and will be permanently removed.'}
+          <Text style={[chipStyles.chipName, { color: textColor }]} numberOfLines={1}>
+            {account.name}
           </Text>
-
-          {/* Warning */}
-          <View style={dlStyles.warningRow}>
-            <MaterialIcons name="warning-amber" size={14} color="#FFC107" />
-            <Text style={dlStyles.warningText}>This action cannot be undone.</Text>
-          </View>
-
-          {/* Buttons */}
-          <View style={[dlStyles.divider, { backgroundColor: borderColor }]} />
-          <View style={dlStyles.buttons}>
-            <TouchableOpacity
-              style={[dlStyles.btn, dlStyles.cancelBtn, { borderColor }]}
-              onPress={onCancel}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-            >
-              <Text style={[dlStyles.btnText, { color: textColor }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[dlStyles.btn, dlStyles.deleteBtn]}
-              onPress={onConfirm}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityHint="Double tap to permanently delete this account and all its transactions"
-            >
-              <MaterialIcons name="delete" size={16} color="#fff" />
-              <Text style={[dlStyles.btnText, { color: '#fff' }]}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </View>
+      )}
+    </DeleteModal>
   );
 }
 
-const dlStyles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  card: {
-    width: '100%',
-    borderRadius: 20,
-    alignItems: 'center',
-    paddingTop: 28,
-    paddingBottom: 0,
-    paddingHorizontal: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 12,
-  },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#F44336',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    shadowColor: '#F44336',
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 14,
-  },
+const chipStyles = StyleSheet.create({
   accountChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -172,49 +93,6 @@ const dlStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     flexShrink: 1,
-  },
-  message: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  warningRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 20,
-  },
-  warningText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFC107',
-  },
-  divider: {
-    width: '120%',
-    height: StyleSheet.hairlineWidth,
-  },
-  buttons: {
-    flexDirection: 'row',
-    width: '100%',
-  },
-  btn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 16,
-  },
-  cancelBtn: {
-    borderRightWidth: StyleSheet.hairlineWidth,
-  },
-  deleteBtn: {
-    // no extra style needed
-  },
-  btnText: {
-    fontSize: 15,
-    fontWeight: '600',
   },
 });
 
@@ -259,7 +137,7 @@ function AccountCard({ account, balance, currency, onPress }: CardProps) {
 // ─── AccountsScreen ──────────────────────────────────────────────────────────
 
 export default function AccountsScreen() {
-  const { isDark, accentColor, onAccentColor, bg, subColor, borderColor } = useAppTheme();
+  const { accentColor, onAccentColor, bg, subColor, borderColor } = useAppTheme();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -268,6 +146,7 @@ export default function AccountsScreen() {
   const setPeriod = useUIStore((s) => s.setPeriod);
   const [deletingAccount, setDeletingAccount] = useState<Account | null>(null);
   const [deleteTxCount, setDeleteTxCount] = useState(0);
+  const [deleteTxferCount, setDeleteTxferCount] = useState(0); // transfers are kept, not deleted
 
   const accounts = useAccountsStore((s) => s.accounts);
   const setAccounts = useAccountsStore((s) => s.setAccounts);
@@ -324,9 +203,10 @@ export default function AccountsScreen() {
     (account: Account) => {
       if (accounts.length <= 1) return;
       setDeleteTxCount(transactions.filter((t) => t.account_id === account.id).length);
+      setDeleteTxferCount(transfers.filter((t) => t.from_account_id === account.id || t.to_account_id === account.id).length);
       setDeletingAccount(account);
     },
-    [accounts, transactions]
+    [accounts, transactions, transfers]
   );
 
   const handleDeleteCancel = useCallback(() => {
@@ -338,8 +218,8 @@ export default function AccountsScreen() {
     const account = deletingAccount;
     setDeletingAccount(null);
     await recurringDb.removeByAccount(account.id);
-    await transfersDb.removeByAccount(account.id);
     await transactionsDb.removeByAccount(account.id);
+    // Transfers are intentionally kept — surviving accounts will show "Unknown" for the deleted side.
     await accountsDb.remove(account.id);
     const [accs, txns, tfrs] = await Promise.all([accountsDb.getAll(), transactionsDb.getAll(), transfersDb.getAll()]);
     setAccounts(accs);
@@ -420,6 +300,7 @@ export default function AccountsScreen() {
       <DeleteConfirmModal
         account={deletingAccount}
         txCount={deleteTxCount}
+        txferCount={deleteTxferCount}
         onCancel={handleDeleteCancel}
         onConfirm={handleDeleteConfirm}
       />

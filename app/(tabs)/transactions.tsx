@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Snackbar } from 'react-native-snackbar';
 import {
   FlatList,
-  Modal,
-  Pressable,
   ScrollView,
   SectionList,
   StyleSheet,
@@ -13,6 +11,7 @@ import {
 import { useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
+import DeleteModal from '@/shared/components/DeleteModal';
 import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
 import TransferSheet from '@/features/transfers/TransferSheet';
 import {
@@ -52,110 +51,78 @@ interface DeleteTxModalProps {
 }
 
 function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps) {
-  const { isDark, cardBg, inputBg, textColor, subColor, borderColor } = useAppTheme();
+  const { inputBg, textColor, subColor, borderColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
 
   return (
-    <Modal visible={tx !== null} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={dlStyles.backdrop} onPress={onCancel}>
-        <Pressable style={[dlStyles.card, { backgroundColor: cardBg }]} onPress={() => {}}>
-          {/* Icon */}
-          <View style={dlStyles.iconCircle}>
-            <MaterialIcons name="delete-forever" size={30} color="#fff" />
+    <DeleteModal
+      visible={tx !== null}
+      title="Delete Transaction?"
+      message="This transaction will be permanently removed from your records."
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    >
+      {tx && (
+        <View style={[chipStyles.txChip, { backgroundColor: inputBg, borderColor }]}>
+          <View style={[chipStyles.chipIcon, { backgroundColor: tx.category_color || '#9E9E9E' }]}>
+            <MaterialIcons name={(tx.category_icon as any) || 'attach-money'} size={14} color="#fff" />
           </View>
-
-          <Text style={[dlStyles.title, { color: textColor }]}>Delete Transaction?</Text>
-
-          {/* Transaction chip */}
-          {tx && (
-            <View style={[dlStyles.txChip, { backgroundColor: inputBg, borderColor }]}>
-              <View style={[dlStyles.chipIcon, { backgroundColor: tx.category_color || '#9E9E9E' }]}>
-                <MaterialIcons name={(tx.category_icon as any) || 'attach-money'} size={14} color="#fff" />
-              </View>
-              <View style={dlStyles.chipInfo}>
-                <Text style={[dlStyles.chipName, { color: textColor }]} numberOfLines={1}>
-                  {tx.category_name}
-                </Text>
-                <Text style={[dlStyles.chipSub, { color: subColor }]} numberOfLines={1}>
-                  {tx.account_name} · {tx.date}
-                </Text>
-              </View>
-              <Text style={[dlStyles.chipAmount, { color: tx.type === 'income' ? '#4CAF50' : '#F44336' }]}>
-                {formatAmount(tx.amount, currency, tx.type, numberFormat)}
-              </Text>
-            </View>
-          )}
-
-          <Text style={[dlStyles.message, { color: subColor }]}>
-            This transaction will be permanently removed from your records.
+          <View style={chipStyles.chipInfo}>
+            <Text style={[chipStyles.chipName, { color: textColor }]} numberOfLines={1}>
+              {tx.category_name}
+            </Text>
+            <Text style={[chipStyles.chipSub, { color: subColor }]} numberOfLines={1}>
+              {tx.account_name} · {tx.date}
+            </Text>
+          </View>
+          <Text style={[chipStyles.chipAmount, { color: tx.type === 'income' ? '#4CAF50' : '#F44336' }]}>
+            {formatAmount(tx.amount, currency, tx.type, numberFormat)}
           </Text>
-
-          <View style={dlStyles.warningRow}>
-            <MaterialIcons name="warning-amber" size={14} color="#FFC107" />
-            <Text style={dlStyles.warningText}>This action cannot be undone.</Text>
-          </View>
-
-          <View style={[dlStyles.divider, { backgroundColor: borderColor }]} />
-          <View style={dlStyles.buttons}>
-            <TouchableOpacity
-              style={[dlStyles.btn, dlStyles.cancelBtn, { borderColor }]}
-              onPress={onCancel}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-            >
-              <Text style={[dlStyles.btnText, { color: textColor }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={dlStyles.btn} onPress={onConfirm} activeOpacity={0.7} accessibilityRole="button" accessibilityHint="Double tap to permanently delete">
-              <MaterialIcons name="delete" size={16} color="#F44336" />
-              <Text style={[dlStyles.btnText, { color: '#F44336' }]}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </View>
+      )}
+    </DeleteModal>
   );
 }
 
-const dlStyles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  card: {
-    width: '100%',
-    borderRadius: 20,
-    alignItems: 'center',
-    paddingTop: 28,
-    paddingBottom: 0,
-    paddingHorizontal: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 12,
-  },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#F44336',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    shadowColor: '#F44336',
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 14,
-  },
+// ─── DeleteTransferModal ──────────────────────────────────────────────────────
+
+interface DeleteTransferModalProps {
+  transfer: TransferWithDetails | null;
+  currency: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function DeleteTransferModal({ transfer, currency, onCancel, onConfirm }: DeleteTransferModalProps) {
+  const { inputBg, textColor, subColor, borderColor } = useAppTheme();
+  const numberFormat = useSettingsStore((s) => s.numberFormat);
+
+  return (
+    <DeleteModal
+      visible={transfer !== null}
+      title="Delete Transfer?"
+      message="This transfer will be permanently removed from your records."
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    >
+      {transfer && (
+        <View style={[chipStyles.txChip, { backgroundColor: inputBg, borderColor }]}>
+          <View style={chipStyles.chipInfo}>
+            <Text style={[chipStyles.chipName, { color: textColor }]} numberOfLines={1}>
+              {transfer.from_account_name ?? 'Unknown'} → {transfer.to_account_name ?? 'Unknown'}
+            </Text>
+            <Text style={[chipStyles.chipSub, { color: subColor }]}>{transfer.date}</Text>
+          </View>
+          <Text style={[chipStyles.chipAmount, { color: textColor }]}>
+            {formatAmount(transfer.amount, currency, 'expense', numberFormat)}
+          </Text>
+        </View>
+      )}
+    </DeleteModal>
+  );
+}
+
+const chipStyles = StyleSheet.create({
   txChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -189,114 +156,7 @@ const dlStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  message: {
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 19,
-    marginBottom: 10,
-  },
-  warningRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 20,
-  },
-  warningText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFC107',
-  },
-  divider: {
-    width: '120%',
-    height: StyleSheet.hairlineWidth,
-  },
-  buttons: {
-    flexDirection: 'row',
-    width: '100%',
-  },
-  btn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 16,
-  },
-  cancelBtn: {
-    borderRightWidth: StyleSheet.hairlineWidth,
-  },
-  btnText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
 });
-
-// ─── DeleteTransferModal ──────────────────────────────────────────────────────
-
-interface DeleteTransferModalProps {
-  transfer: TransferWithDetails | null;
-  currency: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-}
-
-function DeleteTransferModal({ transfer, currency, onCancel, onConfirm }: DeleteTransferModalProps) {
-  const { cardBg, inputBg, textColor, subColor, borderColor } = useAppTheme();
-  const numberFormat = useSettingsStore((s) => s.numberFormat);
-
-  return (
-    <Modal visible={transfer !== null} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={dlStyles.backdrop} onPress={onCancel}>
-        <Pressable style={[dlStyles.card, { backgroundColor: cardBg }]} onPress={() => {}}>
-          <View style={dlStyles.iconCircle}>
-            <MaterialIcons name="delete-forever" size={30} color="#fff" />
-          </View>
-
-          <Text style={[dlStyles.title, { color: textColor }]}>Delete Transfer?</Text>
-
-          {transfer && (
-            <View style={[dlStyles.txChip, { backgroundColor: inputBg, borderColor }]}>
-              <View style={dlStyles.chipInfo}>
-                <Text style={[dlStyles.chipName, { color: textColor }]} numberOfLines={1}>
-                  {transfer.from_account_name} → {transfer.to_account_name}
-                </Text>
-                <Text style={[dlStyles.chipSub, { color: subColor }]}>{transfer.date}</Text>
-              </View>
-              <Text style={[dlStyles.chipAmount, { color: textColor }]}>
-                {formatAmount(transfer.amount, currency, 'expense', numberFormat)}
-              </Text>
-            </View>
-          )}
-
-          <Text style={[dlStyles.message, { color: subColor }]}>
-            This transfer will be permanently removed from your records.
-          </Text>
-
-          <View style={dlStyles.warningRow}>
-            <MaterialIcons name="warning-amber" size={14} color="#FFC107" />
-            <Text style={dlStyles.warningText}>This action cannot be undone.</Text>
-          </View>
-
-          <View style={[dlStyles.divider, { backgroundColor: borderColor }]} />
-          <View style={dlStyles.buttons}>
-            <TouchableOpacity
-              style={[dlStyles.btn, dlStyles.cancelBtn, { borderColor }]}
-              onPress={onCancel}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-            >
-              <Text style={[dlStyles.btnText, { color: textColor }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={dlStyles.btn} onPress={onConfirm} activeOpacity={0.7} accessibilityRole="button" accessibilityHint="Double tap to permanently delete">
-              <MaterialIcons name="delete" size={16} color="#F44336" />
-              <Text style={[dlStyles.btnText, { color: '#F44336' }]}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
 
 // ─── TransactionRow ───────────────────────────────────────────────────────────
 
@@ -370,7 +230,7 @@ interface TransferRowProps {
 function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, currency, onPress }: TransferRowProps) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const isOutgoing = transfer.from_account_id === selectedAccountId;
-  const otherName = isOutgoing ? transfer.to_account_name : transfer.from_account_name;
+  const otherName = (isOutgoing ? transfer.to_account_name : transfer.from_account_name) ?? 'Unknown';
   const label = isOutgoing ? `To ${otherName}` : `From ${otherName}`;
   const amountColor = isOutgoing ? '#F44336' : '#4CAF50';
   const amountType = isOutgoing ? 'expense' : 'income';
@@ -662,7 +522,7 @@ function CategoryGroupRow({
             ? group.transfers.map((t, index) => {
                 const isLast = index === group.transfers!.length - 1;
                 const isOutgoing = t.from_account_id === selectedAccountId;
-                const label = isOutgoing ? `To ${t.to_account_name}` : `From ${t.from_account_name}`;
+                const label = isOutgoing ? `To ${t.to_account_name ?? 'Unknown'}` : `From ${t.from_account_name ?? 'Unknown'}`;
                 const amountColor = isOutgoing ? '#F44336' : '#4CAF50';
                 const amountType = isOutgoing ? 'expense' : 'income';
                 return (

@@ -82,10 +82,10 @@ export interface TransactionWithDetails extends Transaction {
 }
 
 export interface TransferWithDetails extends Transfer {
-  from_account_name: string;
+  from_account_name: string | null;
   from_account_color: string | null;
   from_account_icon: string | null;
-  to_account_name: string;
+  to_account_name: string | null;
   to_account_color: string | null;
   to_account_icon: string | null;
 }

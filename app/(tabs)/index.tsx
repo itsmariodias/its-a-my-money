@@ -423,7 +423,7 @@ export default function DashboardScreen() {
               if (listItem.kind === 'transfer') {
                 const t = listItem.item;
                 const isOutgoing = t.from_account_id === selectedId;
-                const otherName = isOutgoing ? t.to_account_name : t.from_account_name;
+                const otherName = (isOutgoing ? t.to_account_name : t.from_account_name) ?? 'Unknown';
                 const amountColor = isOutgoing ? '#F44336' : '#4CAF50';
                 const amountType = isOutgoing ? 'expense' : 'income';
                 return (

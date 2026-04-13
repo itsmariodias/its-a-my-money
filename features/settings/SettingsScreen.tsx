@@ -19,6 +19,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as LegacyFS from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { Text } from '@/shared/components/Themed';
+import DeleteModal from '@/shared/components/DeleteModal';
 import InfoModal from '@/shared/components/InfoModal';
 import OperationLockModal from '@/shared/components/OperationLockModal';
 import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb, useRecurringDb } from '@/db';
@@ -76,45 +77,28 @@ function DeleteCategoryModal({
   category: Category | null; txCount: number;
   onCancel: () => void; onConfirm: () => void;
 }) {
-  const { isDark, cardBg: bg, inputBg, textColor, subColor, borderColor } = useAppTheme();
+  const { inputBg, textColor, borderColor } = useAppTheme();
   return (
-    <Modal visible={!!category} animationType="fade" transparent onRequestClose={onCancel}>
-      <Pressable style={styles.modalBackdrop} onPress={onCancel} />
-      <View style={styles.modalCenter} pointerEvents="box-none">
-        <View style={[styles.modalCard, { backgroundColor: bg }]}>
-          <View style={styles.modalIconWrap}>
-            <MaterialIcons name="delete-forever" size={32} color="#F44336" />
+    <DeleteModal
+      visible={!!category}
+      title="Delete Category?"
+      message={
+        txCount > 0
+          ? `This will also permanently delete ${txCount} transaction${txCount !== 1 ? 's' : ''} linked to this category.`
+          : 'This category will be permanently removed.'
+      }
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    >
+      {category && (
+        <View style={[styles.modalChip, { backgroundColor: inputBg, borderColor }]}>
+          <View style={[styles.catCircle, { backgroundColor: category.color }]}>
+            <MaterialIcons name={(category.icon as any) || 'label'} size={16} color="#fff" />
           </View>
-          <Text style={[styles.modalTitle, { color: textColor }]}>Delete Category?</Text>
-          {category && (
-            <View style={[styles.modalChip, { backgroundColor: inputBg, borderColor }]}>
-              <View style={[styles.catCircle, { backgroundColor: category.color }]}>
-                <MaterialIcons name={(category.icon as any) || 'label'} size={16} color="#fff" />
-              </View>
-              <Text style={[styles.modalChipText, { color: textColor }]}>{category.name}</Text>
-            </View>
-          )}
-          {txCount > 0 && (
-            <View style={[styles.modalWarn, { backgroundColor: isDark ? '#2d2000' : '#fffbeb' }]}>
-              <MaterialIcons name="warning" size={14} color="#FFC107" />
-              <Text style={[styles.modalWarnText, { color: '#FFC107' }]}>
-                Also deletes {txCount} transaction{txCount !== 1 ? 's' : ''}
-              </Text>
-            </View>
-          )}
-          <View style={[styles.modalDivider, { backgroundColor: borderColor }]} />
-          <View style={styles.modalBtns}>
-            <TouchableOpacity style={styles.modalBtnCancel} onPress={onCancel}>
-              <Text style={[styles.modalBtnCancelText, { color: subColor }]}>Cancel</Text>
-            </TouchableOpacity>
-            <View style={[styles.modalBtnDivider, { backgroundColor: borderColor }]} />
-            <TouchableOpacity style={styles.modalBtnDelete} onPress={onConfirm}>
-              <Text style={styles.modalBtnDeleteText}>Delete</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={[styles.modalChipText, { color: textColor }]}>{category.name}</Text>
         </View>
-      </View>
-    </Modal>
+      )}
+    </DeleteModal>
   );
 }
 

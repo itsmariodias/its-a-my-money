@@ -22,6 +22,9 @@ export function useAccountsDb() {
       ),
 
     remove: (id: number) => db.runAsync('DELETE FROM accounts WHERE id=?', id),
+
+    adjustInitialBalance: (id: number, delta: number) =>
+      db.runAsync('UPDATE accounts SET initial_balance = initial_balance + ? WHERE id=?', delta, id),
   };
 }
 
@@ -292,8 +295,8 @@ const TRANSFER_SELECT = `
     fa.name as from_account_name, fa.color as from_account_color, fa.icon as from_account_icon,
     ta.name as to_account_name, ta.color as to_account_color, ta.icon as to_account_icon
   FROM transfers t
-  JOIN accounts fa ON fa.id = t.from_account_id
-  JOIN accounts ta ON ta.id = t.to_account_id
+  LEFT JOIN accounts fa ON fa.id = t.from_account_id
+  LEFT JOIN accounts ta ON ta.id = t.to_account_id
 `;
 
 export function useTransfersDb() {
@@ -323,6 +326,11 @@ export function useTransfersDb() {
       ),
 
     remove: (id: number) => db.runAsync('DELETE FROM transfers WHERE id=?', id),
+
+    getByAccount: (accountId: number) =>
+      db.getAllAsync<Transfer>(
+        'SELECT * FROM transfers WHERE from_account_id=? OR to_account_id=?', accountId, accountId
+      ),
 
     removeByAccount: (accountId: number) =>
       db.runAsync('DELETE FROM transfers WHERE from_account_id=? OR to_account_id=?', accountId, accountId),
