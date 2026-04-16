@@ -101,11 +101,12 @@ const chipStyles = StyleSheet.create({
 interface CardProps {
   account: Account;
   balance: number;
+  pctChange: number | null;
   currency: string;
   onPress: () => void;
 }
 
-function AccountCard({ account, balance, currency, onPress }: CardProps) {
+function AccountCard({ account, balance, pctChange, currency, onPress }: CardProps) {
   const { cardBg, textColor, subColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const iconBg = account.color ?? '#55A3FF';
@@ -125,6 +126,11 @@ function AccountCard({ account, balance, currency, onPress }: CardProps) {
       </View>
       <View style={styles.cardInfo}>
         <Text style={[styles.cardName, { color: textColor }]} numberOfLines={1}>{account.name}</Text>
+        {pctChange !== null && (
+          <Text style={[styles.pctChange, { color: pctChange >= 0 ? '#4CAF50' : '#F44336' }]}>
+            {pctChange >= 0 ? '▲' : '▼'} {Math.abs(pctChange).toFixed(1)}%
+          </Text>
+        )}
       </View>
       <Text style={[styles.cardBalance, { color: balanceColor }]}>
         {formatAmount(balance, currency, undefined, numberFormat)}
@@ -161,6 +167,7 @@ export default function AccountsScreen() {
   const recurringDb = useRecurringDb();
   const currency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const showPctChange = useSettingsStore((s) => s.showPctChange);
 
   useFocusEffect(
     useCallback(() => {
@@ -194,10 +201,50 @@ export default function AccountsScreen() {
     return map;
   }, [accounts, transactions, transfers, dateRange]);
 
+  const prevBalanceMap = useMemo<Record<number, number>>(() => {
+    if (!showPctChange) return {};
+    const map: Record<number, number> = {};
+    for (const acc of accounts) {
+      const txNet = transactions
+        .filter((t) => t.account_id === acc.id && t.date < dateRange.start)
+        .reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
+      const transferNet = transfers
+        .filter((t) => t.date < dateRange.start)
+        .reduce((sum, t) => {
+          if (t.from_account_id === acc.id) return sum - t.amount;
+          if (t.to_account_id === acc.id) return sum + t.amount;
+          return sum;
+        }, 0);
+      map[acc.id] = acc.initial_balance + txNet + transferNet;
+    }
+    return map;
+  }, [showPctChange, accounts, transactions, transfers, dateRange]);
+
+  const pctChangeMap = useMemo<Record<number, number | null>>(() => {
+    if (!showPctChange) return {};
+    const map: Record<number, number | null> = {};
+    for (const acc of accounts) {
+      const prev = prevBalanceMap[acc.id] ?? 0;
+      const curr = balanceMap[acc.id] ?? acc.initial_balance;
+      if (prev === 0 || curr === prev) { map[acc.id] = null; continue; }
+      map[acc.id] = ((curr - prev) / Math.abs(prev)) * 100;
+    }
+    return map;
+  }, [showPctChange, accounts, balanceMap, prevBalanceMap]);
+
   const totalBalance = useMemo(
     () => Object.values(balanceMap).reduce((s, v) => s + v, 0),
     [balanceMap]
   );
+
+  const prevTotalBalance = useMemo(
+    () => Object.values(prevBalanceMap).reduce((s, v) => s + v, 0),
+    [prevBalanceMap]
+  );
+
+  const totalPctChange = prevTotalBalance === 0 || totalBalance === prevTotalBalance
+    ? null
+    : ((totalBalance - prevTotalBalance) / Math.abs(prevTotalBalance)) * 100;
 
   const handleDeletePress = useCallback(
     (account: Account) => {
@@ -251,6 +298,11 @@ export default function AccountsScreen() {
           <Text style={[styles.totalAmount, { color: onAccentColor }]}>
             {formatAmount(totalBalance, currency, undefined, numberFormat)}
           </Text>
+          {totalPctChange !== null && (
+            <Text style={[styles.totalPct, { color: onAccentColor }]}>
+              {totalPctChange >= 0 ? '▲' : '▼'} {Math.abs(totalPctChange).toFixed(1)}%
+            </Text>
+          )}
           <Text style={[styles.totalSub, { color: onAccentColor + 'A6' }]}>
             as of {periodNavLabel(periodMode, periodDate)} · {accounts.length} account{accounts.length !== 1 ? 's' : ''}
           </Text>
@@ -267,6 +319,7 @@ export default function AccountsScreen() {
               key={acc.id}
               account={acc}
               balance={balanceMap[acc.id] ?? acc.initial_balance}
+              pctChange={pctChangeMap[acc.id] ?? null}
               currency={currency}
               onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
             />
@@ -357,6 +410,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 4,
   },
+  totalPct: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 4,
+  },
   totalSub: {
     color: 'rgba(255,255,255,0.7)',
     fontSize: 13,
@@ -380,6 +438,11 @@ const styles = StyleSheet.create({
   cardInfo: {
     flex: 1,
     gap: 2,
+  },
+  pctChange: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
   },
   cardName: {
     fontSize: 16,

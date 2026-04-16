@@ -33,6 +33,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Each account has a name, icon, color, currency, and initial balance
 - Swipe left to delete (with cascade delete of linked transactions)
 - Running balance calculated from initial balance + net transactions
+- P&L stats — percentage change vs. previous period shown on each account card and total balance
 
 **Cloud Backup**
 - Automatic Google Drive backup — daily, weekly, or monthly
@@ -55,6 +56,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Accent color — 8 color presets
 - Number format — US, European, French, Indian, or no-grouping
 - Biometric lock — fingerprint/Face ID to protect the app
+- Show P&L Stats toggle — enable/disable percentage change indicators on the Accounts tab
 - Manage income and expense categories (add, edit, delete)
 - Manage recurring transactions
 - Export all data as JSON (includes theme preference)

@@ -70,6 +70,7 @@ function RootLayoutNav() {
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
   const setNumberFormat = useSettingsStore((s) => s.setNumberFormat);
   const setBiometricLock = useSettingsStore((s) => s.setBiometricLock);
+  const setShowPctChange = useSettingsStore((s) => s.setShowPctChange);
   const setThemeId = useSettingsStore((s) => s.setThemeId);
   const biometricLock = useSettingsStore((s) => s.biometricLock);
 
@@ -85,6 +86,7 @@ function RootLayoutNav() {
     settingsDb.get('currency').then((row) => { if (row) setCurrency(row.value); });
     settingsDb.get('accent_color').then((row) => { if (row) setAccentColor(row.value); });
     settingsDb.get('number_format').then((row) => { if (row) setNumberFormat(row.value); });
+    settingsDb.get('show_pct_change').then((row) => { if (row) setShowPctChange(row.value === 'true'); });
     settingsDb.get('biometric_lock').then((row) => {
       if (row) {
         const enabled = row.value === 'true';

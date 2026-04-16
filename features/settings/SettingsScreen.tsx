@@ -128,6 +128,8 @@ export default function SettingsScreen() {
   const setNumberFormat = useSettingsStore((s) => s.setNumberFormat);
   const biometricLock = useSettingsStore((s) => s.biometricLock);
   const setBiometricLock = useSettingsStore((s) => s.setBiometricLock);
+  const showPctChange = useSettingsStore((s) => s.showPctChange);
+  const setShowPctChange = useSettingsStore((s) => s.setShowPctChange);
   const setAccounts = useAccountsStore((s) => s.setAccounts);
   const setTransactions = useTransactionsStore((s) => s.setTransactions);
   const setTransfers = useTransfersStore((s) => s.setTransfers);
@@ -209,6 +211,12 @@ export default function SettingsScreen() {
     const newValue = !biometricLock;
     await settingsDb.set('biometric_lock', String(newValue));
     setBiometricLock(newValue);
+  };
+
+  const handlePctChangeToggle = async () => {
+    const newValue = !showPctChange;
+    await settingsDb.set('show_pct_change', String(newValue));
+    setShowPctChange(newValue);
   };
 
   const filteredCurrencies = currencySearch.trim()
@@ -564,6 +572,20 @@ export default function SettingsScreen() {
               name={biometricLock ? 'toggle-on' : 'toggle-off'}
               size={36}
               color={biometricLock ? accentColor : subColor}
+            />
+          </TouchableOpacity>
+
+          <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
+
+          <TouchableOpacity style={styles.row} onPress={handlePctChangeToggle} activeOpacity={0.7}>
+            <View style={[styles.rowIcon, { backgroundColor: accentColor + '20' }]}>
+              <MaterialIcons name="trending-up" size={20} color={accentColor} />
+            </View>
+            <Text style={[styles.rowLabel, { color: textColor }]}>Show P&L Stats</Text>
+            <MaterialIcons
+              name={showPctChange ? 'toggle-on' : 'toggle-off'}
+              size={36}
+              color={showPctChange ? accentColor : subColor}
             />
           </TouchableOpacity>
         </View>

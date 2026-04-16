@@ -255,6 +255,7 @@ User preferences are persisted in SQLite (`settings` table, key-value) and synce
 - **Accent color** — hex string stored as `accent_color`. All screens read it from the store; never hardcode `#2f95dc`.
 - **Number format** — locale string (`en-US`, `de-DE`, `fr-FR`, `en-IN`, `plain`). Pass as 4th arg to `formatAmount()`.
 - **Biometric lock** — boolean. When enabled, locks the app after 3+ seconds in background. Uses `expo-local-authentication`. The 3-second threshold prevents lock during brief external activities (Google Sign-In, share sheets).
+- **Show P&L Stats** — boolean (`show_pct_change`). When enabled, shows percentage change vs. previous period on each account card and the total balance card in the Accounts tab. Defaults to `true`.
 - **Cloud Backup** — Google Drive backup settings (see below).
 
 ### Cloud Backup (Google Drive)
