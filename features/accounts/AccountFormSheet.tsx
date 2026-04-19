@@ -23,7 +23,7 @@ import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
-import type { Account } from '@/types';
+import type { Account, AccountType } from '@/types';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -82,6 +82,9 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
   const [initialBalance, setInitialBalance] = useState('0');
   const [color, setColor] = useState(PRESET_COLORS[0]);
   const [icon, setIcon] = useState<string>(PRESET_ICONS[0]);
+  const [accountType, setAccountType] = useState<AccountType>('cash');
+  const [currentValue, setCurrentValue] = useState('');
+  const [currentValueTouched, setCurrentValueTouched] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
 
@@ -92,12 +95,17 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
       setInitialBalance(String(account.initial_balance));
       setColor(account.color ?? PRESET_COLORS[0]);
       setIcon(account.icon ?? PRESET_ICONS[0]);
+      setAccountType(account.account_type ?? 'cash');
+      setCurrentValue(account.current_value != null ? String(account.current_value) : '');
     } else {
       setName('');
       setInitialBalance('0');
       setColor(PRESET_COLORS[0]);
       setIcon(PRESET_ICONS[0]);
+      setAccountType('cash');
+      setCurrentValue('');
     }
+    setCurrentValueTouched(false);
     setAttempted(false);
   }, [isOpen, account]);
 
@@ -105,11 +113,31 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
     setAttempted(true);
     if (!name.trim()) return;
     const balance = parseFloat(initialBalance) || 0;
+    const parsedCurrent = currentValue.trim() === '' ? null : parseFloat(currentValue);
+    let current_value = accountType === 'investment' && parsedCurrent !== null && !isNaN(parsedCurrent)
+      ? parsedCurrent
+      : null;
+
+    // When editing an existing investment account and the user bumped the invested amount
+    // without touching the market value, shift current_value by the same delta so P&L
+    // only reflects market movement, not a bookkeeping edit.
+    if (account && account.account_type === 'investment' && accountType === 'investment'
+        && !currentValueTouched && current_value !== null) {
+      const delta = balance - account.initial_balance;
+      if (delta !== 0) current_value = current_value + delta;
+    }
+
     try {
       if (account) {
-        await accountsDb.update(account.id, { name: name.trim(), initial_balance: balance, currency: account.currency, color, icon });
+        await accountsDb.update(account.id, {
+          name: name.trim(), initial_balance: balance, currency: account.currency,
+          color, icon, account_type: accountType, current_value,
+        });
       } else {
-        await accountsDb.insert({ name: name.trim(), initial_balance: balance, currency: 'USD', color, icon });
+        await accountsDb.insert({
+          name: name.trim(), initial_balance: balance, currency: 'USD',
+          color, icon, account_type: accountType, current_value,
+        });
       }
       const updated = await accountsDb.getAll();
       setAccounts(updated);
@@ -193,6 +221,31 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
+              {/* Type toggle */}
+              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Account Type</Text>
+              <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
+                <TouchableOpacity
+                  style={[styles.typeBtn, accountType === 'cash' && { backgroundColor: accentColor }]}
+                  onPress={() => setAccountType('cash')}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: accountType === 'cash' }}
+                >
+                  <Text style={[styles.typeBtnText, { color: accountType === 'cash' ? onAccentColor : subTextColor }]}>
+                    Cash
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeBtn, accountType === 'investment' && { backgroundColor: accentColor }]}
+                  onPress={() => setAccountType('investment')}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: accountType === 'investment' }}
+                >
+                  <Text style={[styles.typeBtnText, { color: accountType === 'investment' ? onAccentColor : subTextColor }]}>
+                    Investment
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               {/* Name */}
               <Text style={[styles.sectionLabel, { color: attempted && !name.trim() ? '#F44336' : subTextColor }]}>
                 {attempted && !name.trim() ? 'Account Name — required' : 'Account Name'}
@@ -211,8 +264,10 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                 <Text style={styles.errorText}>Account name is required</Text>
               )}
 
-              {/* Initial Balance */}
-              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Initial Balance</Text>
+              {/* Initial Balance / Invested */}
+              <Text style={[styles.sectionLabel, { color: subTextColor }]}>
+                {accountType === 'investment' ? 'Initial Invested' : 'Initial Balance'}
+              </Text>
               <View style={[styles.balanceContainer, { backgroundColor: inputBg, borderColor }]}>
                 <Text style={[styles.currencySymbol, { color: subTextColor }]}>{currencySymbol}</Text>
                 <TextInput
@@ -225,6 +280,25 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                   returnKeyType="done"
                 />
               </View>
+
+              {/* Current market value (investment only) */}
+              {accountType === 'investment' && (
+                <>
+                  <Text style={[styles.sectionLabel, { color: subTextColor }]}>Current Market Value</Text>
+                  <View style={[styles.balanceContainer, { backgroundColor: inputBg, borderColor }]}>
+                    <Text style={[styles.currencySymbol, { color: subTextColor }]}>{currencySymbol}</Text>
+                    <TextInput
+                      style={[styles.amountInput, { color: textColor }]}
+                      value={currentValue}
+                      onChangeText={(v) => { setCurrentValue(v); setCurrentValueTouched(true); }}
+                      placeholder="0.00"
+                      placeholderTextColor={subTextColor}
+                      keyboardType="decimal-pad"
+                      returnKeyType="done"
+                    />
+                  </View>
+                </>
+              )}
 
               {/* Color */}
               <Text style={[styles.sectionLabel, { color: subTextColor }]}>Color</Text>

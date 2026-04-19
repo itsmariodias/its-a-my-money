@@ -13,6 +13,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 **Dashboard**
 - Total balance and period income/expense summary
 - Spending breakdown by category as an animated donut chart — tap a slice to highlight it
+- Portfolio allocation donut — per-investment-account slices sized by invested amount, with live P&L % beside each
 - Recent transactions list
 - Filter by account or time period (day, month, year)
 
@@ -34,6 +35,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Swipe left to delete (with cascade delete of linked transactions)
 - Running balance calculated from initial balance + net transactions
 - P&L stats — percentage change vs. previous period shown on each account card and total balance
+- Investment accounts — track fixed deposits, mutual funds, trades alongside cash. Invested amount auto-computed from transfers and transactions; current market value is user-editable. P&L on each investment card is live market value vs. invested
 
 **Cloud Backup**
 - Automatic Google Drive backup — daily, weekly, or monthly

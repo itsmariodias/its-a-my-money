@@ -133,6 +133,8 @@ export function convertMonefyToExportData(records: MonefyRecord[]): ExportData {
     currency:        records.find((r) => r.account === name)?.currency ?? 'INR',
     color:           ACCOUNT_COLORS[i % ACCOUNT_COLORS.length],
     icon:            'account-balance-wallet',
+    account_type:    'cash',
+    current_value:   null,
     created_at:      now,
   }));
   const accountIdByName = new Map(accounts.map((a) => [a.name, a.id]));

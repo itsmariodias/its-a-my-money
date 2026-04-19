@@ -25,6 +25,11 @@ import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
+import {
+  accountFlowAsOf,
+  accountBalanceAsOf,
+  computePnL,
+} from '@/features/accounts/balanceUtils';
 import type { Account } from '@/types';
 
 // ─── DeleteConfirmModal ───────────────────────────────────────────────────────
@@ -101,16 +106,17 @@ const chipStyles = StyleSheet.create({
 interface CardProps {
   account: Account;
   balance: number;
-  pctChange: number | null;
+  stat: { amount: number; pct: number | null } | null;
   currency: string;
   onPress: () => void;
 }
 
-function AccountCard({ account, balance, pctChange, currency, onPress }: CardProps) {
+function AccountCard({ account, balance, stat, currency, onPress }: CardProps) {
   const { cardBg, textColor, subColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const iconBg = account.color ?? '#55A3FF';
   const balanceColor = balance >= 0 ? '#4CAF50' : '#F44336';
+  const statColor = stat ? (stat.amount >= 0 ? '#4CAF50' : '#F44336') : undefined;
 
   return (
     <TouchableOpacity
@@ -126,9 +132,10 @@ function AccountCard({ account, balance, pctChange, currency, onPress }: CardPro
       </View>
       <View style={styles.cardInfo}>
         <Text style={[styles.cardName, { color: textColor }]} numberOfLines={1}>{account.name}</Text>
-        {pctChange !== null && (
-          <Text style={[styles.pctChange, { color: pctChange >= 0 ? '#4CAF50' : '#F44336' }]}>
-            {pctChange >= 0 ? '▲' : '▼'} {Math.abs(pctChange).toFixed(1)}%
+        {stat && (
+          <Text style={[styles.pctChange, { color: statColor }]} numberOfLines={1}>
+            {stat.amount >= 0 ? '▲' : '▼'} {formatAmount(Math.abs(stat.amount), currency, undefined, numberFormat)}
+            {stat.pct !== null && ` (${Math.abs(stat.pct).toFixed(1)}%)`}
           </Text>
         )}
       </View>
@@ -182,55 +189,52 @@ export default function AccountsScreen() {
   );
 
   const dateRange = useMemo(() => getDateRange(periodMode, periodDate), [periodMode, periodDate]);
+  const isPastPeriod = useMemo(() => dateRange.end < new Date().toISOString().slice(0, 10), [dateRange]);
 
   const balanceMap = useMemo<Record<number, number>>(() => {
     const map: Record<number, number> = {};
     for (const acc of accounts) {
-      const txNet = transactions
-        .filter((t) => t.account_id === acc.id && t.date <= dateRange.end)
-        .reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
-      const transferNet = transfers
-        .filter((t) => t.date <= dateRange.end)
-        .reduce((sum, t) => {
-          if (t.from_account_id === acc.id) return sum - t.amount;
-          if (t.to_account_id === acc.id) return sum + t.amount;
-          return sum;
-        }, 0);
-      map[acc.id] = acc.initial_balance + txNet + transferNet;
+      map[acc.id] = accountBalanceAsOf(
+        acc, transactions, transfers,
+        { endInclusive: dateRange.end },
+        { marketValue: !isPastPeriod }
+      );
     }
     return map;
-  }, [accounts, transactions, transfers, dateRange]);
+  }, [accounts, transactions, transfers, dateRange, isPastPeriod]);
 
   const prevBalanceMap = useMemo<Record<number, number>>(() => {
     if (!showPctChange) return {};
     const map: Record<number, number> = {};
     for (const acc of accounts) {
-      const txNet = transactions
-        .filter((t) => t.account_id === acc.id && t.date < dateRange.start)
-        .reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
-      const transferNet = transfers
-        .filter((t) => t.date < dateRange.start)
-        .reduce((sum, t) => {
-          if (t.from_account_id === acc.id) return sum - t.amount;
-          if (t.to_account_id === acc.id) return sum + t.amount;
-          return sum;
-        }, 0);
-      map[acc.id] = acc.initial_balance + txNet + transferNet;
+      // Period-over-period is only meaningful for cash accounts.
+      map[acc.id] = accountFlowAsOf(acc, transactions, transfers, { endExclusive: dateRange.start });
     }
     return map;
   }, [showPctChange, accounts, transactions, transfers, dateRange]);
 
-  const pctChangeMap = useMemo<Record<number, number | null>>(() => {
+  const statMap = useMemo<Record<number, { amount: number; pct: number | null } | null>>(() => {
     if (!showPctChange) return {};
-    const map: Record<number, number | null> = {};
+    const map: Record<number, { amount: number; pct: number | null } | null> = {};
     for (const acc of accounts) {
-      const prev = prevBalanceMap[acc.id] ?? 0;
-      const curr = balanceMap[acc.id] ?? acc.initial_balance;
-      if (prev === 0 || curr === prev) { map[acc.id] = null; continue; }
-      map[acc.id] = ((curr - prev) / Math.abs(prev)) * 100;
+      if (acc.account_type === 'investment') {
+        if (isPastPeriod) { map[acc.id] = null; continue; }
+        const r = computePnL(acc, transactions, transfers, { endInclusive: dateRange.end });
+        map[acc.id] = { amount: r.pnl, pct: r.pnlPct };
+      } else {
+        const prev = prevBalanceMap[acc.id] ?? 0;
+        const curr = balanceMap[acc.id] ?? acc.initial_balance;
+        const amount = curr - prev;
+        if (amount === 0) { map[acc.id] = null; continue; }
+        const pct = prev === 0 ? null : (amount / Math.abs(prev)) * 100;
+        map[acc.id] = { amount, pct };
+      }
     }
     return map;
-  }, [showPctChange, accounts, balanceMap, prevBalanceMap]);
+  }, [showPctChange, isPastPeriod, accounts, transactions, transfers, dateRange, balanceMap, prevBalanceMap]);
+
+  const cashAccounts = useMemo(() => accounts.filter((a) => a.account_type !== 'investment'), [accounts]);
+  const investmentAccounts = useMemo(() => accounts.filter((a) => a.account_type === 'investment'), [accounts]);
 
   const totalBalance = useMemo(
     () => Object.values(balanceMap).reduce((s, v) => s + v, 0),
@@ -314,16 +318,40 @@ export default function AccountsScreen() {
             <Text style={[styles.emptyText, { color: subColor }]}>No accounts yet</Text>
           </View>
         ) : (
-          accounts.map((acc) => (
-            <AccountCard
-              key={acc.id}
-              account={acc}
-              balance={balanceMap[acc.id] ?? acc.initial_balance}
-              pctChange={pctChangeMap[acc.id] ?? null}
-              currency={currency}
-              onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
-            />
-          ))
+          <>
+            {cashAccounts.length > 0 && (
+              <>
+                {investmentAccounts.length > 0 && (
+                  <Text style={[styles.sectionHeader, { color: subColor }]}>CASH</Text>
+                )}
+                {cashAccounts.map((acc) => (
+                  <AccountCard
+                    key={acc.id}
+                    account={acc}
+                    balance={balanceMap[acc.id] ?? acc.initial_balance}
+                    stat={statMap[acc.id] ?? null}
+                    currency={currency}
+                    onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
+                  />
+                ))}
+              </>
+            )}
+            {investmentAccounts.length > 0 && (
+              <>
+                <Text style={[styles.sectionHeader, { color: subColor }]}>INVESTMENTS</Text>
+                {investmentAccounts.map((acc) => (
+                  <AccountCard
+                    key={acc.id}
+                    account={acc}
+                    balance={balanceMap[acc.id] ?? acc.initial_balance}
+                    stat={statMap[acc.id] ?? null}
+                    currency={currency}
+                    onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
+                  />
+                ))}
+              </>
+            )}
+          </>
         )}
 
         <TouchableOpacity
@@ -459,5 +487,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
+  },
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginTop: 8,
+    marginBottom: 2,
+    paddingHorizontal: 2,
   },
 });

@@ -3,7 +3,8 @@ import type { Account } from '@/types';
 
 const makeAccount = (overrides: Partial<Account> = {}): Account => ({
   id: 1, name: 'Cash', initial_balance: 0, currency: 'USD',
-  color: null, icon: null, created_at: '2026-01-01T00:00:00Z',
+  color: null, icon: null, account_type: 'cash', current_value: null,
+  created_at: '2026-01-01T00:00:00Z',
   ...overrides,
 });
 

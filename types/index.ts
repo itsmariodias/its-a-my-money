@@ -1,6 +1,7 @@
 export type TransactionType = 'income' | 'expense';
 export type BudgetPeriod = 'monthly' | 'weekly' | 'yearly';
 export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type AccountType = 'cash' | 'investment';
 
 export interface Account {
   id: number;
@@ -9,6 +10,8 @@ export interface Account {
   currency: string;
   color: string | null;
   icon: string | null;
+  account_type: AccountType;
+  current_value: number | null;
   created_at: string;
 }
 

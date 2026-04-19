@@ -18,6 +18,7 @@ import { Svg, Circle, G } from 'react-native-svg';
 import { router, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
+import AccountIcon from '@/shared/components/AccountIcon';
 import {
   PeriodSelector,
   getDateRange,
@@ -32,6 +33,11 @@ import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
+import {
+  accountBalanceAsOf,
+  aggregatePortfolio,
+  computePnL,
+} from '@/features/accounts/balanceUtils';
 
 const PIE_COLORS = [
   '#F44336', '#2196F3', '#9C27B0', '#FF9800', '#009688',
@@ -97,6 +103,7 @@ export default function DashboardScreen() {
   const periodDate = useUIStore((s) => s.periodDate);
   const setPeriod = useUIStore((s) => s.setPeriod);
   const [selectedSliceIdx, setSelectedSliceIdx] = useState<number | null>(null);
+  const [selectedPortfolioIdx, setSelectedPortfolioIdx] = useState<number | null>(null);
 
   const transactionsDb = useTransactionsDb();
   const accountsDb = useAccountsDb();
@@ -126,27 +133,38 @@ export default function DashboardScreen() {
   );
 
   const dateRange = useMemo(() => getDateRange(periodMode, periodDate), [periodMode, periodDate]);
+  const isPastPeriod = useMemo(() => dateRange.end < new Date().toISOString().slice(0, 10), [dateRange]);
 
-  // Balance at end of the selected period (cumulative)
+  // Balance at end of the selected period (cumulative).
+  // For current/future periods, investments contribute their market value.
+  // For past periods we have no historical valuation, so fall back to invested (flow).
   const totalBalance = useMemo(() => {
-    const txUpToEnd = transactions.filter(
-      (t) => t.date <= dateRange.end && (selectedId === null || t.account_id === selectedId)
+    const scope = selectedId !== null
+      ? accounts.filter((a) => a.id === selectedId)
+      : accounts;
+    return scope.reduce(
+      (sum, acc) => sum + accountBalanceAsOf(
+        acc, transactions, transfers,
+        { endInclusive: dateRange.end },
+        { marketValue: !isPastPeriod }
+      ),
+      0
     );
-    const txNet = txUpToEnd.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
-    const base = selectedId !== null
-      ? (accounts.find((a) => a.id === selectedId)?.initial_balance ?? 0)
-      : accounts.reduce((s, a) => s + a.initial_balance, 0);
-    // Transfers net to 0 across all accounts; only apply for single-account view
-    const transferNet = selectedId !== null
-      ? transfers
-          .filter((t) => t.date <= dateRange.end)
-          .reduce((sum, t) => {
-            if (t.from_account_id === selectedId) return sum - t.amount;
-            if (t.to_account_id === selectedId) return sum + t.amount;
-            return sum;
-          }, 0)
-      : 0;
-    return base + txNet + transferNet;
+  }, [accounts, transactions, transfers, selectedId, dateRange, isPastPeriod]);
+
+  // Portfolio aggregate + per-account breakdown. For past periods we show invested only — no historical market value exists.
+  const portfolio = useMemo(() => {
+    const filter = { endInclusive: dateRange.end };
+    const invAccounts = selectedId !== null
+      ? accounts.filter((a) => a.id === selectedId && a.account_type === 'investment')
+      : accounts.filter((a) => a.account_type === 'investment');
+    if (invAccounts.length === 0) return null;
+    const rows = invAccounts.map((acc) => ({
+      account: acc,
+      ...computePnL(acc, transactions, transfers, filter),
+    }));
+    const agg = aggregatePortfolio(invAccounts, transactions, transfers, filter);
+    return { ...agg, rows };
   }, [accounts, transactions, transfers, selectedId, dateRange]);
 
   // Transactions within the selected period (for income/expenses/pie/recent)
@@ -255,6 +273,57 @@ export default function DashboardScreen() {
     selectSlice(null);
   }, [pieData, periodExpenses, selectSlice]);
 
+  // Portfolio donut data — slices sized by invested amount
+  const portfolioChartData = useMemo(() => {
+    if (!portfolio) return [];
+    return portfolio.rows
+      .map((r, i) => ({
+        label: r.account.name,
+        color: r.account.color || PIE_COLORS[i % PIE_COLORS.length],
+        icon: r.account.icon || 'account-balance-wallet',
+        row: r,
+      }))
+      .sort((a, b) => b.row.invested - a.row.invested);
+  }, [portfolio]);
+
+  const portfolioResetKey = useMemo(
+    () => portfolioChartData.map((d) => d.label).join('|'),
+    [portfolioChartData]
+  );
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useMemo(() => { setSelectedPortfolioIdx(null); }, [portfolioResetKey]);
+
+  const portfolioChartWithFocus = useMemo(() => {
+    return portfolioChartData.map((item, i) => {
+      const isOther = selectedPortfolioIdx !== null && selectedPortfolioIdx !== i;
+      return { ...item, displayColor: isOther ? item.color + '55' : item.color };
+    });
+  }, [portfolioChartData, selectedPortfolioIdx]);
+
+  const selectPortfolioSlice = useCallback((idx: number | null) => {
+    setSelectedPortfolioIdx((prev) => (prev === idx ? null : idx));
+  }, []);
+
+  const handlePortfolioChartPress = useCallback((x: number, y: number) => {
+    if (!portfolio) return;
+    const dx = x - CHART_SIZE / 2;
+    const dy = y - CHART_SIZE / 2;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < INNER_R || dist > OUTER_R) {
+      selectPortfolioSlice(null);
+      return;
+    }
+    const angle = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
+    let cumulative = 0;
+    for (let i = 0; i < portfolioChartData.length; i++) {
+      const sliceDeg = (portfolioChartData[i].row.invested / portfolio.invested) * 360;
+      if (angle < cumulative + sliceDeg) { selectPortfolioSlice(i); return; }
+      cumulative += sliceDeg;
+    }
+    selectPortfolioSlice(null);
+  }, [portfolio, portfolioChartData, selectPortfolioSlice]);
+
   const selectedAccount = accounts.find((a) => a.id === selectedId) ?? null;
   const periodShort = shortPeriodLabel(periodMode, periodDate);
 
@@ -299,6 +368,130 @@ export default function DashboardScreen() {
             <Text style={[styles.summaryPeriod, { color: subTextColor }]}>{periodShort}</Text>
           </View>
         </View>
+
+        {/* Portfolio Summary */}
+        {portfolio && portfolio.invested > 0 && (
+          <View style={[styles.section, { backgroundColor: cardBg }]}>
+            <Text style={[styles.sectionTitle, { color: textColor }]}>
+              {portfolio.count > 1 ? 'Portfolio Allocation' : 'Investment'}
+            </Text>
+
+            <View style={styles.pieContainer}>
+              <Pressable onPress={(e) => handlePortfolioChartPress(e.nativeEvent.locationX, e.nativeEvent.locationY)}>
+                <View style={{ width: CHART_SIZE, height: CHART_SIZE }}>
+                  <Svg width={CHART_SIZE} height={CHART_SIZE}>
+                    <G rotation={-90} originX={CHART_SIZE / 2} originY={CHART_SIZE / 2}>
+                      <Circle
+                        cx={CHART_SIZE / 2}
+                        cy={CHART_SIZE / 2}
+                        r={STROKE_R}
+                        fill="none"
+                        stroke={cardBg}
+                        strokeWidth={STROKE_W + 2}
+                      />
+                      {portfolioChartWithFocus.map((item, i) => {
+                        const fraction = item.row.invested / portfolio.invested;
+                        const cumulativeStart = portfolioChartWithFocus
+                          .slice(0, i)
+                          .reduce((s, d) => s + d.row.invested / portfolio.invested, 0);
+                        return (
+                          <DonutSlice
+                            key={item.label}
+                            fraction={fraction}
+                            cumulativeStart={cumulativeStart}
+                            color={item.displayColor}
+                            resetKey={portfolioResetKey}
+                            index={i}
+                          />
+                        );
+                      })}
+                    </G>
+                  </Svg>
+
+                  <View style={[StyleSheet.absoluteFill, styles.pieCenterOverlay]} pointerEvents="none">
+                    <View style={styles.pieCenter}>
+                      {selectedPortfolioIdx !== null ? (() => {
+                        const slice = portfolioChartData[selectedPortfolioIdx];
+                        const pct = (slice.row.invested / portfolio.invested) * 100;
+                        return (
+                          <>
+                            <Text style={[styles.pieCenterCategory, { color: subTextColor }]} numberOfLines={2}>
+                              {slice.label}
+                            </Text>
+                            <Text style={[styles.pieCenterAmount, { color: textColor }]}>
+                              {formatAmount(slice.row.invested, currency, undefined, numberFormat)}
+                            </Text>
+                            <Text style={[styles.pieCenterPct, { color: slice.color }]}>{pct.toFixed(1)}%</Text>
+                          </>
+                        );
+                      })() : (
+                        <>
+                          <Text style={[styles.pieCenterTotal, { color: textColor }]}>
+                            {formatAmount(portfolio.invested, currency, undefined, numberFormat)}
+                          </Text>
+                          <Text style={[styles.pieCenterLabel, { color: subTextColor }]}>total invested</Text>
+                          {!isPastPeriod && portfolio.pnlPct !== null && (
+                            <Text style={[styles.pieCenterPct, { color: portfolio.pnl >= 0 ? '#4CAF50' : '#F44336' }]}>
+                              {portfolio.pnl >= 0 ? '▲' : '▼'} {Math.abs(portfolio.pnlPct).toFixed(2)}%
+                            </Text>
+                          )}
+                        </>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.legend} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+              {portfolioChartData.map((item, idx) => {
+                const pct = (item.row.invested / portfolio.invested) * 100;
+                const isSelected = selectedPortfolioIdx === idx;
+                const pnlColor = item.row.pnl >= 0 ? '#4CAF50' : '#F44336';
+                return (
+                  <TouchableOpacity
+                    key={item.label}
+                    style={[
+                      styles.legendRow,
+                      isSelected && { backgroundColor: item.color + '18', borderRadius: 10 },
+                    ]}
+                    onPress={() => selectPortfolioSlice(idx)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${item.label}, ${formatAmount(item.row.invested, currency, undefined, numberFormat)}, ${pct.toFixed(1)}%`}
+                  >
+                    <View style={[styles.legendDot, { backgroundColor: item.color }]}>
+                      <AccountIcon name={item.icon} size={12} color="#fff" />
+                    </View>
+                    <Text
+                      style={[styles.legendLabel, { color: isSelected ? textColor : subTextColor, fontWeight: isSelected ? '600' : '400' }]}
+                      numberOfLines={1}
+                    >
+                      {item.label}
+                    </Text>
+                    <Text style={[styles.legendPct, { color: item.color }]}>{pct.toFixed(0)}%</Text>
+                    {isPastPeriod ? (
+                      <Text style={[styles.legendAmount, { color: textColor, fontWeight: isSelected ? '700' : '500' }]}>
+                        {formatAmount(item.row.invested, currency, undefined, numberFormat)}
+                      </Text>
+                    ) : (
+                      <View style={styles.legendAmountCol}>
+                        <Text style={[styles.legendAmount, { color: textColor, fontWeight: isSelected ? '700' : '500' }]}>
+                          {formatAmount(item.row.current, currency, undefined, numberFormat)}
+                        </Text>
+                        {item.row.pnlPct !== null && (
+                          <Text style={[styles.legendSubPct, { color: pnlColor }]}>
+                            {item.row.pnl >= 0 ? '▲' : '▼'} {Math.abs(item.row.pnlPct).toFixed(1)}%
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Pie Chart */}
         {pieData.length > 0 && (
@@ -524,6 +717,7 @@ const styles = StyleSheet.create({
   summaryAmount: { fontSize: 18, fontWeight: '700' },
   summaryPeriod: { fontSize: 11 },
 
+
   section: {
     borderRadius: 12,
     padding: 16,
@@ -562,6 +756,8 @@ const styles = StyleSheet.create({
   legendLabel: { flex: 1, fontSize: 13 },
   legendPct: { fontSize: 12, fontWeight: '600', width: 36, textAlign: 'right' },
   legendAmount: { fontSize: 13, width: 80, textAlign: 'right' },
+  legendAmountCol: { width: 80, alignItems: 'flex-end' },
+  legendSubPct: { fontSize: 11, fontWeight: '600', marginTop: 2 },
 
   emptyText: { fontSize: 14, textAlign: 'center', paddingVertical: 16 },
 

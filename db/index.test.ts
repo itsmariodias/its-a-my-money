@@ -11,27 +11,42 @@ beforeEach(() => {
 describe('useAccountsDb', () => {
   const db = useAccountsDb();
 
-  it('should pass 5 parameters for account insert', async () => {
+  it('should pass 7 parameters for account insert (including type and current value)', async () => {
     // Given a mocked SQLite context
-    // When insert is called with a full account
-    await db.insert({ name: 'Bank', initial_balance: 1000, currency: 'USD', color: '#fff', icon: 'bank' });
-    // Then runAsync should receive INSERT SQL with 5 positional params
+    // When insert is called with a full cash account
+    await db.insert({
+      name: 'Bank', initial_balance: 1000, currency: 'USD', color: '#fff', icon: 'bank',
+      account_type: 'cash', current_value: null,
+    });
+    // Then runAsync should receive INSERT SQL with 7 positional params (defaults 'cash' + null)
     expect(mockDb.runAsync).toHaveBeenCalledTimes(1);
     const [sql, ...params] = mockDb.runAsync.mock.calls[0];
     expect(sql).toContain('INSERT INTO accounts');
-    expect(params).toHaveLength(5);
-    expect(params).toEqual(['Bank', 1000, 'USD', '#fff', 'bank']);
+    expect(params).toHaveLength(7);
+    expect(params).toEqual(['Bank', 1000, 'USD', '#fff', 'bank', 'cash', null]);
+  });
+
+  it('should pass investment account type and current value on insert', async () => {
+    await db.insert({
+      name: 'Stocks', initial_balance: 5000, currency: 'USD', color: null, icon: null,
+      account_type: 'investment', current_value: 6200,
+    });
+    const [, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(params).toEqual(['Stocks', 5000, 'USD', null, null, 'investment', 6200]);
   });
 
   it('should pass id as last parameter for account update', async () => {
     // Given a mocked SQLite context
     // When update is called with id 1
-    await db.update(1, { name: 'Bank', initial_balance: 500, currency: 'EUR', color: null, icon: null });
-    // Then runAsync should receive 6 params with id last
+    await db.update(1, {
+      name: 'Bank', initial_balance: 500, currency: 'EUR', color: null, icon: null,
+      account_type: 'cash', current_value: null,
+    });
+    // Then runAsync should receive 8 params with id last
     const [sql, ...params] = mockDb.runAsync.mock.calls[0];
     expect(sql).toContain('UPDATE accounts');
-    expect(params).toHaveLength(6);
-    expect(params[5]).toBe(1);
+    expect(params).toHaveLength(8);
+    expect(params[7]).toBe(1);
   });
 
   it('should pass the correct id for delete', async () => {

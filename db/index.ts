@@ -11,20 +11,30 @@ export function useAccountsDb() {
 
     insert: (account: Omit<Account, 'id' | 'created_at'>) =>
       db.runAsync(
-        'INSERT INTO accounts (name, initial_balance, currency, color, icon) VALUES (?, ?, ?, ?, ?)',
-        account.name, account.initial_balance, account.currency, account.color ?? null, account.icon ?? null
+        'INSERT INTO accounts (name, initial_balance, currency, color, icon, account_type, current_value) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        account.name, account.initial_balance, account.currency, account.color ?? null, account.icon ?? null,
+        account.account_type ?? 'cash', account.current_value ?? null
       ),
 
     update: (id: number, account: Partial<Omit<Account, 'id' | 'created_at'>>) =>
       db.runAsync(
-        'UPDATE accounts SET name=?, initial_balance=?, currency=?, color=?, icon=? WHERE id=?',
-        account.name!, account.initial_balance!, account.currency!, account.color ?? null, account.icon ?? null, id
+        'UPDATE accounts SET name=?, initial_balance=?, currency=?, color=?, icon=?, account_type=?, current_value=? WHERE id=?',
+        account.name!, account.initial_balance!, account.currency!, account.color ?? null, account.icon ?? null,
+        account.account_type ?? 'cash', account.current_value ?? null, id
       ),
 
     remove: (id: number) => db.runAsync('DELETE FROM accounts WHERE id=?', id),
 
     adjustInitialBalance: (id: number, delta: number) =>
       db.runAsync('UPDATE accounts SET initial_balance = initial_balance + ? WHERE id=?', delta, id),
+
+    // Bump an investment account's current_value by `delta`. No-op for cash accounts
+    // and for investment accounts with no current value set (P&L falls back to invested).
+    adjustInvestmentCurrentValue: (id: number, delta: number) =>
+      db.runAsync(
+        "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+        delta, id
+      ),
   };
 }
 
@@ -71,6 +81,13 @@ export function useSettingsDb() {
 export function useTransactionsDb() {
   const db = useSQLiteContext();
 
+  // income on an investment account bumps its current value up; expense drops it.
+  const applyCurrentValueDelta = (accountId: number, type: 'income' | 'expense', amount: number) =>
+    db.runAsync(
+      "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+      type === 'income' ? amount : -amount, accountId
+    );
+
   return {
     getAll: () =>
       db.getAllAsync<TransactionWithDetails>(`
@@ -91,17 +108,31 @@ export function useTransactionsDb() {
         ORDER BY t.date DESC, t.created_at DESC
       `, String(year), String(month).padStart(2, '0')),
 
-    insert: (tx: Omit<Transaction, 'id' | 'created_at'>) =>
-      db.runAsync(
-        'INSERT INTO transactions (amount, type, category_id, account_id, note, date, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        tx.amount, tx.type, tx.category_id, tx.account_id, tx.note ?? null, tx.date, tx.recurring_transaction_id ?? null
-      ),
+    insert: async (tx: Omit<Transaction, 'id' | 'created_at'>) => {
+      let result!: Awaited<ReturnType<typeof db.runAsync>>;
+      await db.withTransactionAsync(async () => {
+        result = await db.runAsync(
+          'INSERT INTO transactions (amount, type, category_id, account_id, note, date, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          tx.amount, tx.type, tx.category_id, tx.account_id, tx.note ?? null, tx.date, tx.recurring_transaction_id ?? null
+        );
+        await applyCurrentValueDelta(tx.account_id, tx.type, tx.amount);
+      });
+      return result;
+    },
 
     update: (id: number, tx: Partial<Omit<Transaction, 'id' | 'created_at'>>) =>
-      db.runAsync(
-        'UPDATE transactions SET amount=?, type=?, category_id=?, account_id=?, note=?, date=? WHERE id=?',
-        tx.amount!, tx.type!, tx.category_id!, tx.account_id!, tx.note ?? null, tx.date!, id
-      ),
+      db.withTransactionAsync(async () => {
+        const prev = await db.getFirstAsync<Transaction>('SELECT * FROM transactions WHERE id=?', id);
+        await db.runAsync(
+          'UPDATE transactions SET amount=?, type=?, category_id=?, account_id=?, note=?, date=? WHERE id=?',
+          tx.amount!, tx.type!, tx.category_id!, tx.account_id!, tx.note ?? null, tx.date!, id
+        );
+        if (prev) {
+          // reverse old
+          await applyCurrentValueDelta(prev.account_id, prev.type === 'income' ? 'expense' : 'income', prev.amount);
+        }
+        await applyCurrentValueDelta(tx.account_id!, tx.type!, tx.amount!);
+      }),
 
     getById: (id: number) =>
       db.getFirstAsync<TransactionWithDetails>(`
@@ -112,7 +143,14 @@ export function useTransactionsDb() {
         WHERE t.id = ?
       `, id),
 
-    remove: (id: number) => db.runAsync('DELETE FROM transactions WHERE id=?', id),
+    remove: (id: number) =>
+      db.withTransactionAsync(async () => {
+        const prev = await db.getFirstAsync<Transaction>('SELECT * FROM transactions WHERE id=?', id);
+        await db.runAsync('DELETE FROM transactions WHERE id=?', id);
+        if (prev) {
+          await applyCurrentValueDelta(prev.account_id, prev.type === 'income' ? 'expense' : 'income', prev.amount);
+        }
+      }),
 
     removeByAccount: (accountId: number) =>
       db.runAsync('DELETE FROM transactions WHERE account_id=?', accountId),
@@ -236,8 +274,9 @@ export function useImportDb() {
         // 3. Accounts
         for (const acc of data.accounts) {
           await db.runAsync(
-            'INSERT INTO accounts (id, name, initial_balance, currency, color, icon, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            acc.id, acc.name, acc.initial_balance, acc.currency, acc.color ?? null, acc.icon ?? null, acc.created_at
+            'INSERT INTO accounts (id, name, initial_balance, currency, color, icon, account_type, current_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            acc.id, acc.name, acc.initial_balance, acc.currency, acc.color ?? null, acc.icon ?? null,
+            acc.account_type ?? 'cash', acc.current_value ?? null, acc.created_at
           );
         }
 
@@ -302,6 +341,19 @@ const TRANSFER_SELECT = `
 export function useTransfersDb() {
   const db = useSQLiteContext();
 
+  // Money flowing INTO an investment account increases its current value;
+  // money flowing OUT decreases it. Keeps P&L a measure of market movement, not cash flows.
+  const applyCurrentValueDelta = (fromId: number, toId: number, amount: number) =>
+    db.runAsync(
+      "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+      -amount, fromId
+    ).then(() =>
+      db.runAsync(
+        "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+        amount, toId
+      )
+    );
+
   return {
     getAll: () =>
       db.getAllAsync<TransferWithDetails>(
@@ -313,19 +365,35 @@ export function useTransfersDb() {
         `${TRANSFER_SELECT} WHERE t.id = ?`, id
       ),
 
-    insert: (transfer: Omit<Transfer, 'id' | 'created_at'>) =>
-      db.runAsync(
-        'INSERT INTO transfers (from_account_id, to_account_id, amount, note, date) VALUES (?, ?, ?, ?, ?)',
-        transfer.from_account_id, transfer.to_account_id, transfer.amount, transfer.note ?? null, transfer.date
-      ),
+    insert: async (transfer: Omit<Transfer, 'id' | 'created_at'>) => {
+      let result!: Awaited<ReturnType<typeof db.runAsync>>;
+      await db.withTransactionAsync(async () => {
+        result = await db.runAsync(
+          'INSERT INTO transfers (from_account_id, to_account_id, amount, note, date) VALUES (?, ?, ?, ?, ?)',
+          transfer.from_account_id, transfer.to_account_id, transfer.amount, transfer.note ?? null, transfer.date
+        );
+        await applyCurrentValueDelta(transfer.from_account_id, transfer.to_account_id, transfer.amount);
+      });
+      return result;
+    },
 
     update: (id: number, transfer: Partial<Omit<Transfer, 'id' | 'created_at'>>) =>
-      db.runAsync(
-        'UPDATE transfers SET from_account_id=?, to_account_id=?, amount=?, note=?, date=? WHERE id=?',
-        transfer.from_account_id!, transfer.to_account_id!, transfer.amount!, transfer.note ?? null, transfer.date!, id
-      ),
+      db.withTransactionAsync(async () => {
+        const prev = await db.getFirstAsync<Transfer>('SELECT * FROM transfers WHERE id=?', id);
+        await db.runAsync(
+          'UPDATE transfers SET from_account_id=?, to_account_id=?, amount=?, note=?, date=? WHERE id=?',
+          transfer.from_account_id!, transfer.to_account_id!, transfer.amount!, transfer.note ?? null, transfer.date!, id
+        );
+        if (prev) await applyCurrentValueDelta(prev.to_account_id, prev.from_account_id, prev.amount); // reverse old
+        await applyCurrentValueDelta(transfer.from_account_id!, transfer.to_account_id!, transfer.amount!); // apply new
+      }),
 
-    remove: (id: number) => db.runAsync('DELETE FROM transfers WHERE id=?', id),
+    remove: (id: number) =>
+      db.withTransactionAsync(async () => {
+        const prev = await db.getFirstAsync<Transfer>('SELECT * FROM transfers WHERE id=?', id);
+        await db.runAsync('DELETE FROM transfers WHERE id=?', id);
+        if (prev) await applyCurrentValueDelta(prev.to_account_id, prev.from_account_id, prev.amount); // reverse
+      }),
 
     getByAccount: (accountId: number) =>
       db.getAllAsync<Transfer>(

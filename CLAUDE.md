@@ -88,6 +88,7 @@ constants/currencies.test.ts          # formatAmount, getCurrencySymbol
 constants/theme.test.ts               # getColors, ACCENT_COLORS
 db/index.test.ts                      # DB hook SQL verification
 features/accounts/useAccountsStore.test.ts
+features/accounts/balanceUtils.test.ts
 features/transactions/useTransactionsStore.test.ts
 features/transfers/useTransfersStore.test.ts
 features/recurring/dateUtils.test.ts
@@ -126,7 +127,9 @@ app/                                  # expo-router screens (file-based routing)
 
 features/                             # Feature modules (screens + logic co-located)
   accounts/
-    AccountFormSheet.tsx              # Create/edit account bottom sheet
+    AccountFormSheet.tsx              # Create/edit account bottom sheet (Cash vs Investment toggle, current market value field)
+    balanceUtils.ts                   # accountFlowAsOf, accountBalanceAsOf, computePnL, aggregatePortfolio
+    balanceUtils.test.ts
     useAccountsStore.ts              # Zustand store
     useAccountsStore.test.ts
   transactions/
@@ -209,7 +212,7 @@ eas.json                              # EAS Build profiles (development + produc
 The app is **local-first with no backend**. All data lives in SQLite via `expo-sqlite`.
 
 Core entities:
-- `accounts` — wallets (e.g., Cash, Bank, Credit Card)
+- `accounts` — wallets. `account_type` is `'cash'` or `'investment'`. Investment accounts additionally have a `current_value` (user-entered market value) used for P&L
 - `categories` — income and expense categories with icons/colors
 - `transactions` — individual income/expense entries linked to an account and category
 - `transfers` — money movements between accounts (full CRUD via `TransferSheet`)
@@ -257,6 +260,17 @@ User preferences are persisted in SQLite (`settings` table, key-value) and synce
 - **Biometric lock** — boolean. When enabled, locks the app after 3+ seconds in background. Uses `expo-local-authentication`. The 3-second threshold prevents lock during brief external activities (Google Sign-In, share sheets).
 - **Show P&L Stats** — boolean (`show_pct_change`). When enabled, shows percentage change vs. previous period on each account card and the total balance card in the Accounts tab. Defaults to `true`.
 - **Cloud Backup** — Google Drive backup settings (see below).
+
+### Investment Accounts
+Accounts carry an `account_type` column (`'cash' | 'investment'`). Investment accounts also have a nullable `current_value` — the user-entered market value. Everything else (transfers, transactions, swipe-delete, migration) is shared with cash accounts.
+
+- **Invested amount** — derived by `accountFlowAsOf` in `features/accounts/balanceUtils.ts`: initial balance + net transactions + net transfers. Date-filter aware
+- **Market value** — `current_value` on the account. Used by `accountBalanceAsOf` as the account's "worth" on current/future periods; falls back to flow on past periods (no historical valuations are stored)
+- **P&L** — `computePnL` returns `{ invested, current, pnl, pnlPct }`. `aggregatePortfolio` sums across all investment accounts. Both accept the same date-range filter
+- **Auto-adjust** — when money flows into or out of an investment account (transfer in/out, income/expense), `db/index.ts` atomically shifts `current_value` by the same delta so P&L reflects market drift only, not cashflow. Wrapped in `withTransactionAsync` in `useTransfersDb` and `useTransactionsDb`
+- **Form UX** — `AccountFormSheet` shows a Cash/Investment toggle; investment mode reveals a "Current Market Value" field. Editing the invested amount on an existing investment account without touching the current value shifts current by the same delta (so only the market moves reflect P&L)
+- **Accounts tab** — sectioned into Cash and Investments. Investment cards show current value as the primary amount and P&L vs invested as the stat line
+- **Dashboard** — portfolio donut card: slices sized by invested amount per account; center shows total invested + aggregate P&L %; legend shows allocation % + per-account current value and P&L %. Hidden when zero investment accounts, or when a non-investment account filter is active. Past periods show invested-only
 
 ### Cloud Backup (Google Drive)
 Automatic backups to Google Drive using the same JSON format as manual export.
