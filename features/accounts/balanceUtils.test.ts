@@ -32,7 +32,7 @@ function tx(accountId: number, type: 'income' | 'expense', amount: number, date:
 function transfer(from: number, to: number, amount: number, date: string): Transfer {
   return {
     id: Math.random(), from_account_id: from, to_account_id: to, amount,
-    note: null, date, created_at: date,
+    note: null, date, recurring_transaction_id: null, created_at: date,
   };
 }
 

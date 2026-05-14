@@ -4,9 +4,11 @@ import type { RecurringTransactionWithDetails } from '@/types';
 const makeItem = (id: number, overrides: Partial<RecurringTransactionWithDetails> = {}): RecurringTransactionWithDetails => ({
   id,
   amount: 100,
+  kind: 'transaction',
   type: 'expense',
   category_id: 1,
   account_id: 1,
+  to_account_id: null,
   note: null,
   frequency: 'monthly',
   start_date: '2025-01-01',
@@ -18,6 +20,9 @@ const makeItem = (id: number, overrides: Partial<RecurringTransactionWithDetails
   category_color: '#607D8B',
   category_icon: 'receipt',
   account_name: 'Cash',
+  to_account_name: null,
+  to_account_color: null,
+  to_account_icon: null,
   ...overrides,
 });
 

@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useSettingsDb } from '@/db';
 import { advanceDate, todayString } from './dateUtils';
-import type { RecurringFrequency } from '@/types';
+import type { RecurringFrequency, RecurringKind } from '@/types';
 
 export function useRecurringCheck() {
   const db = useSQLiteContext();
@@ -37,15 +37,17 @@ export function useRecurringCheck() {
         const due = await db.getAllAsync<{
           id: number;
           amount: number;
-          type: string;
-          category_id: number;
+          kind: RecurringKind;
+          type: 'income' | 'expense' | null;
+          category_id: number | null;
           account_id: number;
+          to_account_id: number | null;
           note: string | null;
           frequency: RecurringFrequency;
           end_date: string | null;
           next_due_date: string;
         }>(
-          `SELECT id, amount, type, category_id, account_id, note, frequency, end_date, next_due_date
+          `SELECT id, amount, kind, type, category_id, account_id, to_account_id, note, frequency, end_date, next_due_date
            FROM recurring_transactions
            WHERE is_active = 1 AND next_due_date <= ?`,
           today
@@ -54,12 +56,33 @@ export function useRecurringCheck() {
         for (const rec of due) {
           let dueDate = rec.next_due_date;
 
-          // Generate one transaction per missed due date up to today
+          // Generate one entry per missed due date up to today
           while (dueDate <= today) {
-            await db.runAsync(
-              'INSERT INTO transactions (amount, type, category_id, account_id, note, date, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-              rec.amount, rec.type, rec.category_id, rec.account_id, rec.note ?? null, dueDate, rec.id
-            );
+            if (rec.kind === 'transfer') {
+              await db.runAsync(
+                'INSERT INTO transfers (from_account_id, to_account_id, amount, note, date, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?)',
+                rec.account_id, rec.to_account_id!, rec.amount, rec.note ?? null, dueDate, rec.id
+              );
+              // Mirror useTransfersDb.insert: shift current_value on investment accounts
+              await db.runAsync(
+                "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+                -rec.amount, rec.account_id
+              );
+              await db.runAsync(
+                "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+                rec.amount, rec.to_account_id!
+              );
+            } else {
+              await db.runAsync(
+                'INSERT INTO transactions (amount, type, category_id, account_id, note, date, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                rec.amount, rec.type!, rec.category_id!, rec.account_id, rec.note ?? null, dueDate, rec.id
+              );
+              // Mirror useTransactionsDb.insert: shift current_value on investment accounts
+              await db.runAsync(
+                "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+                rec.type === 'income' ? rec.amount : -rec.amount, rec.account_id
+              );
+            }
             dueDate = advanceDate(dueDate, rec.frequency);
           }
 

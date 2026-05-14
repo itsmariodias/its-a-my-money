@@ -92,12 +92,12 @@ describe('useTransfersDb', () => {
   it('should pass 5 parameters for transfer insert', async () => {
     // Given a mocked SQLite context
     // When insert is called
-    await db.insert({ from_account_id: 1, to_account_id: 2, amount: 100, note: null, date: '2026-03-21' });
-    // Then runAsync should receive 5 params
+    await db.insert({ from_account_id: 1, to_account_id: 2, amount: 100, note: null, date: '2026-03-21', recurring_transaction_id: null });
+    // Then runAsync should receive 6 params
     const [sql, ...params] = mockDb.runAsync.mock.calls[0];
     expect(sql).toContain('INSERT INTO transfers');
-    expect(params).toHaveLength(5);
-    expect(params).toEqual([1, 2, 100, null, '2026-03-21']);
+    expect(params).toHaveLength(6);
+    expect(params).toEqual([1, 2, 100, null, '2026-03-21', null]);
   });
 
   it('should pass 6 parameters for transfer update', async () => {
