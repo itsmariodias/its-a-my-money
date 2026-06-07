@@ -38,8 +38,8 @@ export interface Transaction {
 
 export interface Transfer {
   id: number;
-  from_account_id: number;
-  to_account_id: number;
+  from_account_id: number | null;
+  to_account_id: number | null;
   amount: number;
   note: string | null;
   date: string;

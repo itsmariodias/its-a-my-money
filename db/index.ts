@@ -349,16 +349,20 @@ export function useTransfersDb() {
 
   // Money flowing INTO an investment account increases its current value;
   // money flowing OUT decreases it. Keeps P&L a measure of market movement, not cash flows.
-  const applyCurrentValueDelta = (fromId: number, toId: number, amount: number) =>
-    db.runAsync(
-      "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
-      -amount, fromId
-    ).then(() =>
-      db.runAsync(
+  const applyCurrentValueDelta = async (fromId: number | null, toId: number | null, amount: number) => {
+    if (fromId != null) {
+      await db.runAsync(
+        "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+        -amount, fromId
+      );
+    }
+    if (toId != null) {
+      await db.runAsync(
         "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
         amount, toId
-      )
-    );
+      );
+    }
+  };
 
   return {
     getAll: () =>
