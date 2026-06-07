@@ -1,1 +1,26 @@
 nodeLinker: hoisted
+
+# Security overrides for transitive build/test-tool dependencies.
+# None of these ship in the app bundle (they come from eslint, ts-jest, and
+# the Expo build CLI). Pinned to patched versions to clear audit findings,
+# scoped per-major where multiple majors are in the tree to avoid breaking APIs.
+overrides:
+  flatted: '>=3.4.2'
+  handlebars: '>=4.7.9'
+  node-forge: '>=1.4.0'
+  fast-uri: '>=3.1.1'
+  yaml: '>=2.8.3'
+  lodash: '>=4.18.0'
+  postcss: '>=8.5.10'
+  '@xmldom/xmldom': '^0.8.12'
+  '@tootallnate/once': '^2.0.1'
+  uuid: '>=11.1.1'
+  'brace-expansion@1': '^1.1.13'
+  'brace-expansion@2': '^2.0.3'
+  'brace-expansion@5': '^5.0.6'
+  'picomatch@2': '^2.3.2'
+  'picomatch@3': '^3.0.2'
+  'picomatch@4': '^4.0.4'
+  'ws@6': '^6.2.4'
+  'ws@7': '^7.5.11'
+  'ws@8': '^8.20.1'
