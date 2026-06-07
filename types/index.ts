@@ -55,6 +55,12 @@ export interface Budget {
   created_at: string;
 }
 
+export interface BudgetWithDetails extends Budget {
+  category_name: string;
+  category_color: string;
+  category_icon: string;
+}
+
 export type RecurringKind = 'transaction' | 'transfer';
 
 export interface RecurringTransaction {

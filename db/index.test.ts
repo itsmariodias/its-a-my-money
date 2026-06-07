@@ -1,4 +1,4 @@
-import { useAccountsDb, useCategoriesDb, useTransactionsDb, useTransfersDb, useSettingsDb } from '@/db';
+import { useAccountsDb, useCategoriesDb, useTransactionsDb, useTransfersDb, useSettingsDb, useBudgetsDb } from '@/db';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { getMockDb } = require('../__mocks__/expo-sqlite');
@@ -149,5 +149,61 @@ describe('useSettingsDb', () => {
     const [sql, ...params] = mockDb.getFirstAsync.mock.calls[0];
     expect(sql).toContain('SELECT');
     expect(params).toEqual(['currency']);
+  });
+});
+
+describe('useBudgetsDb', () => {
+  const db = useBudgetsDb();
+
+  it('should pass 3 parameters for budget insert', async () => {
+    // Given a mocked SQLite context
+    // When insert is called
+    await db.insert({ category_id: 5, amount: 500, period: 'monthly' });
+    // Then runAsync should receive INSERT SQL with 3 params
+    const [sql, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(sql).toContain('INSERT INTO budgets');
+    expect(params).toEqual([5, 500, 'monthly']);
+  });
+
+  it('should pass id as last parameter for budget update', async () => {
+    // Given a mocked SQLite context
+    // When update is called with id 7
+    await db.update(7, { category_id: 5, amount: 750, period: 'weekly' });
+    // Then runAsync should receive UPDATE SQL with id last
+    const [sql, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(sql).toContain('UPDATE budgets');
+    expect(params).toEqual([5, 750, 'weekly', 7]);
+  });
+
+  it('should pass the correct id for delete', async () => {
+    // Given a mocked SQLite context
+    // When remove is called with id 12
+    await db.remove(12);
+    // Then runAsync should be called with DELETE and id 12
+    const [sql, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(sql).toContain('DELETE FROM budgets');
+    expect(params).toEqual([12]);
+  });
+
+  it('should delete budgets by category id', async () => {
+    // Given a mocked SQLite context
+    // When removeByCategory is called with category 4
+    await db.removeByCategory(4);
+    // Then runAsync should be called with DELETE filtering by category_id
+    const [sql, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(sql).toContain('DELETE FROM budgets');
+    expect(sql).toContain('category_id=?');
+    expect(params).toEqual([4]);
+  });
+
+  it('should join categories for getAll', async () => {
+    // Given a mocked SQLite context
+    // When getAll is called
+    await db.getAll();
+    // Then getAllAsync should join budgets with categories
+    const [sql] = mockDb.getAllAsync.mock.calls[0];
+    expect(sql).toContain('FROM budgets');
+    expect(sql).toContain('JOIN categories');
+    expect(sql).toContain('category_name');
   });
 });

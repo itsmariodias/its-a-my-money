@@ -1,5 +1,5 @@
 import { useSQLiteContext } from 'expo-sqlite';
-import type { Account, Category, Transaction, Transfer, TransactionWithDetails, TransferWithDetails, RecurringTransaction, RecurringTransactionWithDetails } from '@/types';
+import type { Account, Category, Transaction, Transfer, TransactionWithDetails, TransferWithDetails, RecurringTransaction, RecurringTransactionWithDetails, Budget, BudgetWithDetails } from '@/types';
 
 // --- Accounts ---
 
@@ -478,5 +478,39 @@ export function useRecurringDb() {
 
     removeByCategory: (categoryId: number) =>
       db.runAsync('DELETE FROM recurring_transactions WHERE category_id=?', categoryId),
+  };
+}
+
+// --- Budgets ---
+
+const BUDGET_SELECT = `
+  SELECT b.*, c.name as category_name, c.color as category_color, c.icon as category_icon
+  FROM budgets b
+  JOIN categories c ON c.id = b.category_id
+`;
+
+export function useBudgetsDb() {
+  const db = useSQLiteContext();
+
+  return {
+    getAll: () =>
+      db.getAllAsync<BudgetWithDetails>(`${BUDGET_SELECT} ORDER BY c.name ASC`),
+
+    insert: (budget: Omit<Budget, 'id' | 'created_at'>) =>
+      db.runAsync(
+        'INSERT INTO budgets (category_id, amount, period) VALUES (?, ?, ?)',
+        budget.category_id, budget.amount, budget.period
+      ),
+
+    update: (id: number, budget: Partial<Omit<Budget, 'id' | 'created_at'>>) =>
+      db.runAsync(
+        'UPDATE budgets SET category_id=?, amount=?, period=? WHERE id=?',
+        budget.category_id!, budget.amount!, budget.period!, id
+      ),
+
+    remove: (id: number) => db.runAsync('DELETE FROM budgets WHERE id=?', id),
+
+    removeByCategory: (categoryId: number) =>
+      db.runAsync('DELETE FROM budgets WHERE category_id=?', categoryId),
   };
 }

@@ -19,7 +19,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 
 **Transactions**
 - Full transaction history grouped by date
-- Tap to edit, swipe left to delete
+- Tap a row to edit; delete from inside the edit sheet
 - Filter by account and time period
 - Section totals per day
 - Category filter chips — tap one or more to narrow the list; Transfers chip appears when an account is selected
@@ -32,10 +32,18 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 **Accounts**
 - Manage multiple wallets (Cash, Bank, Credit Card, etc.)
 - Each account has a name, icon, color, currency, and initial balance
-- Swipe left to delete (with cascade delete of linked transactions)
+- Tap to edit; delete from inside the edit sheet. Linked transactions cascade-delete; transfers are kept and the deleted side renders as "Unknown"
 - Running balance calculated from initial balance + net transactions
 - P&L stats — percentage change vs. previous period shown on each account card and total balance
 - Investment accounts — track fixed deposits, mutual funds, trades alongside cash. Invested amount auto-computed from transfers and transactions; current market value is user-editable. P&L on each investment card is live market value vs. invested
+
+**Budgets**
+- Set spending limits per expense category — weekly, monthly, or yearly
+- Each budget tracks its own period independent of the Dashboard filter
+- Dashboard card with one row per budget: progress bar, percent used, spent vs. limit
+- Color-coded status — green under 80%, amber 80–99%, red at or over 100%
+- Local notification when a transaction pushes a budget over its limit
+- Manage from Settings — add, edit, delete; deleting a category removes its budget too
 
 **Cloud Backup**
 - Automatic Google Drive backup — daily, weekly, or monthly
@@ -61,6 +69,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Show P&L Stats toggle — enable/disable percentage change indicators on the Accounts tab
 - Manage income and expense categories (add, edit, delete)
 - Manage recurring transactions
+- Manage budgets
 - Export all data as JSON (includes theme preference)
 - Import from JSON backup or Monefy CSV
 - Full data reset

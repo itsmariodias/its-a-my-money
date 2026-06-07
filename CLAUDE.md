@@ -149,6 +149,17 @@ features/                             # Feature modules (screens + logic co-loca
     useRecurringCheck.ts              # AppState-based auto-generation trigger (mirrors useAutoBackup pattern)
     dateUtils.ts                      # advanceDate() — date math for recurring schedules with month-end clamping
     dateUtils.test.ts
+  budgets/
+    BudgetsListScreen.tsx             # Full-screen modal listing budgets (opened from Settings)
+    BudgetFormSheet.tsx               # Create/edit budget bottom sheet (amount, period, expense-category)
+    BudgetsDashboardCard.tsx          # Dashboard widget with per-budget color-coded progress bars
+    useBudgetsStore.ts                # Zustand store
+    useBudgetsStore.test.ts
+    periodUtils.ts                    # currentPeriodRange (ISO Mon–Sun week, month, year), spentInRange, periodLabel
+    periodUtils.test.ts
+    budgetCrossings.ts                # findCrossings() — pure detector for budgets crossing the limit
+    budgetCrossings.test.ts
+    budgetAlerts.ts                   # expo-notifications wrapper that fires "Budget exceeded" alerts
   settings/
     SettingsScreen.tsx                # Settings overlay
     useSettingsStore.ts
@@ -217,7 +228,8 @@ Core entities:
 - `transactions` — individual income/expense entries linked to an account and category
 - `transfers` — money movements between accounts (full CRUD via `TransferSheet`)
 - `recurring_transactions` — repeating transaction templates; auto-generate real transactions on app open via `useRecurringCheck`
-- `budgets` — optional monthly budget limits per category (schema exists, UI not yet built)
+- `budgets` — per-category spending limits with weekly/monthly/yearly periods (full CRUD via `BudgetFormSheet`)
+- `transfers.from_account_id` and `to_account_id` are nullable with `ON DELETE SET NULL` (migration 010) so deleting an account preserves transfer history; the deleted side renders as "Unknown"
 
 `SQLiteProvider` wraps the app in `app/_layout.tsx` and calls `runMigrations` on init (via `useSuspense`).
 All DB access goes through the hook-based helpers in `db/index.ts` — never raw SQL in components.
@@ -260,9 +272,10 @@ User preferences are persisted in SQLite (`settings` table, key-value) and synce
 - **Biometric lock** — boolean. When enabled, locks the app after 3+ seconds in background. Uses `expo-local-authentication`. The 3-second threshold prevents lock during brief external activities (Google Sign-In, share sheets).
 - **Show P&L Stats** — boolean (`show_pct_change`). When enabled, shows percentage change vs. previous period on each account card and the total balance card in the Accounts tab. Defaults to `true`.
 - **Cloud Backup** — Google Drive backup settings (see below).
+- **Budgets** — per-category spending limits (see below).
 
 ### Investment Accounts
-Accounts carry an `account_type` column (`'cash' | 'investment'`). Investment accounts also have a nullable `current_value` — the user-entered market value. Everything else (transfers, transactions, swipe-delete, migration) is shared with cash accounts.
+Accounts carry an `account_type` column (`'cash' | 'investment'`). Investment accounts also have a nullable `current_value` — the user-entered market value. Everything else (transfers, transactions, delete flow, migration) is shared with cash accounts.
 
 - **Invested amount** — derived by `accountFlowAsOf` in `features/accounts/balanceUtils.ts`: initial balance + net transactions + net transfers. Date-filter aware
 - **Market value** — `current_value` on the account. Used by `accountBalanceAsOf` as the account's "worth" on current/future periods; falls back to flow on past periods (no historical valuations are stored)
@@ -271,6 +284,18 @@ Accounts carry an `account_type` column (`'cash' | 'investment'`). Investment ac
 - **Form UX** — `AccountFormSheet` shows a Cash/Investment toggle; investment mode reveals a "Current Market Value" field. Editing the invested amount on an existing investment account without touching the current value shifts current by the same delta (so only the market moves reflect P&L)
 - **Accounts tab** — sectioned into Cash and Investments. Investment cards show current value as the primary amount and P&L vs invested as the stat line
 - **Dashboard** — portfolio donut card: slices sized by invested amount per account; center shows total invested + aggregate P&L %; legend shows allocation % + per-account current value and P&L %. Hidden when zero investment accounts, or when a non-investment account filter is active. Past periods show invested-only
+
+### Budgets
+Per-category spending limits with weekly, monthly, or yearly periods. Managed from Settings; tracked on the Dashboard.
+
+- **Schema**: `budgets (id, category_id, amount, period, created_at)` with `period ∈ 'weekly' | 'monthly' | 'yearly'`. Income categories are not budgetable (the form filters to `type='expense'`).
+- **Period scope** — each budget tracks its own period independent of the Dashboard period filter. `currentPeriodRange()` in `features/budgets/periodUtils.ts`: weekly = ISO Monday–Sunday of current week, monthly = 1st–last of current month, yearly = Jan 1–Dec 31 of current year.
+- **Spend** — `spentInRange(transactions, categoryId, start, end)` sums expense transactions for that category in the period.
+- **Uniqueness** — one budget per category enforced UX-side: in the create form, picking a category that already has a budget switches the form into edit mode for that existing budget.
+- **Cascade delete** — deleting a category in Settings also calls `useBudgetsDb().removeByCategory(id)`.
+- **Dashboard card** (`BudgetsDashboardCard`) — hidden when no budgets exist; renders one row per budget with a progress bar. Tapping it opens `BudgetsListScreen`.
+- **Color thresholds** — `< 80%` green `#4CAF50`, `80–99%` amber `#FFC107`, `≥ 100%` red `#F44336`.
+- **Alerts** — when a manual transaction save in `AddTransactionSheet` pushes a budget from `<limit` to `≥limit` for the current period, `findCrossings()` in `budgetCrossings.ts` flags it and `notifyCrossedBudgets()` fires a local notification via `expo-notifications` (Android channel `'budgets'`). Permission is requested best-effort when the user first saves a budget. Recurring auto-generated transactions don't fire alerts.
 
 ### Cloud Backup (Google Drive)
 Automatic backups to Google Drive using the same JSON format as manual export.
@@ -325,11 +350,11 @@ The shared header lives in `app/(tabs)/_layout.tsx` (not in individual screens).
 - Settings gear (right) — opens the settings overlay
 
 ### Gestures
-- **Tab swipe**: `PanResponder` in `app/(tabs)/_layout.tsx`. Activates on clearly horizontal gestures (|dx|/|dy| > 2.5, dx > 30). Children (swipeable cards) claim their gestures first so there's no conflict.
+- **Tab swipe**: `PanResponder` in `app/(tabs)/_layout.tsx`. Activates on clearly horizontal gestures (|dx|/|dy| > 2.5, dx > 30).
 - **Sheet swipe-down**: `PanResponder` on the drag handle in each sheet. Downward drag (dy > 120 or vy > 0.3) dismisses the sheet.
 
-### Swipeable Cards
-Both `transactions.tsx` and `accounts.tsx` have inline `SwipeableTransactionRow` / `SwipeableAccountCard` components using pure RN `Animated` + `PanResponder`. No extra packages needed. Delete zone reveals at `REVEAL_WIDTH = 80` on swipe-left.
+### Delete UX
+Swipe-to-delete on rows is **not used** — it conflicted with horizontal tab swipe. Deletion happens from inside the corresponding form sheet (transaction, transfer, account, budget, recurring), using the shared `DeleteModal` in `shared/components/DeleteModal.tsx`. Category deletion in `SettingsScreen` cascades to recurring entries, transactions, and budgets via the matching `removeByCategory` helpers in `db/index.ts`.
 
 ### Transaction Filters (transactions.tsx)
 All filter state is local to `TransactionsScreen` — nothing in UIStore.
