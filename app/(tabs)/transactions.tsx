@@ -1002,7 +1002,7 @@ export default function TransactionsScreen() {
                 <TransferRow
                   {...commonProps}
                   transfer={listItem.item}
-                  selectedAccountId={selectedId ?? listItem.item.from_account_id}
+                  selectedAccountId={selectedId ?? listItem.item.from_account_id ?? listItem.item.to_account_id ?? 0}
                   onPress={() => setEditingTransfer(listItem.item)}
                 />
               );

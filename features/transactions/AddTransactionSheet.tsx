@@ -21,6 +21,8 @@ import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
 import { useCategoriesDb, useTransactionsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
+import { useBudgetsStore } from '@/features/budgets/useBudgetsStore';
+import { findCrossings, notifyCrossedBudgets } from '@/features/budgets/budgetAlerts';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { Snackbar } from 'react-native-snackbar';
@@ -163,7 +165,12 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
     try {
+      const prevTxs = useTransactionsStore.getState().transactions;
       await saveTransaction(parsedAmount);
+      const currTxs = useTransactionsStore.getState().transactions;
+      const budgets = useBudgetsStore.getState().budgets;
+      const crossed = findCrossings(budgets, prevTxs, currTxs);
+      if (crossed.length > 0) notifyCrossedBudgets(crossed);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       triggerCloseRef.current();
     } catch {
@@ -176,7 +183,12 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
     try {
+      const prevTxs = useTransactionsStore.getState().transactions;
       await saveTransaction(parsedAmount);
+      const currTxs = useTransactionsStore.getState().transactions;
+      const budgets = useBudgetsStore.getState().budgets;
+      const crossed = findCrossings(budgets, prevTxs, currTxs);
+      if (crossed.length > 0) notifyCrossedBudgets(crossed);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       setAmount('');
       setNote('');

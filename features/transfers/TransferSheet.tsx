@@ -105,6 +105,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
         to_account_id: toAccountId!,
         note: note.trim() || null,
         date,
+        recurring_transaction_id: null,
       });
       const t = await transfersDb.getById(result.lastInsertRowId);
       if (t) addTransfer(t);

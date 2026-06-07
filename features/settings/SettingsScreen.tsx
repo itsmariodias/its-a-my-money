@@ -22,7 +22,8 @@ import { Text } from '@/shared/components/Themed';
 import DeleteModal from '@/shared/components/DeleteModal';
 import InfoModal from '@/shared/components/InfoModal';
 import OperationLockModal from '@/shared/components/OperationLockModal';
-import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb, useRecurringDb } from '@/db';
+import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb, useRecurringDb, useBudgetsDb } from '@/db';
+import { useBudgetsStore } from '@/features/budgets/useBudgetsStore';
 import type { ExportData } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
@@ -41,6 +42,7 @@ import { parseMonefyCsv, convertMonefyToExportData } from './monefy';
 import { generateExportJson } from './exportData';
 import GoogleDriveSection from '@/features/backup/GoogleDriveSection';
 import RecurringListScreen from '@/features/recurring/RecurringListScreen';
+import BudgetsListScreen from '@/features/budgets/BudgetsListScreen';
 import { useUIStore } from '@/shared/store/useUIStore';
 import AppIcon from '@/assets/images/icon.svg';
 
@@ -117,6 +119,8 @@ export default function SettingsScreen() {
   const transfersDb = useTransfersDb();
   const importDb = useImportDb();
   const recurringDb = useRecurringDb();
+  const budgetsDb = useBudgetsDb();
+  const setBudgets = useBudgetsStore((s) => s.setBudgets);
 
   const currency = useSettingsStore((s) => s.currency);
   const setCurrency = useSettingsStore((s) => s.setCurrency);
@@ -140,6 +144,7 @@ export default function SettingsScreen() {
   const [infoModal, setInfoModal] = useState<{ icon: string; iconColor: string; title: string; message: string } | null>(null);
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
+  const [budgetsOpen, setBudgetsOpen] = useState(false);
   const [activeType, setActiveType] = useState<'expense' | 'income'>('expense');
   const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
   const [incomeCategories, setIncomeCategories] = useState<Category[]>([]);
@@ -237,7 +242,9 @@ export default function SettingsScreen() {
     try {
       await recurringDb.removeByCategory(deletingCat.id);
       await transactionsDb.removeByCategory(deletingCat.id);
+      await budgetsDb.removeByCategory(deletingCat.id);
       await categoriesDb.remove(deletingCat.id);
+      setBudgets(await budgetsDb.getAll());
     } catch { /* ignore */ }
     setDeletingCat(null);
     loadCategories();
@@ -622,6 +629,14 @@ export default function SettingsScreen() {
             <MaterialIcons name="chevron-right" size={20} color={subColor} />
           </TouchableOpacity>
           <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
+          <TouchableOpacity style={styles.row} onPress={() => setBudgetsOpen(true)} activeOpacity={0.7}>
+            <View style={[styles.rowIcon, { backgroundColor: '#3b82f620' }]}>
+              <MaterialIcons name="savings" size={20} color="#3b82f6" />
+            </View>
+            <Text style={[styles.rowLabel, { color: textColor }]}>Budgets</Text>
+            <MaterialIcons name="chevron-right" size={20} color={subColor} />
+          </TouchableOpacity>
+          <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
           <TouchableOpacity style={styles.row} onPress={handleExport} activeOpacity={0.7}>
             <View style={[styles.rowIcon, { backgroundColor: '#4CAF5020' }]}>
               <MaterialIcons name="file-download" size={20} color="#4CAF50" />
@@ -772,6 +787,9 @@ export default function SettingsScreen() {
 
       {/* Recurring transactions screen */}
       <RecurringListScreen isOpen={recurringOpen} onClose={() => setRecurringOpen(false)} />
+
+      {/* Budgets screen */}
+      <BudgetsListScreen isOpen={budgetsOpen} onClose={() => setBudgetsOpen(false)} />
 
       {/* Currency picker */}
       <Modal visible={currencyPickerOpen} animationType="slide" transparent={false} onRequestClose={() => setCurrencyPickerOpen(false)}>

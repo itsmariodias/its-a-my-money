@@ -25,7 +25,7 @@ import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import { Snackbar } from 'react-native-snackbar';
-import type { Category, RecurringFrequency, RecurringTransactionWithDetails } from '@/types';
+import type { Category, RecurringFrequency, RecurringKind, RecurringTransactionWithDetails } from '@/types';
 import { advanceDate, todayString } from './dateUtils';
 
 const CATEGORY_GRID_3_ROWS = 230;
@@ -55,11 +55,13 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
   const categoriesDb = useCategoriesDb();
   const recurringDb = useRecurringDb();
 
+  const [kind, setKind] = useState<RecurringKind>('transaction');
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [amount, setAmount] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [fromAccountId, setFromAccountId] = useState<number | null>(null);
+  const [toAccountId, setToAccountId] = useState<number | null>(null);
   const [frequency, setFrequency] = useState<RecurringFrequency>('monthly');
   const [startDate, setStartDate] = useState(todayString());
   const [endDate, setEndDate] = useState<string | null>(null);
@@ -68,23 +70,32 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
   const [errorModal, setErrorModal] = useState<string | null>(null);
 
   const accountScrollRef = useRef<ScrollView>(null);
+  const toAccountScrollRef = useRef<ScrollView>(null);
   const categoryScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     if (recurring) {
-      setType(recurring.type);
+      setKind(recurring.kind);
+      setType((recurring.type as 'expense' | 'income') ?? 'expense');
       setAmount(String(recurring.amount));
       setFrequency(recurring.frequency);
       setStartDate(recurring.start_date);
       setEndDate(recurring.end_date);
       setNote(recurring.note ?? '');
-      setSelectedAccountId(recurring.account_id);
-      categoriesDb.getByType(recurring.type).then((cats) => {
-        setCategories(cats);
-        setSelectedCategory(cats.find((c) => c.id === recurring.category_id) ?? null);
-      });
+      setFromAccountId(recurring.account_id);
+      setToAccountId(recurring.to_account_id);
+      if (recurring.kind === 'transaction' && recurring.type) {
+        categoriesDb.getByType(recurring.type).then((cats) => {
+          setCategories(cats);
+          setSelectedCategory(cats.find((c) => c.id === recurring.category_id) ?? null);
+        });
+      } else {
+        setCategories([]);
+        setSelectedCategory(null);
+      }
     } else {
+      setKind('transaction');
       setType('expense');
       setAmount('');
       setFrequency('monthly');
@@ -92,25 +103,31 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
       setEndDate(null);
       setNote('');
       setSelectedCategory(null);
-      setSelectedAccountId(accounts[0]?.id ?? null);
+      setFromAccountId(accounts[0]?.id ?? null);
+      setToAccountId(accounts[1]?.id ?? null);
       categoriesDb.getByType('expense').then(setCategories);
     }
     setAttempted(false);
   }, [isOpen, recurring]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || kind !== 'transaction') return;
     categoriesDb.getByType(type).then((cats) => {
       setCategories(cats);
-      if (recurring && type === recurring.type) {
+      if (recurring && recurring.kind === 'transaction' && type === recurring.type) {
         setSelectedCategory(cats.find((c) => c.id === recurring.category_id) ?? null);
       } else {
         setSelectedCategory(null);
       }
     });
-  }, [type]);
+  }, [type, kind]);
 
-  // Generate all overdue transactions for a recurring entry immediately after save,
+  const swapAccounts = () => {
+    setFromAccountId(toAccountId);
+    setToAccountId(fromAccountId);
+  };
+
+  // Generate all overdue entries for a recurring rule immediately after save,
   // handling the case where the app already ran its daily check earlier today.
   const generateOverdue = useCallback(async (recurringId: number, parsedAmount: number) => {
     const today = todayString();
@@ -118,10 +135,29 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
     await db.withTransactionAsync(async () => {
       let dueDate = startDate;
       while (dueDate <= today) {
-        await db.runAsync(
-          'INSERT INTO transactions (amount, type, category_id, account_id, note, date, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          parsedAmount, type, selectedCategory!.id, selectedAccountId!, note.trim() || null, dueDate, recurringId
-        );
+        if (kind === 'transfer') {
+          await db.runAsync(
+            'INSERT INTO transfers (from_account_id, to_account_id, amount, note, date, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?)',
+            fromAccountId!, toAccountId!, parsedAmount, note.trim() || null, dueDate, recurringId
+          );
+          await db.runAsync(
+            "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+            -parsedAmount, fromAccountId!
+          );
+          await db.runAsync(
+            "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+            parsedAmount, toAccountId!
+          );
+        } else {
+          await db.runAsync(
+            'INSERT INTO transactions (amount, type, category_id, account_id, note, date, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            parsedAmount, type, selectedCategory!.id, fromAccountId!, note.trim() || null, dueDate, recurringId
+          );
+          await db.runAsync(
+            "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+            type === 'income' ? parsedAmount : -parsedAmount, fromAccountId!
+          );
+        }
         dueDate = advanceDate(dueDate, frequency);
       }
       const isActive = endDate == null || dueDate <= endDate ? 1 : 0;
@@ -130,19 +166,30 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
         dueDate, isActive, recurringId
       );
     });
-  }, [db, startDate, type, selectedCategory, selectedAccountId, note, frequency, endDate]);
+  }, [db, kind, startDate, type, selectedCategory, fromAccountId, toAccountId, note, frequency, endDate]);
+
+  const validate = (): boolean => {
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || parsedAmount <= 0) return false;
+    if (!fromAccountId) return false;
+    if (endDate && endDate < startDate) return false;
+    if (kind === 'transfer') {
+      if (!toAccountId || toAccountId === fromAccountId) return false;
+    } else {
+      if (!selectedCategory) return false;
+    }
+    return true;
+  };
 
   const handleSave = useCallback(async () => {
     setAttempted(true);
+    if (!validate()) return;
     const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
-    if (endDate && endDate < startDate) return;
 
     try {
       if (recurring) {
         // If start_date or frequency changed, recalculate next_due_date from the new
-        // start_date so future transactions align to the new pattern (e.g. 1st of month).
-        // Existing past transactions are kept as-is; no backfill is done.
+        // start_date so future entries align to the new pattern. Past entries are kept.
         let nextDueDate = recurring.next_due_date;
         if (startDate !== recurring.start_date || frequency !== recurring.frequency) {
           const today = todayString();
@@ -152,9 +199,11 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
         }
         await recurringDb.update(recurring.id, {
           amount: parsedAmount,
-          type,
-          category_id: selectedCategory.id,
-          account_id: selectedAccountId,
+          kind,
+          type: kind === 'transaction' ? type : null,
+          category_id: kind === 'transaction' ? selectedCategory!.id : null,
+          account_id: fromAccountId!,
+          to_account_id: kind === 'transfer' ? toAccountId! : null,
           note: note.trim() || null,
           frequency,
           start_date: startDate,
@@ -164,13 +213,15 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
         });
         const updated = await recurringDb.getById(recurring.id);
         if (updated) updateRecurring(updated);
-        Snackbar.show({ text: 'Recurring transaction updated', duration: Snackbar.LENGTH_SHORT });
+        Snackbar.show({ text: 'Recurring updated', duration: Snackbar.LENGTH_SHORT });
       } else {
         const result = await recurringDb.insert({
           amount: parsedAmount,
-          type,
-          category_id: selectedCategory.id,
-          account_id: selectedAccountId,
+          kind,
+          type: kind === 'transaction' ? type : null,
+          category_id: kind === 'transaction' ? selectedCategory!.id : null,
+          account_id: fromAccountId!,
+          to_account_id: kind === 'transfer' ? toAccountId! : null,
           note: note.trim() || null,
           frequency,
           start_date: startDate,
@@ -181,13 +232,13 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
         await generateOverdue(result.lastInsertRowId, parsedAmount);
         const added = await recurringDb.getById(result.lastInsertRowId);
         if (added) addRecurring(added);
-        Snackbar.show({ text: 'Recurring transaction saved', duration: Snackbar.LENGTH_SHORT });
+        Snackbar.show({ text: 'Recurring saved', duration: Snackbar.LENGTH_SHORT });
       }
       triggerCloseRef.current();
     } catch {
-      setErrorModal('Failed to save recurring transaction.');
+      setErrorModal('Failed to save recurring.');
     }
-  }, [amount, type, selectedCategory, selectedAccountId, frequency, startDate, endDate, note, recurring, generateOverdue]);
+  }, [amount, kind, type, selectedCategory, fromAccountId, toAccountId, frequency, startDate, endDate, note, recurring, generateOverdue]);
 
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
@@ -232,6 +283,37 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
     onPanResponderTerminate: () => snapBack(),
   })).current;
 
+  const renderAccountList = (selectedId: number | null, onSelect: (id: number) => void, scrollRef: React.RefObject<ScrollView | null>, excludeId?: number | null) => (
+    <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
+      {accounts.filter((a) => a.id !== excludeId).map((acc) => {
+        const isSelected = selectedId === acc.id;
+        const accentBg = acc.color ?? '#55A3FF';
+        return (
+          <TouchableOpacity
+            key={acc.id}
+            style={[styles.accountCard, { backgroundColor: isSelected ? accentBg + '18' : inputBg, borderColor: isSelected ? accentBg : borderColor, borderWidth: isSelected ? 2 : 1 }]}
+            onPress={() => onSelect(acc.id)}
+            activeOpacity={0.7}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: isSelected }}
+          >
+            <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
+              <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
+            </View>
+            <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
+              {acc.name}
+            </Text>
+            {isSelected && (
+              <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
+                <MaterialIcons name="check" size={10} color="#fff" />
+              </View>
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+
   return (
     <>
       <Modal visible={isOpen} animationType="none" transparent onRequestClose={() => triggerCloseRef.current()}>
@@ -255,6 +337,28 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
+              {/* Kind toggle — only when creating; editing keeps existing kind */}
+              {!recurring && (
+                <View style={[styles.typeToggle, { backgroundColor: inputBg, marginBottom: 14 }]}>
+                  <TouchableOpacity
+                    style={[styles.freqBtn, kind === 'transaction' && { backgroundColor: accentColor }]}
+                    onPress={() => setKind('transaction')}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: kind === 'transaction' }}
+                  >
+                    <Text style={[styles.freqBtnText, { color: kind === 'transaction' ? onAccentColor : subTextColor }]}>Transaction</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.freqBtn, kind === 'transfer' && { backgroundColor: accentColor }]}
+                    onPress={() => setKind('transfer')}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: kind === 'transfer' }}
+                  >
+                    <Text style={[styles.freqBtnText, { color: kind === 'transfer' ? onAccentColor : subTextColor }]}>Transfer</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Amount */}
               <View style={[styles.amountContainer, { backgroundColor: inputBg, borderColor: attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) ? '#F44336' : borderColor }]}>
                 <Text style={[styles.currencySymbol, { color: subTextColor }]}>{currencySymbol}</Text>
@@ -273,25 +377,27 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
                 <Text style={styles.errorText}>Enter a valid amount greater than 0</Text>
               )}
 
-              {/* Type toggle */}
-              <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
-                <TouchableOpacity
-                  style={[styles.typeBtn, type === 'expense' && { backgroundColor: '#F44336' }]}
-                  onPress={() => setType('expense')}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: type === 'expense' }}
-                >
-                  <Text style={[styles.typeBtnText, { color: type === 'expense' ? '#fff' : subTextColor }]}>Expense</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.typeBtn, type === 'income' && { backgroundColor: '#4CAF50' }]}
-                  onPress={() => setType('income')}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: type === 'income' }}
-                >
-                  <Text style={[styles.typeBtnText, { color: type === 'income' ? '#fff' : subTextColor }]}>Income</Text>
-                </TouchableOpacity>
-              </View>
+              {/* Type toggle — transactions only */}
+              {kind === 'transaction' && (
+                <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
+                  <TouchableOpacity
+                    style={[styles.typeBtn, type === 'expense' && { backgroundColor: '#F44336' }]}
+                    onPress={() => setType('expense')}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: type === 'expense' }}
+                  >
+                    <Text style={[styles.typeBtnText, { color: type === 'expense' ? '#fff' : subTextColor }]}>Expense</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.typeBtn, type === 'income' && { backgroundColor: '#4CAF50' }]}
+                    onPress={() => setType('income')}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: type === 'income' }}
+                  >
+                    <Text style={[styles.typeBtnText, { color: type === 'income' ? '#fff' : subTextColor }]}>Income</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {/* Frequency */}
               <Text style={[styles.sectionLabel, { color: subTextColor }]}>Repeat</Text>
@@ -311,73 +417,73 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
                 ))}
               </View>
 
-              {/* Category */}
-              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Category</Text>
-              <ScrollView
-                ref={categoryScrollRef}
-                scrollEnabled={categories.length > 9}
-                style={categories.length > 9 ? localStyles.categoryGridScroll : undefined}
-                nestedScrollEnabled
-                showsVerticalScrollIndicator={false}
-              >
-                <View style={localStyles.categoryGrid}>
-                  {categories.map((cat) => {
-                    const isSelected = selectedCategory?.id === cat.id;
-                    return (
-                      <TouchableOpacity
-                        key={cat.id}
-                        style={localStyles.categoryItem}
-                        onPress={() => setSelectedCategory(cat)}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: isSelected }}
-                      >
-                        <View style={[localStyles.categoryCircle, { backgroundColor: cat.color }, isSelected && localStyles.categoryCircleSelected]}>
-                          <MaterialIcons name={(cat.icon as any) || 'label'} size={20} color="#fff" />
-                        </View>
-                        <Text style={[localStyles.categoryLabel, { color: isSelected ? textColor : subTextColor }]} numberOfLines={1}>
-                          {cat.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-              {attempted && !selectedCategory && (
-                <Text style={styles.errorText}>Please select a category</Text>
+              {/* Category — transactions only */}
+              {kind === 'transaction' && (
+                <>
+                  <Text style={[styles.sectionLabel, { color: subTextColor }]}>Category</Text>
+                  <ScrollView
+                    ref={categoryScrollRef}
+                    scrollEnabled={categories.length > 9}
+                    style={categories.length > 9 ? localStyles.categoryGridScroll : undefined}
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <View style={localStyles.categoryGrid}>
+                      {categories.map((cat) => {
+                        const isSelected = selectedCategory?.id === cat.id;
+                        return (
+                          <TouchableOpacity
+                            key={cat.id}
+                            style={localStyles.categoryItem}
+                            onPress={() => setSelectedCategory(cat)}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected: isSelected }}
+                          >
+                            <View style={[localStyles.categoryCircle, { backgroundColor: cat.color }, isSelected && localStyles.categoryCircleSelected]}>
+                              <MaterialIcons name={(cat.icon as any) || 'label'} size={20} color="#fff" />
+                            </View>
+                            <Text style={[localStyles.categoryLabel, { color: isSelected ? textColor : subTextColor }]} numberOfLines={1}>
+                              {cat.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                  {attempted && !selectedCategory && (
+                    <Text style={styles.errorText}>Please select a category</Text>
+                  )}
+                </>
               )}
 
-              {/* Account */}
-              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Account</Text>
-              <ScrollView ref={accountScrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
-                {accounts.map((acc) => {
-                  const isSelected = selectedAccountId === acc.id;
-                  const accentBg = acc.color ?? '#55A3FF';
-                  return (
-                    <TouchableOpacity
-                      key={acc.id}
-                      style={[styles.accountCard, { backgroundColor: isSelected ? accentBg + '18' : inputBg, borderColor: isSelected ? accentBg : borderColor, borderWidth: isSelected ? 2 : 1 }]}
-                      onPress={() => setSelectedAccountId(acc.id)}
-                      activeOpacity={0.7}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: isSelected }}
-                    >
-                      <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
-                        <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
-                      </View>
-                      <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
-                        {acc.name}
-                      </Text>
-                      {isSelected && (
-                        <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
-                          <MaterialIcons name="check" size={10} color="#fff" />
-                        </View>
-                      )}
+              {/* Account(s) */}
+              {kind === 'transfer' ? (
+                <>
+                  <View style={localStyles.transferHeader}>
+                    <Text style={[styles.sectionLabel, { color: subTextColor, marginBottom: 0 }]}>From</Text>
+                    <TouchableOpacity onPress={swapAccounts} hitSlop={8} accessibilityRole="button" accessibilityLabel="Swap accounts">
+                      <MaterialIcons name="swap-vert" size={22} color={accentColor} />
                     </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-              {attempted && !selectedAccountId && (
-                <Text style={styles.errorText}>Please select an account</Text>
+                  </View>
+                  {renderAccountList(fromAccountId, setFromAccountId, accountScrollRef, toAccountId)}
+                  {attempted && !fromAccountId && (
+                    <Text style={styles.errorText}>Please select a source account</Text>
+                  )}
+
+                  <Text style={[styles.sectionLabel, { color: subTextColor }]}>To</Text>
+                  {renderAccountList(toAccountId, setToAccountId, toAccountScrollRef, fromAccountId)}
+                  {attempted && (!toAccountId || toAccountId === fromAccountId) && (
+                    <Text style={styles.errorText}>Please select a different destination account</Text>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.sectionLabel, { color: subTextColor }]}>Account</Text>
+                  {renderAccountList(fromAccountId, setFromAccountId, accountScrollRef)}
+                  {attempted && !fromAccountId && (
+                    <Text style={styles.errorText}>Please select an account</Text>
+                  )}
+                </>
               )}
 
               {/* Start date — in edit mode, cannot move earlier than the original start date */}
@@ -455,6 +561,7 @@ const localStyles = StyleSheet.create({
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   freqBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   freqBtnText: { fontWeight: '600', fontSize: 12 },
+  transferHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
 });
 
 const styles = { ...sheetStyles, ...localStyles };

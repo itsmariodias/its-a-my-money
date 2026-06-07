@@ -38,11 +38,12 @@ export interface Transaction {
 
 export interface Transfer {
   id: number;
-  from_account_id: number;
-  to_account_id: number;
+  from_account_id: number | null;
+  to_account_id: number | null;
   amount: number;
   note: string | null;
   date: string;
+  recurring_transaction_id: number | null;
   created_at: string;
 }
 
@@ -54,12 +55,22 @@ export interface Budget {
   created_at: string;
 }
 
+export interface BudgetWithDetails extends Budget {
+  category_name: string;
+  category_color: string;
+  category_icon: string;
+}
+
+export type RecurringKind = 'transaction' | 'transfer';
+
 export interface RecurringTransaction {
   id: number;
   amount: number;
-  type: TransactionType;
-  category_id: number;
-  account_id: number;
+  kind: RecurringKind;
+  type: TransactionType | null;
+  category_id: number | null;
+  account_id: number; // for transfer: the "from" account
+  to_account_id: number | null; // for transfer only
   note: string | null;
   frequency: RecurringFrequency;
   start_date: string;
@@ -70,10 +81,13 @@ export interface RecurringTransaction {
 }
 
 export interface RecurringTransactionWithDetails extends RecurringTransaction {
-  category_name: string;
-  category_color: string;
-  category_icon: string;
+  category_name: string | null;
+  category_color: string | null;
+  category_icon: string | null;
   account_name: string;
+  to_account_name: string | null;
+  to_account_color: string | null;
+  to_account_icon: string | null;
 }
 
 // Enriched types (joins)

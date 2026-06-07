@@ -25,9 +25,12 @@ import {
   shortPeriodLabel,
   periodNavLabel,
 } from '@/shared/components/PeriodSelector';
-import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
+import { useAccountsDb, useTransactionsDb, useTransfersDb, useBudgetsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
+import { useBudgetsStore } from '@/features/budgets/useBudgetsStore';
+import BudgetsDashboardCard from '@/features/budgets/BudgetsDashboardCard';
+import BudgetsListScreen from '@/features/budgets/BudgetsListScreen';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
@@ -108,14 +111,17 @@ export default function DashboardScreen() {
   const transactionsDb = useTransactionsDb();
   const accountsDb = useAccountsDb();
   const transfersDb = useTransfersDb();
+  const budgetsDb = useBudgetsDb();
   const accounts = useAccountsStore((s) => s.accounts);
   const setAccounts = useAccountsStore((s) => s.setAccounts);
   const transactions = useTransactionsStore((s) => s.transactions);
   const setTransactions = useTransactionsStore((s) => s.setTransactions);
   const transfers = useTransfersStore((s) => s.transfers);
   const setTransfers = useTransfersStore((s) => s.setTransfers);
+  const setBudgets = useBudgetsStore((s) => s.setBudgets);
   const currency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const [budgetsOpen, setBudgetsOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -123,10 +129,12 @@ export default function DashboardScreen() {
         transactionsDb.getAll(),
         accountsDb.getAll(),
         transfersDb.getAll(),
-      ]).then(([all, accs, tfrs]) => {
+        budgetsDb.getAll(),
+      ]).then(([all, accs, tfrs, bdgs]) => {
         setTransactions(all);
         setAccounts(accs);
         setTransfers(tfrs);
+        setBudgets(bdgs);
       });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -600,6 +608,9 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        {/* Budgets */}
+        <BudgetsDashboardCard onPress={() => setBudgetsOpen(true)} />
+
         {/* Recent Transactions */}
         <View style={[styles.section, { backgroundColor: cardBg }]}>
           <View style={styles.sectionHeader}>
@@ -664,6 +675,8 @@ export default function DashboardScreen() {
           )}
         </View>
       </ScrollView>
+
+      <BudgetsListScreen isOpen={budgetsOpen} onClose={() => setBudgetsOpen(false)} />
     </View>
   );
 }

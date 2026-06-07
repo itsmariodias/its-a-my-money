@@ -13,7 +13,7 @@ import { Snackbar } from 'react-native-snackbar';
 import { Text } from '@/shared/components/Themed';
 import DeleteModal from '@/shared/components/DeleteModal';
 import InfoModal from '@/shared/components/InfoModal';
-import { useRecurringDb, useTransactionsDb } from '@/db';
+import { useRecurringDb, useTransactionsDb, useTransfersDb } from '@/db';
 import { todayString } from './dateUtils';
 import { useRecurringStore } from './useRecurringStore';
 import { useAppTheme } from '@/shared/components/useAppTheme';
@@ -35,10 +35,11 @@ interface Props {
 }
 
 export default function RecurringListScreen({ isOpen, onClose }: Props) {
-  const { bg, cardBg, textColor, subColor, borderColor, accentColor, onAccentColor, inputBg } = useAppTheme();
+  const { bg, cardBg, textColor, subColor, borderColor, accentColor, onAccentColor } = useAppTheme();
   const insets = useSafeAreaInsets();
   const recurringDb = useRecurringDb();
   const transactionsDb = useTransactionsDb();
+  const transfersDb = useTransfersDb();
   const { recurringTransactions, setRecurringTransactions, removeRecurring } = useRecurringStore();
   const currency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
@@ -82,13 +83,17 @@ export default function RecurringListScreen({ isOpen, onClose }: Props) {
     if (!deletingItem) return;
     try {
       if (deleteLinked) {
-        await transactionsDb.removeByRecurring(deletingItem.id);
+        if (deletingItem.kind === 'transfer') {
+          await transfersDb.removeByRecurring(deletingItem.id);
+        } else {
+          await transactionsDb.removeByRecurring(deletingItem.id);
+        }
       }
       await recurringDb.remove(deletingItem.id);
       removeRecurring(deletingItem.id);
-      Snackbar.show({ text: 'Recurring transaction deleted', duration: Snackbar.LENGTH_SHORT });
+      Snackbar.show({ text: 'Recurring deleted', duration: Snackbar.LENGTH_SHORT });
     } catch {
-      setErrorModal('Failed to delete recurring transaction.');
+      setErrorModal('Failed to delete recurring.');
     } finally {
       setDeletingItem(null);
       setDeleteLinked(false);
@@ -96,8 +101,9 @@ export default function RecurringListScreen({ isOpen, onClose }: Props) {
   }, [deletingItem, deleteLinked, recurringDb, transactionsDb, removeRecurring]);
 
   const renderItem = ({ item, index }: { item: RecurringTransactionWithDetails; index: number }) => {
-    const amountColor = item.type === 'income' ? '#4CAF50' : '#F44336';
-    const formattedAmount = formatAmount(item.amount, currency, item.type, numberFormat);
+    const isTransfer = item.kind === 'transfer';
+    const amountColor = isTransfer ? textColor : item.type === 'income' ? '#4CAF50' : '#F44336';
+    const formattedAmount = formatAmount(item.amount, currency, isTransfer ? undefined : (item.type ?? undefined), numberFormat);
     const isInactive = item.is_active === 0 || (item.end_date != null && item.end_date < todayString());
     const isFirst = index === 0;
     const isLast = index === recurringTransactions.length - 1;
@@ -106,21 +112,28 @@ export default function RecurringListScreen({ isOpen, onClose }: Props) {
       borderBottomLeftRadius: isLast ? 12 : 0, borderBottomRightRadius: isLast ? 12 : 0,
     };
 
+    const iconBg = isTransfer ? accentColor : (item.category_color ?? subColor);
+    const iconName = isTransfer ? 'swap-horiz' : ((item.category_icon as any) || 'autorenew');
+    const title = item.note || (isTransfer ? 'Transfer' : (item.category_name ?? 'Recurring'));
+    const subtitle = isTransfer
+      ? `${item.account_name} → ${item.to_account_name ?? '?'}`
+      : item.account_name;
+
     return (
       <TouchableOpacity
         style={[styles.item, br, { backgroundColor: cardBg, opacity: isInactive ? 0.5 : 1 }]}
         onPress={() => handleEdit(item)}
         activeOpacity={0.7}
       >
-        <View style={[styles.itemIcon, { backgroundColor: item.category_color }]}>
-          <MaterialIcons name={(item.category_icon as any) || 'autorenew'} size={20} color="#fff" />
+        <View style={[styles.itemIcon, { backgroundColor: iconBg }]}>
+          <MaterialIcons name={iconName} size={20} color={isTransfer ? onAccentColor : '#fff'} />
         </View>
         <View style={styles.itemLeft}>
           <Text style={[styles.itemTitle, { color: textColor }]} numberOfLines={1}>
-            {item.note || item.category_name}
+            {title}
           </Text>
           <Text style={[styles.itemSub, { color: subColor }]} numberOfLines={1}>
-            {item.account_name}
+            {subtitle}
           </Text>
           <Text style={[styles.itemNextDue, { color: subColor }]}>
             {isInactive ? 'Inactive' : `Next: ${item.next_due_date}`}

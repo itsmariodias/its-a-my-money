@@ -1,5 +1,5 @@
 import { useSQLiteContext } from 'expo-sqlite';
-import type { Account, Category, Transaction, Transfer, TransactionWithDetails, TransferWithDetails, RecurringTransaction, RecurringTransactionWithDetails } from '@/types';
+import type { Account, Category, Transaction, Transfer, TransactionWithDetails, TransferWithDetails, RecurringTransaction, RecurringTransactionWithDetails, Budget, BudgetWithDetails } from '@/types';
 
 // --- Accounts ---
 
@@ -284,11 +284,14 @@ export function useImportDb() {
         const recurringIdMap = new Map<number, number>();
         if (data.recurring_transactions) {
           for (const rec of data.recurring_transactions) {
-            const actualCategoryId = categoryIdMap.get(rec.category_id) ?? rec.category_id;
+            const kind = rec.kind ?? 'transaction';
+            const actualCategoryId = rec.category_id != null
+              ? (categoryIdMap.get(rec.category_id) ?? rec.category_id)
+              : null;
             const result = await db.runAsync(
-              'INSERT INTO recurring_transactions (amount, type, category_id, account_id, note, frequency, start_date, end_date, next_due_date, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-              rec.amount, rec.type, actualCategoryId, rec.account_id, rec.note ?? null,
-              rec.frequency, rec.start_date, rec.end_date ?? null, rec.next_due_date, rec.is_active, rec.created_at
+              'INSERT INTO recurring_transactions (amount, kind, type, category_id, account_id, to_account_id, note, frequency, start_date, end_date, next_due_date, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              rec.amount, kind, rec.type ?? null, actualCategoryId, rec.account_id, rec.to_account_id ?? null,
+              rec.note ?? null, rec.frequency, rec.start_date, rec.end_date ?? null, rec.next_due_date, rec.is_active, rec.created_at
             );
             recurringIdMap.set(rec.id, result.lastInsertRowId);
           }
@@ -306,11 +309,14 @@ export function useImportDb() {
           );
         }
 
-        // 6. Transfers
+        // 6. Transfers (remap recurring_transaction_id if present)
         for (const tr of data.transfers) {
+          const actualRecurringId = tr.recurring_transaction_id != null
+            ? (recurringIdMap.get(tr.recurring_transaction_id) ?? null)
+            : null;
           await db.runAsync(
-            'INSERT INTO transfers (id, from_account_id, to_account_id, amount, note, date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            tr.id, tr.from_account_id, tr.to_account_id, tr.amount, tr.note ?? null, tr.date, tr.created_at
+            'INSERT INTO transfers (id, from_account_id, to_account_id, amount, note, date, recurring_transaction_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            tr.id, tr.from_account_id, tr.to_account_id, tr.amount, tr.note ?? null, tr.date, actualRecurringId, tr.created_at
           );
         }
 
@@ -343,16 +349,20 @@ export function useTransfersDb() {
 
   // Money flowing INTO an investment account increases its current value;
   // money flowing OUT decreases it. Keeps P&L a measure of market movement, not cash flows.
-  const applyCurrentValueDelta = (fromId: number, toId: number, amount: number) =>
-    db.runAsync(
-      "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
-      -amount, fromId
-    ).then(() =>
-      db.runAsync(
+  const applyCurrentValueDelta = async (fromId: number | null, toId: number | null, amount: number) => {
+    if (fromId != null) {
+      await db.runAsync(
+        "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
+        -amount, fromId
+      );
+    }
+    if (toId != null) {
+      await db.runAsync(
         "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
         amount, toId
-      )
-    );
+      );
+    }
+  };
 
   return {
     getAll: () =>
@@ -369,8 +379,8 @@ export function useTransfersDb() {
       let result!: Awaited<ReturnType<typeof db.runAsync>>;
       await db.withTransactionAsync(async () => {
         result = await db.runAsync(
-          'INSERT INTO transfers (from_account_id, to_account_id, amount, note, date) VALUES (?, ?, ?, ?, ?)',
-          transfer.from_account_id, transfer.to_account_id, transfer.amount, transfer.note ?? null, transfer.date
+          'INSERT INTO transfers (from_account_id, to_account_id, amount, note, date, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?)',
+          transfer.from_account_id, transfer.to_account_id, transfer.amount, transfer.note ?? null, transfer.date, transfer.recurring_transaction_id ?? null
         );
         await applyCurrentValueDelta(transfer.from_account_id, transfer.to_account_id, transfer.amount);
       });
@@ -402,6 +412,9 @@ export function useTransfersDb() {
 
     removeByAccount: (accountId: number) =>
       db.runAsync('DELETE FROM transfers WHERE from_account_id=? OR to_account_id=?', accountId, accountId),
+
+    removeByRecurring: (recurringId: number) =>
+      db.runAsync('DELETE FROM transfers WHERE recurring_transaction_id=?', recurringId),
   };
 }
 
@@ -410,10 +423,12 @@ export function useTransfersDb() {
 const RECURRING_SELECT = `
   SELECT r.*,
     c.name as category_name, c.color as category_color, c.icon as category_icon,
-    a.name as account_name
+    a.name as account_name,
+    ta.name as to_account_name, ta.color as to_account_color, ta.icon as to_account_icon
   FROM recurring_transactions r
-  JOIN categories c ON r.category_id = c.id
+  LEFT JOIN categories c ON r.category_id = c.id
   JOIN accounts a ON r.account_id = a.id
+  LEFT JOIN accounts ta ON ta.id = r.to_account_id
 `;
 
 export function useRecurringDb() {
@@ -438,16 +453,16 @@ export function useRecurringDb() {
 
     insert: (rec: Omit<RecurringTransaction, 'id' | 'created_at'>) =>
       db.runAsync(
-        'INSERT INTO recurring_transactions (amount, type, category_id, account_id, note, frequency, start_date, end_date, next_due_date, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        rec.amount, rec.type, rec.category_id, rec.account_id, rec.note ?? null,
-        rec.frequency, rec.start_date, rec.end_date ?? null, rec.next_due_date, rec.is_active
+        'INSERT INTO recurring_transactions (amount, kind, type, category_id, account_id, to_account_id, note, frequency, start_date, end_date, next_due_date, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        rec.amount, rec.kind, rec.type ?? null, rec.category_id ?? null, rec.account_id, rec.to_account_id ?? null,
+        rec.note ?? null, rec.frequency, rec.start_date, rec.end_date ?? null, rec.next_due_date, rec.is_active
       ),
 
     update: (id: number, rec: Partial<Omit<RecurringTransaction, 'id' | 'created_at'>>) =>
       db.runAsync(
-        'UPDATE recurring_transactions SET amount=?, type=?, category_id=?, account_id=?, note=?, frequency=?, start_date=?, end_date=?, next_due_date=?, is_active=? WHERE id=?',
-        rec.amount!, rec.type!, rec.category_id!, rec.account_id!, rec.note ?? null,
-        rec.frequency!, rec.start_date!, rec.end_date ?? null, rec.next_due_date!, rec.is_active!, id
+        'UPDATE recurring_transactions SET amount=?, kind=?, type=?, category_id=?, account_id=?, to_account_id=?, note=?, frequency=?, start_date=?, end_date=?, next_due_date=?, is_active=? WHERE id=?',
+        rec.amount!, rec.kind!, rec.type ?? null, rec.category_id ?? null, rec.account_id!, rec.to_account_id ?? null,
+        rec.note ?? null, rec.frequency!, rec.start_date!, rec.end_date ?? null, rec.next_due_date!, rec.is_active!, id
       ),
 
     updateNextDueDate: (id: number, nextDate: string, isActive: number) =>
@@ -459,9 +474,43 @@ export function useRecurringDb() {
     remove: (id: number) => db.runAsync('DELETE FROM recurring_transactions WHERE id=?', id),
 
     removeByAccount: (accountId: number) =>
-      db.runAsync('DELETE FROM recurring_transactions WHERE account_id=?', accountId),
+      db.runAsync('DELETE FROM recurring_transactions WHERE account_id=? OR to_account_id=?', accountId, accountId),
 
     removeByCategory: (categoryId: number) =>
       db.runAsync('DELETE FROM recurring_transactions WHERE category_id=?', categoryId),
+  };
+}
+
+// --- Budgets ---
+
+const BUDGET_SELECT = `
+  SELECT b.*, c.name as category_name, c.color as category_color, c.icon as category_icon
+  FROM budgets b
+  JOIN categories c ON c.id = b.category_id
+`;
+
+export function useBudgetsDb() {
+  const db = useSQLiteContext();
+
+  return {
+    getAll: () =>
+      db.getAllAsync<BudgetWithDetails>(`${BUDGET_SELECT} ORDER BY c.name ASC`),
+
+    insert: (budget: Omit<Budget, 'id' | 'created_at'>) =>
+      db.runAsync(
+        'INSERT INTO budgets (category_id, amount, period) VALUES (?, ?, ?)',
+        budget.category_id, budget.amount, budget.period
+      ),
+
+    update: (id: number, budget: Partial<Omit<Budget, 'id' | 'created_at'>>) =>
+      db.runAsync(
+        'UPDATE budgets SET category_id=?, amount=?, period=? WHERE id=?',
+        budget.category_id!, budget.amount!, budget.period!, id
+      ),
+
+    remove: (id: number) => db.runAsync('DELETE FROM budgets WHERE id=?', id),
+
+    removeByCategory: (categoryId: number) =>
+      db.runAsync('DELETE FROM budgets WHERE category_id=?', categoryId),
   };
 }

@@ -51,15 +51,23 @@ function isValidTransfer(item: unknown): boolean {
 function isValidRecurring(item: unknown): boolean {
   if (!item || typeof item !== 'object') return false;
   const r = item as Record<string, unknown>;
+  const kind = r.kind ?? 'transaction'; // older exports default to transaction
+  if (kind !== 'transaction' && kind !== 'transfer') return false;
+  const validFrequency = r.frequency === 'daily' || r.frequency === 'weekly' || r.frequency === 'monthly' || r.frequency === 'yearly';
+  if (
+    typeof r.id !== 'number' ||
+    typeof r.amount !== 'number' ||
+    typeof r.account_id !== 'number' ||
+    !validFrequency ||
+    typeof r.start_date !== 'string' ||
+    typeof r.next_due_date !== 'string'
+  ) return false;
+  if (kind === 'transfer') {
+    return typeof r.to_account_id === 'number';
+  }
   return (
-    typeof r.id === 'number' &&
-    typeof r.amount === 'number' &&
     (r.type === 'income' || r.type === 'expense') &&
-    typeof r.category_id === 'number' &&
-    typeof r.account_id === 'number' &&
-    (r.frequency === 'daily' || r.frequency === 'weekly' || r.frequency === 'monthly' || r.frequency === 'yearly') &&
-    typeof r.start_date === 'string' &&
-    typeof r.next_due_date === 'string'
+    typeof r.category_id === 'number'
   );
 }
 

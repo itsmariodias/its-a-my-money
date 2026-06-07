@@ -191,6 +191,7 @@ export function convertMonefyToExportData(records: MonefyRecord[]): ExportData {
       amount:          Math.abs(r.amount),
       note:            r.description,
       date:            r.date,
+      recurring_transaction_id: null,
       created_at:      now,
     }];
   });
