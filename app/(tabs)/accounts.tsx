@@ -16,7 +16,6 @@ import AccountFormSheet from '@/features/accounts/AccountFormSheet';
 import AccountIcon from '@/shared/components/AccountIcon';
 import DeleteModal from '@/shared/components/DeleteModal';
 import {
-  PeriodSelector,
   getDateRange,
   periodNavLabel,
 } from '@/shared/components/PeriodSelector';
@@ -160,7 +159,6 @@ export default function AccountsScreen() {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const periodMode = useUIStore((s) => s.periodMode);
   const periodDate = useUIStore((s) => s.periodDate);
-  const setPeriod = useUIStore((s) => s.setPeriod);
   const [deletingAccount, setDeletingAccount] = useState<Account | null>(null);
   const [deleteTxCount, setDeleteTxCount] = useState(0);
   const [deleteTxferCount, setDeleteTxferCount] = useState(0); // transfers are kept, not deleted
@@ -300,15 +298,6 @@ export default function AccountsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
-      {/* Period selector bar */}
-      <View style={[styles.periodBar, { backgroundColor: bg, borderBottomColor: borderColor }]}>
-        <PeriodSelector
-          mode={periodMode}
-          date={periodDate}
-          onChange={setPeriod}
-        />
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -480,10 +469,6 @@ export default function AccountsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  periodBar: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    zIndex: 10,
   },
   newAccountBtn: {
     flexDirection: 'row',

@@ -14,10 +14,7 @@ import { Text } from '@/shared/components/Themed';
 import DeleteModal from '@/shared/components/DeleteModal';
 import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
 import TransferSheet from '@/features/transfers/TransferSheet';
-import {
-  PeriodSelector,
-  getDateRange,
-} from '@/shared/components/PeriodSelector';
+import { getDateRange } from '@/shared/components/PeriodSelector';
 import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
@@ -716,7 +713,6 @@ export default function TransactionsScreen() {
   const selectedId = useUIStore((s) => s.selectedAccountId);
   const periodMode = useUIStore((s) => s.periodMode);
   const periodDate = useUIStore((s) => s.periodDate);
-  const setPeriod = useUIStore((s) => s.setPeriod);
   const [editingTx, setEditingTx] = useState<TransactionWithDetails | null>(null);
   const [deletingTx, setDeletingTx] = useState<TransactionWithDetails | null>(null);
   const [editingTransfer, setEditingTransfer] = useState<TransferWithDetails | null>(null);
@@ -966,15 +962,6 @@ export default function TransactionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
-      {/* Period selector */}
-      <View style={[styles.periodBar, { backgroundColor: bg, borderBottomColor: borderColor }]}>
-        <PeriodSelector
-          mode={periodMode}
-          date={periodDate}
-          onChange={setPeriod}
-        />
-      </View>
-
       {/* Category filter bar */}
       {availableCategories.length > 0 && (
         <CategoryFilterBar
@@ -1106,11 +1093,6 @@ export default function TransactionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
-  periodBar: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    zIndex: 10,
-  },
 
   listContent: {
     paddingBottom: 100,

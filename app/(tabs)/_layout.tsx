@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import AccountIcon from '@/shared/components/AccountIcon';
+import { PeriodSelector } from '@/shared/components/PeriodSelector';
 import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
 import TransferSheet from '@/features/transfers/TransferSheet';
 import SettingsScreen from '@/features/settings/SettingsScreen';
@@ -162,6 +163,9 @@ export default function TabLayout() {
   const closeTransfer = useUIStore((s) => s.closeTransfer);
   const selectedAccountId = useUIStore((s) => s.selectedAccountId);
   const setSelectedAccountId = useUIStore((s) => s.setSelectedAccountId);
+  const periodMode = useUIStore((s) => s.periodMode);
+  const periodDate = useUIStore((s) => s.periodDate);
+  const setPeriod = useUIStore((s) => s.setPeriod);
   const accounts = useAccountsStore((s) => s.accounts);
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -293,6 +297,9 @@ export default function TabLayout() {
           </View>
         </>
       )}
+      <View style={[styles.periodBar, { backgroundColor: bg, borderBottomColor: borderColor }]}>
+        <PeriodSelector mode={periodMode} date={periodDate} onChange={setPeriod} />
+      </View>
       <MaterialTabs
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         renderPager={(props: any) => <CustomPager {...props} />}
@@ -423,6 +430,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  periodBar: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    zIndex: 10,
   },
   headerTitleLogo: {
     fontFamily: 'LilitaOne',

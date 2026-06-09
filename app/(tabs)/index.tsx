@@ -20,7 +20,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
 import AccountIcon from '@/shared/components/AccountIcon';
 import {
-  PeriodSelector,
   getDateRange,
   shortPeriodLabel,
   periodNavLabel,
@@ -104,7 +103,6 @@ export default function DashboardScreen() {
   const selectedId = useUIStore((s) => s.selectedAccountId);
   const periodMode = useUIStore((s) => s.periodMode);
   const periodDate = useUIStore((s) => s.periodDate);
-  const setPeriod = useUIStore((s) => s.setPeriod);
   const [selectedSliceIdx, setSelectedSliceIdx] = useState<number | null>(null);
   const [selectedPortfolioIdx, setSelectedPortfolioIdx] = useState<number | null>(null);
 
@@ -374,15 +372,6 @@ export default function DashboardScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
-      {/* Period selector */}
-      <View style={[styles.periodBar, { backgroundColor: bg, borderBottomColor: borderColor }]}>
-        <PeriodSelector
-          mode={periodMode}
-          date={periodDate}
-          onChange={setPeriod}
-        />
-      </View>
-
       <ScrollView
         style={[styles.scroll, { zIndex: 1 }]}
         contentContainerStyle={[styles.content, { backgroundColor: bg }]}
@@ -723,11 +712,6 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
-  periodBar: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    zIndex: 10,
-  },
 
   scroll: { flex: 1 },
   content: { padding: 16, gap: 12, paddingBottom: 32 },
