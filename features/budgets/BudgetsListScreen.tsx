@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -15,6 +15,7 @@ import InfoModal from '@/shared/components/InfoModal';
 import { useBudgetsDb } from '@/db';
 import { useBudgetsStore } from './useBudgetsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
+import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
@@ -43,8 +44,15 @@ export default function BudgetsListScreen({ isOpen, onClose }: Props) {
   const budgetsDb = useBudgetsDb();
   const { budgets, setBudgets, removeBudget } = useBudgetsStore();
   const transactions = useTransactionsStore((s) => s.transactions);
-  const currency = useSettingsStore((s) => s.currency);
+  const accounts = useAccountsStore((s) => s.accounts);
+  const globalCurrency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+
+  const accountCurrencyById = useMemo<Record<number, string>>(() => {
+    const map: Record<number, string> = {};
+    for (const a of accounts) map[a.id] = a.currency || globalCurrency;
+    return map;
+  }, [accounts, globalCurrency]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<BudgetWithDetails | null>(null);
@@ -95,8 +103,12 @@ export default function BudgetsListScreen({ isOpen, onClose }: Props) {
   }, [deletingItem, budgetsDb, removeBudget]);
 
   const renderItem = ({ item, index }: { item: BudgetWithDetails; index: number }) => {
+    const budgetCurrency = item.currency || globalCurrency;
     const { start, end } = currentPeriodRange(item.period);
-    const spent = spentInRange(transactions, item.category_id, start, end);
+    const spent = spentInRange(transactions, item.category_id, start, end, {
+      currency: budgetCurrency,
+      accountCurrencyById,
+    });
     const pct = item.amount > 0 ? (spent / item.amount) * 100 : 0;
     const color = statusColor(pct);
     const barPct = Math.min(100, pct);
@@ -122,7 +134,7 @@ export default function BudgetsListScreen({ isOpen, onClose }: Props) {
               {item.category_name}
             </Text>
             <Text style={[styles.itemAmount, { color: textColor }]}>
-              {formatAmount(spent, currency, undefined, numberFormat)} / {formatAmount(item.amount, currency, undefined, numberFormat)}
+              {formatAmount(spent, budgetCurrency, undefined, numberFormat)} / {formatAmount(item.amount, budgetCurrency, undefined, numberFormat)}
             </Text>
           </View>
           <View style={[styles.progressTrack, { backgroundColor: borderColor }]}>

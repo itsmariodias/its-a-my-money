@@ -4,6 +4,7 @@ import {
   accountBalanceAsOf,
   computePnL,
   aggregatePortfolio,
+  totalsByCurrency,
 } from './balanceUtils';
 
 function cashAccount(id: number, initial = 0): Account {
@@ -29,9 +30,9 @@ function tx(accountId: number, type: 'income' | 'expense', amount: number, date:
   };
 }
 
-function transfer(from: number, to: number, amount: number, date: string): Transfer {
+function transfer(from: number, to: number, amount: number, date: string, to_amount: number | null = null): Transfer {
   return {
-    id: Math.random(), from_account_id: from, to_account_id: to, amount,
+    id: Math.random(), from_account_id: from, to_account_id: to, amount, to_amount,
     note: null, date, recurring_transaction_id: null, created_at: date,
   };
 }
@@ -151,5 +152,56 @@ describe('aggregatePortfolio', () => {
     expect(r.count).toBe(0);
     expect(r.invested).toBe(0);
     expect(r.pnlPct).toBeNull();
+  });
+});
+
+describe('totalsByCurrency', () => {
+  function eurAccount(id: number, initial = 0): Account {
+    return { ...cashAccount(id, initial), currency: 'EUR' };
+  }
+
+  it('groups balances by currency code', () => {
+    const a1 = cashAccount(1, 0); // USD
+    const a2 = cashAccount(2, 0); // USD
+    const a3 = eurAccount(3, 0);  // EUR
+    const balances = { 1: 100, 2: 250, 3: 500 };
+    const totals = totalsByCurrency([a1, a2, a3], balances);
+    expect(totals).toEqual({ USD: 350, EUR: 500 });
+  });
+
+  it('falls back to initial_balance when an account is missing from the balance map', () => {
+    const a1 = cashAccount(1, 42);
+    const totals = totalsByCurrency([a1], {});
+    expect(totals).toEqual({ USD: 42 });
+  });
+
+  it('treats a blank currency code as USD so accounts pre-migration still aggregate', () => {
+    const a1 = { ...cashAccount(1, 0), currency: '' } as Account;
+    const totals = totalsByCurrency([a1], { 1: 10 });
+    expect(totals).toEqual({ USD: 10 });
+  });
+
+  it('returns an empty object for an empty account list', () => {
+    expect(totalsByCurrency([], {})).toEqual({});
+  });
+});
+
+describe('accountFlowAsOf — cross-currency transfers (to_amount)', () => {
+  it('credits the destination with to_amount when set, not the source amount', () => {
+    const dest = cashAccount(2, 0);
+    const tfr = transfer(1, 2, 100, '2026-03-01', 92.5); // 100 USD sent, 92.5 EUR received
+    expect(accountFlowAsOf(dest, [], [tfr])).toBe(92.5);
+  });
+
+  it('debits the source with amount regardless of to_amount', () => {
+    const src = cashAccount(1, 200);
+    const tfr = transfer(1, 2, 100, '2026-03-01', 92.5);
+    expect(accountFlowAsOf(src, [], [tfr])).toBe(100); // 200 - 100
+  });
+
+  it('still credits the source amount on same-currency transfers (to_amount null)', () => {
+    const dest = cashAccount(2, 0);
+    const tfr = transfer(1, 2, 50, '2026-03-01'); // to_amount null
+    expect(accountFlowAsOf(dest, [], [tfr])).toBe(50);
   });
 });

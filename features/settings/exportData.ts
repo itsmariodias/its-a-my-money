@@ -23,7 +23,7 @@ export async function generateExportData(db: SQLiteDatabase): Promise<ExportJson
     db.getAllAsync<Account>('SELECT * FROM accounts ORDER BY name ASC'),
     db.getAllAsync<Category>('SELECT * FROM categories ORDER BY type, name ASC'),
     db.getAllAsync<Transaction>('SELECT id, amount, type, category_id, account_id, note, date, recurring_transaction_id, created_at FROM transactions ORDER BY date DESC, created_at DESC'),
-    db.getAllAsync<Transfer>('SELECT id, from_account_id, to_account_id, amount, note, date, recurring_transaction_id, created_at FROM transfers ORDER BY date DESC, created_at DESC'),
+    db.getAllAsync<Transfer>('SELECT id, from_account_id, to_account_id, amount, to_amount, note, date, recurring_transaction_id, created_at FROM transfers ORDER BY date DESC, created_at DESC'),
     db.getAllAsync<RecurringTransaction>('SELECT * FROM recurring_transactions ORDER BY created_at ASC'),
   ]);
 

@@ -183,6 +183,7 @@ shared/                               # Cross-feature reusable code
     DatePickerField.tsx               # Calendar date picker popup (used by transaction + transfer sheets)
     AccountIcon.tsx                   # Account icon renderer
     PeriodSelector.tsx                # Month/year period navigation
+    CurrencyPicker.tsx                # Full-screen searchable currency picker (used by Settings, AccountFormSheet, BudgetFormSheet)
     Themed.tsx                        # Theme-aware Text/View wrappers
   store/
     useUIStore.ts                     # UI state (open sheets, selected account filter)
@@ -258,6 +259,7 @@ Current shared components:
 - **`DatePickerField`** — calendar date picker rendered as a modal popup. Includes month navigation, a year picker grid (years from 1977), and full theme support. Used by both `AddTransactionSheet` and `TransferSheet`. Accepts `date` (YYYY-MM-DD string) and `onChange` callback.
 - **`AccountIcon`** — renders account icons consistently across all screens.
 - **`PeriodSelector`** — month/year navigation used on Dashboard and Transactions.
+- **`CurrencyPicker`** — full-screen searchable currency picker modal. Used by `SettingsScreen`, `AccountFormSheet`, and `BudgetFormSheet`. Accepts `{ visible, selectedCode, onSelect, onClose }`.
 - **`Themed`** — theme-aware `Text` and `View` wrappers.
 
 ### State Management
@@ -266,7 +268,7 @@ Zustand stores hold in-memory app state derived from the DB. DB writes always ha
 ### Settings
 User preferences are persisted in SQLite (`settings` table, key-value) and synced to `useSettingsStore` on app load and on settings screen focus.
 
-- **Currency** — ISO code (e.g. `USD`). `formatAmount()` in `constants/currencies.ts` handles symbol + formatting.
+- **Currency** — ISO code (e.g. `USD`). The global setting is the default for new accounts and budgets; actual money is displayed in each account's own currency. `formatAmount()` in `constants/currencies.ts` handles symbol + formatting.
 - **Accent color** — hex string stored as `accent_color`. All screens read it from the store; never hardcode `#2f95dc`.
 - **Number format** — locale string (`en-US`, `de-DE`, `fr-FR`, `en-IN`, `plain`). Pass as 4th arg to `formatAmount()`.
 - **Biometric lock** — boolean. When enabled, locks the app after 3+ seconds in background. Uses `expo-local-authentication`. The 3-second threshold prevents lock during brief external activities (Google Sign-In, share sheets).
@@ -285,17 +287,28 @@ Accounts carry an `account_type` column (`'cash' | 'investment'`). Investment ac
 - **Accounts tab** — sectioned into Cash and Investments. Investment cards show current value as the primary amount and P&L vs invested as the stat line
 - **Dashboard** — portfolio donut card: slices sized by invested amount per account; center shows total invested + aggregate P&L %; legend shows allocation % + per-account current value and P&L %. Hidden when zero investment accounts, or when a non-investment account filter is active. Past periods show invested-only
 
+### Multi-currency
+The app supports holding accounts in different currencies. It **never** invents an FX rate — there is no conversion to a base currency anywhere. The user types every amount in the currency it belongs to.
+
+- **Schema** — `accounts.currency` is the per-account ISO code (back-filled from the global setting in migration 011 for accounts created before multi-currency landed). `transfers.to_amount` (migration 012, nullable) holds the destination-side amount when from/to currencies differ; `NULL` means same-currency and `amount` applies on both sides. `budgets.currency` (migration 013) scopes a budget to one currency.
+- **Display rule** — at the row level, each transaction/transfer/account is formatted in its own account's currency. At the aggregate level, the app shows **per-currency subtotals** rather than a blended number. `totalsByCurrency(accounts, balanceMap)` in `balanceUtils.ts` returns `Record<code, number>`.
+- **Accounts tab total card** — swipeable horizontal carousel, one page per currency, primary (global) currency first. Dots inline in the header next to the currency code (no extra vertical space). Single-currency users see the regular card layout.
+- **Transfers** — `accountFlowAsOf` debits the source with `amount` and credits the destination with `to_amount ?? amount`. `TransferSheet` shows an "Amount received (XXX)" field only when from/to currencies differ; `useTransfersDb` persists both, and the investment auto-adjust uses each side's own amount. `DeleteTransferModal` shows `100 USD → 92.50 EUR` for cross-currency.
+- **Recurring transfers** — blocked at the form when the two accounts have different currencies (a recurring template carries a single amount; cross-currency would require inventing an FX rate every fire). `RecurringFormSheet` shows an inline error and disables save.
+- **Dashboard** — when an account is selected, aggregates follow that account's currency. When nothing is selected, `scopedAccounts`/`scopedTransactions`/`scopedTransfers` filter to accounts of the **primary** (global) currency only. A small currency-code tag in the top-right of the balance card surfaces this scope when multiple currencies exist.
+- **Where to read currency in row components** — pass an `accountCurrencyById: Record<number, string>` map down. Each row resolves its own side's currency. See `app/(tabs)/transactions.tsx` `TransferRow` for the canonical pattern (outgoing → `from_account_id` + `amount`; incoming → `to_account_id` + `to_amount ?? amount`).
+
 ### Budgets
 Per-category spending limits with weekly, monthly, or yearly periods. Managed from Settings; tracked on the Dashboard.
 
-- **Schema**: `budgets (id, category_id, amount, period, created_at)` with `period ∈ 'weekly' | 'monthly' | 'yearly'`. Income categories are not budgetable (the form filters to `type='expense'`).
+- **Schema**: `budgets (id, category_id, amount, period, currency, created_at)` with `period ∈ 'weekly' | 'monthly' | 'yearly'`. Income categories are not budgetable (the form filters to `type='expense'`).
 - **Period scope** — each budget tracks its own period independent of the Dashboard period filter. `currentPeriodRange()` in `features/budgets/periodUtils.ts`: weekly = ISO Monday–Sunday of current week, monthly = 1st–last of current month, yearly = Jan 1–Dec 31 of current year.
-- **Spend** — `spentInRange(transactions, categoryId, start, end)` sums expense transactions for that category in the period.
-- **Uniqueness** — one budget per category enforced UX-side: in the create form, picking a category that already has a budget switches the form into edit mode for that existing budget.
+- **Currency scope** — `spentInRange(transactions, categoryId, start, end, { currency, accountCurrencyById })` only counts expenses on accounts of the budget's currency. Same category in two different currencies = two distinct budgets.
+- **Uniqueness** — one budget per (category, currency) enforced UX-side: in the create form, picking a category that already has a budget *in the selected currency* switches the form into edit mode for that existing budget.
 - **Cascade delete** — deleting a category in Settings also calls `useBudgetsDb().removeByCategory(id)`.
 - **Dashboard card** (`BudgetsDashboardCard`) — hidden when no budgets exist; renders one row per budget with a progress bar. Tapping it opens `BudgetsListScreen`.
 - **Color thresholds** — `< 80%` green `#4CAF50`, `80–99%` amber `#FFC107`, `≥ 100%` red `#F44336`.
-- **Alerts** — when a manual transaction save in `AddTransactionSheet` pushes a budget from `<limit` to `≥limit` for the current period, `findCrossings()` in `budgetCrossings.ts` flags it and `notifyCrossedBudgets()` fires a local notification via `expo-notifications` (Android channel `'budgets'`). Permission is requested best-effort when the user first saves a budget. Recurring auto-generated transactions don't fire alerts.
+- **Alerts** — when a manual transaction save in `AddTransactionSheet` pushes a budget from `<limit` to `≥limit` for the current period, `findCrossings()` in `budgetCrossings.ts` flags it and `notifyCrossedBudgets()` fires a local notification via `expo-notifications` (Android channel `'budgets'`). `findCrossings` receives `accountCurrencyById` so only budgets matching the transaction's account currency are evaluated. Permission is requested best-effort when the user first saves a budget. Recurring auto-generated transactions don't fire alerts.
 
 ### Cloud Backup (Google Drive)
 Automatic backups to Google Drive using the same JSON format as manual export.

@@ -175,6 +175,11 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
     if (endDate && endDate < startDate) return false;
     if (kind === 'transfer') {
       if (!toAccountId || toAccountId === fromAccountId) return false;
+      // Recurring transfers carry a single amount, so cross-currency would require
+      // inventing an FX rate every time they fire. Block it at the form.
+      const fromAcc = accounts.find((a) => a.id === fromAccountId);
+      const toAcc = accounts.find((a) => a.id === toAccountId);
+      if (fromAcc && toAcc && (fromAcc.currency || '') !== (toAcc.currency || '')) return false;
     } else {
       if (!selectedCategory) return false;
     }
@@ -475,6 +480,17 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
                   {attempted && (!toAccountId || toAccountId === fromAccountId) && (
                     <Text style={styles.errorText}>Please select a different destination account</Text>
                   )}
+                  {(() => {
+                    const fromAcc = accounts.find((a) => a.id === fromAccountId);
+                    const toAcc = accounts.find((a) => a.id === toAccountId);
+                    const mismatched = fromAcc && toAcc && fromAccountId !== toAccountId
+                      && (fromAcc.currency || '') !== (toAcc.currency || '');
+                    return mismatched ? (
+                      <Text style={styles.errorText}>
+                        Recurring transfers must use the same currency on both sides ({fromAcc.currency} vs {toAcc.currency}). Create individual cross-currency transfers instead.
+                      </Text>
+                    ) : null;
+                  })()}
                 </>
               ) : (
                 <>

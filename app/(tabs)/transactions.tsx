@@ -88,14 +88,16 @@ function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps
 
 interface DeleteTransferModalProps {
   transfer: TransferWithDetails | null;
-  currency: string;
+  fromCurrency: string;
+  toCurrency: string;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-function DeleteTransferModal({ transfer, currency, onCancel, onConfirm }: DeleteTransferModalProps) {
+function DeleteTransferModal({ transfer, fromCurrency, toCurrency, onCancel, onConfirm }: DeleteTransferModalProps) {
   const { inputBg, textColor, subColor, borderColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const isCross = transfer != null && transfer.to_amount != null && fromCurrency !== toCurrency;
 
   return (
     <DeleteModal
@@ -114,7 +116,9 @@ function DeleteTransferModal({ transfer, currency, onCancel, onConfirm }: Delete
             <Text style={[chipStyles.chipSub, { color: subColor }]}>{transfer.date}</Text>
           </View>
           <Text style={[chipStyles.chipAmount, { color: textColor }]}>
-            {formatAmount(transfer.amount, currency, 'expense', numberFormat)}
+            {isCross
+              ? `${formatAmount(transfer.amount, fromCurrency, undefined, numberFormat)} → ${formatAmount(transfer.to_amount!, toCurrency, undefined, numberFormat)}`
+              : formatAmount(transfer.amount, fromCurrency, 'expense', numberFormat)}
           </Text>
         </View>
       )}
@@ -168,11 +172,13 @@ interface RowProps {
   borderColor: string;
   textColor: string;
   subTextColor: string;
-  currency: string;
+  accountCurrencyById: Record<number, string>;
+  fallbackCurrency: string;
   onPress: () => void;
 }
 
-function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, currency, onPress }: RowProps) {
+function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, accountCurrencyById, fallbackCurrency, onPress }: RowProps) {
+  const currency = accountCurrencyById[tx.account_id] ?? fallbackCurrency;
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const amountColor = tx.type === 'income' ? '#4CAF50' : '#F44336';
 
@@ -223,17 +229,26 @@ interface TransferRowProps {
   borderColor: string;
   textColor: string;
   subTextColor: string;
-  currency: string;
+  accountCurrencyById: Record<number, string>;
+  fallbackCurrency: string;
   onPress: () => void;
 }
 
-function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, currency, onPress }: TransferRowProps) {
+function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, accountCurrencyById, fallbackCurrency, onPress }: TransferRowProps) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const isOutgoing = transfer.from_account_id === selectedAccountId;
   const otherName = (isOutgoing ? transfer.to_account_name : transfer.from_account_name) ?? 'Unknown';
   const label = isOutgoing ? `To ${otherName}` : `From ${otherName}`;
   const amountColor = isOutgoing ? '#F44336' : '#4CAF50';
   const amountType = isOutgoing ? 'expense' : 'income';
+  // The displayed amount and currency follow the side the user is viewing from:
+  // source side = `amount` in from_account's currency, destination side = `to_amount` (or
+  // `amount` for same-currency) in to_account's currency.
+  const sideAmount = isOutgoing ? transfer.amount : (transfer.to_amount ?? transfer.amount);
+  const sideAccountId = isOutgoing ? transfer.from_account_id : transfer.to_account_id;
+  const currency = (sideAccountId != null ? accountCurrencyById[sideAccountId] : undefined)
+    ?? accountCurrencyById[selectedAccountId]
+    ?? fallbackCurrency;
 
   return (
     <TouchableOpacity
@@ -247,7 +262,7 @@ function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, bor
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`${label}, ${formatAmount(transfer.amount, currency, amountType, numberFormat)}, ${transfer.date}`}
+      accessibilityLabel={`${label}, ${formatAmount(sideAmount, currency, amountType, numberFormat)}, ${transfer.date}`}
       accessibilityHint="Double tap to edit"
     >
       <View style={[rowStyles.icon, { backgroundColor: '#9E9E9E' }]}>
@@ -262,7 +277,7 @@ function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, bor
         ) : null}
       </View>
       <Text style={[rowStyles.amount, { color: amountColor }]}>
-        {formatAmount(transfer.amount, currency, amountType, numberFormat)}
+        {formatAmount(sideAmount, currency, amountType, numberFormat)}
       </Text>
     </TouchableOpacity>
   );
@@ -462,7 +477,8 @@ interface CategoryGroupRowProps {
   onPressTx: (tx: TransactionWithDetails) => void;
   onPressTransfer: (t: TransferWithDetails) => void;
   selectedAccountId: number | null;
-  currency: string;
+  accountCurrencyById: Record<number, string>;
+  fallbackCurrency: string;
   cardBg: string;
   borderColor: string;
   textColor: string;
@@ -476,13 +492,19 @@ function CategoryGroupRow({
   onPressTx,
   onPressTransfer,
   selectedAccountId,
-  currency,
+  accountCurrencyById,
+  fallbackCurrency,
   cardBg,
   borderColor,
   textColor,
   subColor,
 }: CategoryGroupRowProps) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  // Group header rolls up across rows. When an account is selected those rows share a currency;
+  // otherwise the group can span currencies, in which case the header just uses the global fallback.
+  const headerCurrency = selectedAccountId !== null
+    ? (accountCurrencyById[selectedAccountId] ?? fallbackCurrency)
+    : fallbackCurrency;
   const totalColor = group.total === 0 ? subColor : group.total >= 0 ? '#4CAF50' : '#F44336';
   const totalType = group.total >= 0 ? 'income' : 'expense';
   const countLabel = group.count === 1 ? '1 item' : `${group.count} items`;
@@ -505,7 +527,7 @@ function CategoryGroupRow({
           <Text style={[groupStyles.countText, { color: subColor }]}>{countLabel}</Text>
         </View>
         <Text style={[groupStyles.total, { color: totalColor }]}>
-          {formatAmount(Math.abs(group.total), currency, totalType, numberFormat)}
+          {formatAmount(Math.abs(group.total), headerCurrency, totalType, numberFormat)}
         </Text>
         <MaterialIcons
           name={isExpanded ? 'expand-less' : 'expand-more'}
@@ -525,6 +547,8 @@ function CategoryGroupRow({
                 const label = isOutgoing ? `To ${t.to_account_name ?? 'Unknown'}` : `From ${t.from_account_name ?? 'Unknown'}`;
                 const amountColor = isOutgoing ? '#F44336' : '#4CAF50';
                 const amountType = isOutgoing ? 'expense' : 'income';
+                const sideAmount = isOutgoing ? t.amount : (t.to_amount ?? t.amount);
+                const sideAccountId = isOutgoing ? t.from_account_id : t.to_account_id;
                 return (
                   <TouchableOpacity
                     key={t.id}
@@ -549,7 +573,14 @@ function CategoryGroupRow({
                       </Text>
                     </View>
                     <Text style={[groupStyles.txAmount, { color: amountColor }]}>
-                      {formatAmount(t.amount, currency, amountType, numberFormat)}
+                      {formatAmount(
+                        sideAmount,
+                        (sideAccountId != null ? accountCurrencyById[sideAccountId] : undefined)
+                          ?? accountCurrencyById[selectedAccountId ?? -1]
+                          ?? fallbackCurrency,
+                        amountType,
+                        numberFormat,
+                      )}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -581,7 +612,7 @@ function CategoryGroupRow({
                       </Text>
                     </View>
                     <Text style={[groupStyles.txAmount, { color: amountColor }]}>
-                      {formatAmount(tx.amount, currency, tx.type, numberFormat)}
+                      {formatAmount(tx.amount, accountCurrencyById[tx.account_id] ?? fallbackCurrency, tx.type, numberFormat)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -703,9 +734,23 @@ export default function TransactionsScreen() {
   const transfers = useTransfersStore((s) => s.transfers);
   const setTransfers = useTransfersStore((s) => s.setTransfers);
   const removeTransfer = useTransfersStore((s) => s.removeTransfer);
+  const accounts = useAccountsStore((s) => s.accounts);
   const setAccounts = useAccountsStore((s) => s.setAccounts);
   const currency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+
+  const accountCurrencyById = useMemo<Record<number, string>>(() => {
+    const map: Record<number, string> = {};
+    for (const a of accounts) map[a.id] = a.currency || currency;
+    return map;
+  }, [accounts, currency]);
+
+  // Currency to use for roll-ups (section header net, group header).
+  // When an account is selected we know the row-set is single-currency; otherwise mixed,
+  // and we fall back to the global setting rather than picking arbitrarily.
+  const rollupCurrency = selectedId !== null
+    ? (accountCurrencyById[selectedId] ?? currency)
+    : currency;
 
   useFocusEffect(
     useCallback(() => {
@@ -832,7 +877,7 @@ export default function TransactionsScreen() {
             return sum + (listItem.item.type === 'income' ? listItem.item.amount : -listItem.item.amount);
           } else {
             if (listItem.item.from_account_id === selectedId) return sum - listItem.item.amount;
-            if (listItem.item.to_account_id === selectedId) return sum + listItem.item.amount;
+            if (listItem.item.to_account_id === selectedId) return sum + (listItem.item.to_amount ?? listItem.item.amount);
             return sum;
           }
         }, 0),
@@ -874,7 +919,7 @@ export default function TransactionsScreen() {
     if (scopedTransfers.length > 0 && showTransfers) {
       const transferTotal = scopedTransfers.reduce((sum, t) => {
         if (t.from_account_id === selectedId) return sum - t.amount;
-        if (t.to_account_id === selectedId) return sum + t.amount;
+        if (t.to_account_id === selectedId) return sum + (t.to_amount ?? t.amount);
         return sum;
       }, 0);
       groups.push({
@@ -970,7 +1015,8 @@ export default function TransactionsScreen() {
               onPressTx={setEditingTx}
               onPressTransfer={setEditingTransfer}
               selectedAccountId={selectedId}
-              currency={currency}
+              accountCurrencyById={accountCurrencyById}
+              fallbackCurrency={currency}
               cardBg={cardBg}
               borderColor={borderColor}
               textColor={textColor}
@@ -989,14 +1035,14 @@ export default function TransactionsScreen() {
             <View style={[styles.sectionHeader, { backgroundColor: bg }]}>
               <Text style={[styles.sectionDate, { color: textColor }]}>{section.title}</Text>
               <Text style={[styles.sectionNet, { color: section.net >= 0 ? '#4CAF50' : '#F44336' }]}>
-                {formatAmount(section.net, currency, undefined, numberFormat)}
+                {formatAmount(section.net, rollupCurrency, undefined, numberFormat)}
               </Text>
             </View>
           )}
           renderItem={({ item: listItem, index, section }) => {
             const isFirst = index === 0;
             const isLast = index === section.data.length - 1;
-            const commonProps = { isFirst, isLast, cardBg, borderColor, textColor, subTextColor, currency };
+            const commonProps = { isFirst, isLast, cardBg, borderColor, textColor, subTextColor, accountCurrencyById, fallbackCurrency: currency };
             if (listItem.kind === 'transfer') {
               return (
                 <TransferRow
@@ -1034,14 +1080,23 @@ export default function TransactionsScreen() {
 
       <DeleteTransferModal
         transfer={deletingTransfer}
-        currency={currency}
+        fromCurrency={
+          deletingTransfer && deletingTransfer.from_account_id != null
+            ? (accountCurrencyById[deletingTransfer.from_account_id] ?? currency)
+            : currency
+        }
+        toCurrency={
+          deletingTransfer && deletingTransfer.to_account_id != null
+            ? (accountCurrencyById[deletingTransfer.to_account_id] ?? currency)
+            : currency
+        }
         onCancel={() => setDeletingTransfer(null)}
         onConfirm={handleTransferDeleteConfirm}
       />
 
       <DeleteTxModal
         tx={deletingTx}
-        currency={currency}
+        currency={deletingTx ? (accountCurrencyById[deletingTx.account_id] ?? currency) : currency}
         onCancel={handleDeleteCancel}
         onConfirm={handleDeleteConfirm}
       />

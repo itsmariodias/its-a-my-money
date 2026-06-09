@@ -41,6 +41,9 @@ export interface Transfer {
   from_account_id: number | null;
   to_account_id: number | null;
   amount: number;
+  // Amount credited to the destination, used when the two accounts have different
+  // currencies. NULL means same-currency, in which case `amount` applies on both sides.
+  to_amount: number | null;
   note: string | null;
   date: string;
   recurring_transaction_id: number | null;
@@ -52,6 +55,7 @@ export interface Budget {
   category_id: number;
   amount: number;
   period: BudgetPeriod;
+  currency: string;
   created_at: string;
 }
 

@@ -5,6 +5,7 @@ import { Text } from '@/shared/components/Themed';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useBudgetsStore } from './useBudgetsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
+import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
 import { currentPeriodRange, spentInRange, periodLabel } from './periodUtils';
@@ -33,18 +34,28 @@ interface BudgetRowData {
 export default function BudgetsDashboardCard({ onPress }: Props) {
   const budgets = useBudgetsStore((s) => s.budgets);
   const transactions = useTransactionsStore((s) => s.transactions);
-  const currency = useSettingsStore((s) => s.currency);
+  const accounts = useAccountsStore((s) => s.accounts);
+  const globalCurrency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const { cardBg, textColor, subColor, borderColor, accentColor } = useAppTheme();
+
+  const accountCurrencyById = useMemo<Record<number, string>>(() => {
+    const map: Record<number, string> = {};
+    for (const a of accounts) map[a.id] = a.currency || globalCurrency;
+    return map;
+  }, [accounts, globalCurrency]);
 
   const rows: BudgetRowData[] = useMemo(() => {
     return budgets.map((b) => {
       const { start, end } = currentPeriodRange(b.period);
-      const spent = spentInRange(transactions, b.category_id, start, end);
+      const spent = spentInRange(transactions, b.category_id, start, end, {
+        currency: b.currency || globalCurrency,
+        accountCurrencyById,
+      });
       const pct = b.amount > 0 ? (spent / b.amount) * 100 : 0;
       return { budget: b, spent, pct };
     });
-  }, [budgets, transactions]);
+  }, [budgets, transactions, accountCurrencyById, globalCurrency]);
 
   if (budgets.length === 0) return null;
 
@@ -86,7 +97,7 @@ export default function BudgetsDashboardCard({ onPress }: Props) {
               <View style={[styles.progressFill, { width: `${barPct}%`, backgroundColor: color }]} />
             </View>
             <Text style={[styles.rowAmount, { color: subColor }]}>
-              {formatAmount(spent, currency, undefined, numberFormat)} / {formatAmount(budget.amount, currency, undefined, numberFormat)}
+              {formatAmount(spent, budget.currency || globalCurrency, undefined, numberFormat)} / {formatAmount(budget.amount, budget.currency || globalCurrency, undefined, numberFormat)}
             </Text>
           </View>
         );

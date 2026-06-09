@@ -189,6 +189,7 @@ export function convertMonefyToExportData(records: MonefyRecord[]): ExportData {
       from_account_id: accountIdByName.get(r.account)!,
       to_account_id:   toAccountId,
       amount:          Math.abs(r.amount),
+      to_amount:       null,
       note:            r.description,
       date:            r.date,
       recurring_transaction_id: null,

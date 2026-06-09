@@ -89,26 +89,29 @@ describe('useTransactionsDb', () => {
 describe('useTransfersDb', () => {
   const db = useTransfersDb();
 
-  it('should pass 5 parameters for transfer insert', async () => {
-    // Given a mocked SQLite context
-    // When insert is called
-    await db.insert({ from_account_id: 1, to_account_id: 2, amount: 100, note: null, date: '2026-03-21', recurring_transaction_id: null });
-    // Then runAsync should receive 6 params
+  it('passes 7 parameters for transfer insert and stores to_amount as null on same-currency', async () => {
+    await db.insert({ from_account_id: 1, to_account_id: 2, amount: 100, to_amount: null, note: null, date: '2026-03-21', recurring_transaction_id: null });
     const [sql, ...params] = mockDb.runAsync.mock.calls[0];
     expect(sql).toContain('INSERT INTO transfers');
-    expect(params).toHaveLength(6);
-    expect(params).toEqual([1, 2, 100, null, '2026-03-21', null]);
+    expect(sql).toContain('to_amount');
+    expect(params).toHaveLength(7);
+    expect(params).toEqual([1, 2, 100, null, null, '2026-03-21', null]);
   });
 
-  it('should pass 6 parameters for transfer update', async () => {
-    // Given a mocked SQLite context
-    // When update is called with id 3
-    await db.update(3, { from_account_id: 1, to_account_id: 2, amount: 200, note: 'rent', date: '2026-03-21' });
-    // Then runAsync should receive 6 params (5 fields + id)
+  it('stores to_amount when provided for cross-currency transfers', async () => {
+    await db.insert({ from_account_id: 1, to_account_id: 2, amount: 100, to_amount: 92.5, note: null, date: '2026-03-21', recurring_transaction_id: null });
+    const [, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(params[3]).toBe(92.5);
+  });
+
+  it('passes 7 parameters for transfer update including to_amount', async () => {
+    await db.update(3, { from_account_id: 1, to_account_id: 2, amount: 200, to_amount: 185, note: 'rent', date: '2026-03-21' });
     const [sql, ...params] = mockDb.runAsync.mock.calls[0];
     expect(sql).toContain('UPDATE transfers');
-    expect(params).toHaveLength(6);
-    expect(params[5]).toBe(3);
+    expect(sql).toContain('to_amount=?');
+    expect(params).toHaveLength(7);
+    expect(params[3]).toBe(185);
+    expect(params[6]).toBe(3);
   });
 });
 
@@ -155,24 +158,20 @@ describe('useSettingsDb', () => {
 describe('useBudgetsDb', () => {
   const db = useBudgetsDb();
 
-  it('should pass 3 parameters for budget insert', async () => {
-    // Given a mocked SQLite context
-    // When insert is called
-    await db.insert({ category_id: 5, amount: 500, period: 'monthly' });
-    // Then runAsync should receive INSERT SQL with 3 params
+  it('passes 4 parameters for budget insert including currency', async () => {
+    await db.insert({ category_id: 5, amount: 500, period: 'monthly', currency: 'EUR' });
     const [sql, ...params] = mockDb.runAsync.mock.calls[0];
     expect(sql).toContain('INSERT INTO budgets');
-    expect(params).toEqual([5, 500, 'monthly']);
+    expect(sql).toContain('currency');
+    expect(params).toEqual([5, 500, 'monthly', 'EUR']);
   });
 
-  it('should pass id as last parameter for budget update', async () => {
-    // Given a mocked SQLite context
-    // When update is called with id 7
-    await db.update(7, { category_id: 5, amount: 750, period: 'weekly' });
-    // Then runAsync should receive UPDATE SQL with id last
+  it('passes id as last parameter for budget update and persists currency', async () => {
+    await db.update(7, { category_id: 5, amount: 750, period: 'weekly', currency: 'JPY' });
     const [sql, ...params] = mockDb.runAsync.mock.calls[0];
     expect(sql).toContain('UPDATE budgets');
-    expect(params).toEqual([5, 750, 'weekly', 7]);
+    expect(sql).toContain('currency=?');
+    expect(params).toEqual([5, 750, 'weekly', 'JPY', 7]);
   });
 
   it('should pass the correct id for delete', async () => {

@@ -65,12 +65,12 @@ describe('currentPeriodRange', () => {
 
 describe('spentInRange', () => {
   const txs = [
-    { type: 'expense' as const, category_id: 1, amount: 10, date: '2026-03-05' },
-    { type: 'expense' as const, category_id: 1, amount: 20, date: '2026-03-15' },
-    { type: 'expense' as const, category_id: 2, amount: 100, date: '2026-03-10' }, // different category
-    { type: 'income' as const, category_id: 1, amount: 500, date: '2026-03-10' },   // income excluded
-    { type: 'expense' as const, category_id: 1, amount: 999, date: '2026-02-28' },  // out of range (before)
-    { type: 'expense' as const, category_id: 1, amount: 999, date: '2026-04-01' },  // out of range (after)
+    { type: 'expense' as const, category_id: 1, account_id: 1, amount: 10, date: '2026-03-05' },
+    { type: 'expense' as const, category_id: 1, account_id: 1, amount: 20, date: '2026-03-15' },
+    { type: 'expense' as const, category_id: 2, account_id: 1, amount: 100, date: '2026-03-10' }, // different category
+    { type: 'income' as const, category_id: 1, account_id: 1, amount: 500, date: '2026-03-10' },   // income excluded
+    { type: 'expense' as const, category_id: 1, account_id: 1, amount: 999, date: '2026-02-28' },  // out of range (before)
+    { type: 'expense' as const, category_id: 1, account_id: 1, amount: 999, date: '2026-04-01' },  // out of range (after)
   ];
 
   it('sums only expenses for the given category within the range', () => {
@@ -82,8 +82,8 @@ describe('spentInRange', () => {
 
   it('includes transactions on the boundary dates', () => {
     const range = [
-      { type: 'expense' as const, category_id: 1, amount: 10, date: '2026-03-01' },
-      { type: 'expense' as const, category_id: 1, amount: 20, date: '2026-03-31' },
+      { type: 'expense' as const, category_id: 1, account_id: 1, amount: 10, date: '2026-03-01' },
+      { type: 'expense' as const, category_id: 1, account_id: 1, amount: 20, date: '2026-03-31' },
     ];
     expect(spentInRange(range, 1, '2026-03-01', '2026-03-31')).toBe(30);
   });
@@ -98,5 +98,28 @@ describe('periodLabel', () => {
     expect(periodLabel('weekly')).toBe('Weekly');
     expect(periodLabel('monthly')).toBe('Monthly');
     expect(periodLabel('yearly')).toBe('Yearly');
+  });
+});
+
+describe('spentInRange — currency filter', () => {
+  it('only counts expenses whose account currency matches the filter', () => {
+    const txs = [
+      { type: 'expense' as const, category_id: 1, account_id: 1, amount: 50, date: '2026-03-05' }, // USD
+      { type: 'expense' as const, category_id: 1, account_id: 2, amount: 30, date: '2026-03-06' }, // EUR
+      { type: 'expense' as const, category_id: 1, account_id: 1, amount: 20, date: '2026-03-15' }, // USD
+    ];
+    const accountCurrencyById = { 1: 'USD', 2: 'EUR' };
+    const usd = spentInRange(txs, 1, '2026-03-01', '2026-03-31', { currency: 'USD', accountCurrencyById });
+    const eur = spentInRange(txs, 1, '2026-03-01', '2026-03-31', { currency: 'EUR', accountCurrencyById });
+    expect(usd).toBe(70);
+    expect(eur).toBe(30);
+  });
+
+  it('counts all transactions when no currency filter is passed', () => {
+    const txs = [
+      { type: 'expense' as const, category_id: 1, account_id: 1, amount: 50, date: '2026-03-05' },
+      { type: 'expense' as const, category_id: 1, account_id: 2, amount: 30, date: '2026-03-06' },
+    ];
+    expect(spentInRange(txs, 1, '2026-03-01', '2026-03-31')).toBe(80);
   });
 });

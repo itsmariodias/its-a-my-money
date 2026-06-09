@@ -20,7 +20,8 @@ import { useAccountsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { Snackbar } from 'react-native-snackbar';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
-import { getCurrencySymbol } from '@/constants/currencies';
+import { getCurrencyByCode, getCurrencySymbol } from '@/constants/currencies';
+import CurrencyPicker from '@/shared/components/CurrencyPicker';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { Account, AccountType } from '@/types';
@@ -73,7 +74,7 @@ interface Props {
 }
 
 export default function AccountFormSheet({ isOpen, account, onClose, onDelete, deleteDisabled }: Props) {
-  const currencySymbol = getCurrencySymbol(useSettingsStore((s) => s.currency));
+  const globalCurrency = useSettingsStore((s) => s.currency);
 
   const accountsDb = useAccountsDb();
   const setAccounts = useAccountsStore((s) => s.setAccounts);
@@ -85,8 +86,12 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
   const [accountType, setAccountType] = useState<AccountType>('cash');
   const [currentValue, setCurrentValue] = useState('');
   const [currentValueTouched, setCurrentValueTouched] = useState(false);
+  const [currency, setCurrency] = useState<string>(globalCurrency);
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
+
+  const currencySymbol = getCurrencySymbol(currency);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -97,6 +102,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
       setIcon(account.icon ?? PRESET_ICONS[0]);
       setAccountType(account.account_type ?? 'cash');
       setCurrentValue(account.current_value != null ? String(account.current_value) : '');
+      setCurrency(account.currency || globalCurrency);
     } else {
       setName('');
       setInitialBalance('0');
@@ -104,9 +110,13 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
       setIcon(PRESET_ICONS[0]);
       setAccountType('cash');
       setCurrentValue('');
+      setCurrency(globalCurrency);
     }
     setCurrentValueTouched(false);
     setAttempted(false);
+    // globalCurrency is intentionally excluded — we read it on open only; a settings change
+    // while the sheet is open should not blow away the user's in-progress currency selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, account]);
 
   const handleSave = async () => {
@@ -130,12 +140,12 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
     try {
       if (account) {
         await accountsDb.update(account.id, {
-          name: name.trim(), initial_balance: balance, currency: account.currency,
+          name: name.trim(), initial_balance: balance, currency,
           color, icon, account_type: accountType, current_value,
         });
       } else {
         await accountsDb.insert({
-          name: name.trim(), initial_balance: balance, currency: 'USD',
+          name: name.trim(), initial_balance: balance, currency,
           color, icon, account_type: accountType, current_value,
         });
       }
@@ -264,6 +274,23 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                 <Text style={styles.errorText}>Account name is required</Text>
               )}
 
+              {/* Currency */}
+              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Currency</Text>
+              <TouchableOpacity
+                style={[styles.currencyRow, { backgroundColor: inputBg, borderColor }]}
+                onPress={() => setCurrencyPickerOpen(true)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Currency: ${getCurrencyByCode(currency).name}`}
+              >
+                <Text style={[styles.currencyRowSymbol, { color: textColor }]}>{currencySymbol}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.currencyRowCode, { color: textColor }]}>{currency}</Text>
+                  <Text style={[styles.currencyRowName, { color: subTextColor }]}>{getCurrencyByCode(currency).name}</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={subTextColor} />
+              </TouchableOpacity>
+
               {/* Initial Balance / Invested */}
               <Text style={[styles.sectionLabel, { color: subTextColor }]}>
                 {accountType === 'investment' ? 'Initial Invested' : 'Initial Balance'}
@@ -355,6 +382,12 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
           </Animated.View>
         </View>
       </Modal>
+    <CurrencyPicker
+      visible={currencyPickerOpen}
+      selectedCode={currency}
+      onSelect={(code) => { setCurrency(code); setCurrencyPickerOpen(false); }}
+      onClose={() => setCurrencyPickerOpen(false)}
+    />
     <InfoModal
       visible={!!errorModal}
       onClose={() => setErrorModal(null)}
@@ -371,5 +404,9 @@ const localStyles = StyleSheet.create({
   balanceContainer: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, marginBottom: 16 },
   iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   iconItem: { width: '22%', aspectRatio: 1, borderRadius: 12 },
+  currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16 },
+  currencyRowSymbol: { fontSize: 20, fontWeight: '700', width: 28, textAlign: 'center' },
+  currencyRowCode: { fontSize: 15, fontWeight: '600' },
+  currencyRowName: { fontSize: 12, marginTop: 1 },
 });
 const styles = { ...sheetStyles, ...localStyles };

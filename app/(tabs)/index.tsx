@@ -143,48 +143,84 @@ export default function DashboardScreen() {
   const dateRange = useMemo(() => getDateRange(periodMode, periodDate), [periodMode, periodDate]);
   const isPastPeriod = useMemo(() => dateRange.end < new Date().toISOString().slice(0, 10), [dateRange]);
 
+  // The dashboard does not convert across currencies. With an account filter, the row-set
+  // is already single-currency; without one, scope every aggregation to accounts of the
+  // user's primary (global) currency. The displayed currency is derived from that scope.
+  const scopeCurrency = useMemo(() => {
+    if (selectedId !== null) {
+      const acc = accounts.find((a) => a.id === selectedId);
+      return acc?.currency || currency;
+    }
+    return currency;
+  }, [accounts, selectedId, currency]);
+
+  const scopedAccounts = useMemo(() => {
+    if (selectedId !== null) return accounts;
+    return accounts.filter((a) => (a.currency || currency) === scopeCurrency);
+  }, [accounts, selectedId, currency, scopeCurrency]);
+
+  const scopedAccountIds = useMemo(() => new Set(scopedAccounts.map((a) => a.id)), [scopedAccounts]);
+
+  const scopedTransactions = useMemo(
+    () => transactions.filter((t) => scopedAccountIds.has(t.account_id)),
+    [transactions, scopedAccountIds]
+  );
+
+  const scopedTransfers = useMemo(
+    () => transfers.filter(
+      (t) => (t.from_account_id != null && scopedAccountIds.has(t.from_account_id))
+        || (t.to_account_id != null && scopedAccountIds.has(t.to_account_id))
+    ),
+    [transfers, scopedAccountIds]
+  );
+
+  const hasMultipleCurrencies = useMemo(() => {
+    const codes = new Set(accounts.map((a) => a.currency || currency));
+    return codes.size > 1;
+  }, [accounts, currency]);
+
   // Balance at end of the selected period (cumulative).
   // For current/future periods, investments contribute their market value.
   // For past periods we have no historical valuation, so fall back to invested (flow).
   const totalBalance = useMemo(() => {
     const scope = selectedId !== null
-      ? accounts.filter((a) => a.id === selectedId)
-      : accounts;
+      ? scopedAccounts.filter((a) => a.id === selectedId)
+      : scopedAccounts;
     return scope.reduce(
       (sum, acc) => sum + accountBalanceAsOf(
-        acc, transactions, transfers,
+        acc, scopedTransactions, scopedTransfers,
         { endInclusive: dateRange.end },
         { marketValue: !isPastPeriod }
       ),
       0
     );
-  }, [accounts, transactions, transfers, selectedId, dateRange, isPastPeriod]);
+  }, [scopedAccounts, scopedTransactions, scopedTransfers, selectedId, dateRange, isPastPeriod]);
 
   // Portfolio aggregate + per-account breakdown. For past periods we show invested only — no historical market value exists.
   const portfolio = useMemo(() => {
     const filter = { endInclusive: dateRange.end };
     const invAccounts = selectedId !== null
-      ? accounts.filter((a) => a.id === selectedId && a.account_type === 'investment')
-      : accounts.filter((a) => a.account_type === 'investment');
+      ? scopedAccounts.filter((a) => a.id === selectedId && a.account_type === 'investment')
+      : scopedAccounts.filter((a) => a.account_type === 'investment');
     if (invAccounts.length === 0) return null;
     const rows = invAccounts.map((acc) => ({
       account: acc,
-      ...computePnL(acc, transactions, transfers, filter),
+      ...computePnL(acc, scopedTransactions, scopedTransfers, filter),
     }));
-    const agg = aggregatePortfolio(invAccounts, transactions, transfers, filter);
+    const agg = aggregatePortfolio(invAccounts, scopedTransactions, scopedTransfers, filter);
     return { ...agg, rows };
-  }, [accounts, transactions, transfers, selectedId, dateRange]);
+  }, [scopedAccounts, scopedTransactions, scopedTransfers, selectedId, dateRange]);
 
   // Transactions within the selected period (for income/expenses/pie/recent)
   const periodTransactions = useMemo(
     () =>
-      transactions.filter(
+      scopedTransactions.filter(
         (t) =>
           t.date >= dateRange.start &&
           t.date <= dateRange.end &&
           (selectedId === null || t.account_id === selectedId)
       ),
-    [transactions, selectedId, dateRange]
+    [scopedTransactions, selectedId, dateRange]
   );
 
   const recentItems = useMemo(() => {
@@ -193,7 +229,7 @@ export default function DashboardScreen() {
       | { kind: 'transfer'; item: typeof transfers[0] };
     const txItems: RecentItem[] = periodTransactions.map((item) => ({ kind: 'tx', item }));
     if (selectedId === null) return txItems.slice(0, 5);
-    const transferItems: RecentItem[] = transfers
+    const transferItems: RecentItem[] = scopedTransfers
       .filter(
         (t) =>
           t.date >= dateRange.start &&
@@ -207,7 +243,7 @@ export default function DashboardScreen() {
         return b.item.created_at.localeCompare(a.item.created_at);
       })
       .slice(0, 5);
-  }, [periodTransactions, transfers, selectedId, dateRange]);
+  }, [periodTransactions, scopedTransfers, selectedId, dateRange]);
 
   const periodIncome = useMemo(
     () => periodTransactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
@@ -354,10 +390,13 @@ export default function DashboardScreen() {
       >
         {/* Balance card */}
         <View style={[styles.balanceCard, { backgroundColor: accentColor }]}>
+          {hasMultipleCurrencies && selectedId === null && (
+            <Text style={[styles.balanceCurrencyTag, { color: onAccentColor + 'CC' }]}>{scopeCurrency}</Text>
+          )}
           <Text style={[styles.balanceLabel, { color: onAccentColor + 'CC' }]}>
             {selectedAccount ? `${selectedAccount.name} Balance` : 'Total Balance'}
           </Text>
-          <Text style={[styles.balanceAmount, { color: onAccentColor }]}>{formatAmount(totalBalance, currency, undefined, numberFormat)}</Text>
+          <Text style={[styles.balanceAmount, { color: onAccentColor }]}>{formatAmount(totalBalance, scopeCurrency, undefined, numberFormat)}</Text>
           <Text style={[styles.balanceSub, { color: onAccentColor + 'A6' }]}>as of {periodNavLabel(periodMode, periodDate)}</Text>
         </View>
 
@@ -366,13 +405,13 @@ export default function DashboardScreen() {
           <View style={[styles.summaryCard, { backgroundColor: cardBg }]}>
             <MaterialIcons name="arrow-downward" size={20} color="#4CAF50" />
             <Text style={[styles.summaryLabel, { color: subTextColor }]}>Income</Text>
-            <Text style={[styles.summaryAmount, { color: '#4CAF50' }]}>{formatAmount(periodIncome, currency, undefined, numberFormat)}</Text>
+            <Text style={[styles.summaryAmount, { color: '#4CAF50' }]}>{formatAmount(periodIncome, scopeCurrency, undefined, numberFormat)}</Text>
             <Text style={[styles.summaryPeriod, { color: subTextColor }]}>{periodShort}</Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: cardBg }]}>
             <MaterialIcons name="arrow-upward" size={20} color="#F44336" />
             <Text style={[styles.summaryLabel, { color: subTextColor }]}>Expenses</Text>
-            <Text style={[styles.summaryAmount, { color: '#F44336' }]}>{formatAmount(periodExpenses, currency, undefined, numberFormat)}</Text>
+            <Text style={[styles.summaryAmount, { color: '#F44336' }]}>{formatAmount(periodExpenses, scopeCurrency, undefined, numberFormat)}</Text>
             <Text style={[styles.summaryPeriod, { color: subTextColor }]}>{periodShort}</Text>
           </View>
         </View>
@@ -427,7 +466,7 @@ export default function DashboardScreen() {
                               {slice.label}
                             </Text>
                             <Text style={[styles.pieCenterAmount, { color: textColor }]}>
-                              {formatAmount(slice.row.invested, currency, undefined, numberFormat)}
+                              {formatAmount(slice.row.invested, scopeCurrency, undefined, numberFormat)}
                             </Text>
                             <Text style={[styles.pieCenterPct, { color: slice.color }]}>{pct.toFixed(1)}%</Text>
                           </>
@@ -435,7 +474,7 @@ export default function DashboardScreen() {
                       })() : (
                         <>
                           <Text style={[styles.pieCenterTotal, { color: textColor }]}>
-                            {formatAmount(portfolio.invested, currency, undefined, numberFormat)}
+                            {formatAmount(portfolio.invested, scopeCurrency, undefined, numberFormat)}
                           </Text>
                           <Text style={[styles.pieCenterLabel, { color: subTextColor }]}>total invested</Text>
                           {!isPastPeriod && portfolio.pnlPct !== null && (
@@ -466,7 +505,7 @@ export default function DashboardScreen() {
                     onPress={() => selectPortfolioSlice(idx)}
                     activeOpacity={0.7}
                     accessibilityRole="button"
-                    accessibilityLabel={`${item.label}, ${formatAmount(item.row.invested, currency, undefined, numberFormat)}, ${pct.toFixed(1)}%`}
+                    accessibilityLabel={`${item.label}, ${formatAmount(item.row.invested, scopeCurrency, undefined, numberFormat)}, ${pct.toFixed(1)}%`}
                   >
                     <View style={[styles.legendDot, { backgroundColor: item.color }]}>
                       <AccountIcon name={item.icon} size={12} color="#fff" />
@@ -480,12 +519,12 @@ export default function DashboardScreen() {
                     <Text style={[styles.legendPct, { color: item.color }]}>{pct.toFixed(0)}%</Text>
                     {isPastPeriod ? (
                       <Text style={[styles.legendAmount, { color: textColor, fontWeight: isSelected ? '700' : '500' }]}>
-                        {formatAmount(item.row.invested, currency, undefined, numberFormat)}
+                        {formatAmount(item.row.invested, scopeCurrency, undefined, numberFormat)}
                       </Text>
                     ) : (
                       <View style={styles.legendAmountCol}>
                         <Text style={[styles.legendAmount, { color: textColor, fontWeight: isSelected ? '700' : '500' }]}>
-                          {formatAmount(item.row.current, currency, undefined, numberFormat)}
+                          {formatAmount(item.row.current, scopeCurrency, undefined, numberFormat)}
                         </Text>
                         {item.row.pnlPct !== null && (
                           <Text style={[styles.legendSubPct, { color: pnlColor }]}>
@@ -552,7 +591,7 @@ export default function DashboardScreen() {
                               {slice.label}
                             </Text>
                             <Text style={[styles.pieCenterAmount, { color: textColor }]}>
-                              {formatAmount(slice.value, currency, undefined, numberFormat)}
+                              {formatAmount(slice.value, scopeCurrency, undefined, numberFormat)}
                             </Text>
                             <Text style={[styles.pieCenterPct, { color: slice.color }]}>{pct}%</Text>
                           </>
@@ -560,7 +599,7 @@ export default function DashboardScreen() {
                       })() : (
                         <>
                           <Text style={[styles.pieCenterTotal, { color: textColor }]}>
-                            {formatAmount(periodExpenses, currency, undefined, numberFormat)}
+                            {formatAmount(periodExpenses, scopeCurrency, undefined, numberFormat)}
                           </Text>
                           <Text style={[styles.pieCenterLabel, { color: subTextColor }]}>total spent</Text>
                         </>
@@ -586,7 +625,7 @@ export default function DashboardScreen() {
                     onPress={() => selectSlice(idx)}
                     activeOpacity={0.7}
                     accessibilityRole="button"
-                    accessibilityLabel={`${item.label}, ${formatAmount(item.value, currency, undefined, numberFormat)}, ${pct}%`}
+                    accessibilityLabel={`${item.label}, ${formatAmount(item.value, scopeCurrency, undefined, numberFormat)}, ${pct}%`}
                   >
                     <View style={[styles.legendDot, { backgroundColor: item.color }]}>
                       <MaterialIcons name={(item.icon as any) || 'label'} size={12} color="#fff" />
@@ -599,7 +638,7 @@ export default function DashboardScreen() {
                     </Text>
                     <Text style={[styles.legendPct, { color: item.color }]}>{pct}%</Text>
                     <Text style={[styles.legendAmount, { color: textColor, fontWeight: isSelected ? '700' : '500' }]}>
-                      {formatAmount(item.value, currency, undefined, numberFormat)}
+                      {formatAmount(item.value, scopeCurrency, undefined, numberFormat)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -642,7 +681,7 @@ export default function DashboardScreen() {
                       <Text style={[styles.txDate, { color: subTextColor }]}>{t.date}</Text>
                     </View>
                     <Text style={[styles.txAmount, { color: amountColor }]}>
-                      {formatAmount(t.amount, currency, amountType, numberFormat)}
+                      {formatAmount(t.amount, scopeCurrency, amountType, numberFormat)}
                     </Text>
                   </View>
                 );
@@ -667,7 +706,7 @@ export default function DashboardScreen() {
                       { color: tx.type === 'income' ? '#4CAF50' : '#F44336' },
                     ]}
                   >
-                    {formatAmount(tx.amount, currency, tx.type, numberFormat)}
+                    {formatAmount(tx.amount, scopeCurrency, tx.type, numberFormat)}
                   </Text>
                 </View>
               );
@@ -695,22 +734,32 @@ const styles = StyleSheet.create({
 
   balanceCard: {
     borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
+    padding: 20,
   },
   balanceLabel: {
-    fontSize: 14,
     color: 'rgba(255,255,255,0.8)',
-    marginBottom: 6,
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  balanceCurrencyTag: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   balanceAmount: {
-    fontSize: 36,
-    fontWeight: '700',
     color: '#fff',
+    fontSize: 34,
+    fontWeight: '700',
+    marginTop: 4,
   },
   balanceSub: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.65)',
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
     marginTop: 4,
   },
 

@@ -9,6 +9,9 @@ import { up as migration007 } from './migrations/007_recurring_transactions';
 import { up as migration008 } from './migrations/008_investment_accounts';
 import { up as migration009 } from './migrations/009_recurring_transfers';
 import { up as migration010 } from './migrations/010_transfers_nullable_accounts';
+import { up as migration011 } from './migrations/011_account_currency_backfill';
+import { up as migration012 } from './migrations/012_transfer_to_amount';
+import { up as migration013 } from './migrations/013_budget_currency';
 
 const migrations = [
   { version: 1, up: migration001 },
@@ -21,6 +24,9 @@ const migrations = [
   { version: 8, up: migration008 },
   { version: 9, up: migration009 },
   { version: 10, up: migration010 },
+  { version: 11, up: migration011 },
+  { version: 12, up: migration012 },
+  { version: 13, up: migration013 },
 ];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {

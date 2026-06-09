@@ -315,8 +315,9 @@ export function useImportDb() {
             ? (recurringIdMap.get(tr.recurring_transaction_id) ?? null)
             : null;
           await db.runAsync(
-            'INSERT INTO transfers (id, from_account_id, to_account_id, amount, note, date, recurring_transaction_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            tr.id, tr.from_account_id, tr.to_account_id, tr.amount, tr.note ?? null, tr.date, actualRecurringId, tr.created_at
+            'INSERT INTO transfers (id, from_account_id, to_account_id, amount, to_amount, note, date, recurring_transaction_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            tr.id, tr.from_account_id, tr.to_account_id, tr.amount, tr.to_amount ?? null,
+            tr.note ?? null, tr.date, actualRecurringId, tr.created_at
           );
         }
 
@@ -349,17 +350,24 @@ export function useTransfersDb() {
 
   // Money flowing INTO an investment account increases its current value;
   // money flowing OUT decreases it. Keeps P&L a measure of market movement, not cash flows.
-  const applyCurrentValueDelta = async (fromId: number | null, toId: number | null, amount: number) => {
+  // `fromAmount` debits the source; `toAmount` credits the destination — they differ on
+  // cross-currency transfers (each side is in its own account's currency).
+  const applyCurrentValueDelta = async (
+    fromId: number | null,
+    toId: number | null,
+    fromAmount: number,
+    toAmount: number,
+  ) => {
     if (fromId != null) {
       await db.runAsync(
         "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
-        -amount, fromId
+        -fromAmount, fromId
       );
     }
     if (toId != null) {
       await db.runAsync(
         "UPDATE accounts SET current_value = current_value + ? WHERE id=? AND account_type='investment' AND current_value IS NOT NULL",
-        amount, toId
+        toAmount, toId
       );
     }
   };
@@ -377,12 +385,14 @@ export function useTransfersDb() {
 
     insert: async (transfer: Omit<Transfer, 'id' | 'created_at'>) => {
       let result!: Awaited<ReturnType<typeof db.runAsync>>;
+      const toAmount = transfer.to_amount ?? transfer.amount;
       await db.withTransactionAsync(async () => {
         result = await db.runAsync(
-          'INSERT INTO transfers (from_account_id, to_account_id, amount, note, date, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?)',
-          transfer.from_account_id, transfer.to_account_id, transfer.amount, transfer.note ?? null, transfer.date, transfer.recurring_transaction_id ?? null
+          'INSERT INTO transfers (from_account_id, to_account_id, amount, to_amount, note, date, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          transfer.from_account_id, transfer.to_account_id, transfer.amount, transfer.to_amount ?? null,
+          transfer.note ?? null, transfer.date, transfer.recurring_transaction_id ?? null
         );
-        await applyCurrentValueDelta(transfer.from_account_id, transfer.to_account_id, transfer.amount);
+        await applyCurrentValueDelta(transfer.from_account_id, transfer.to_account_id, transfer.amount, toAmount);
       });
       return result;
     },
@@ -391,18 +401,27 @@ export function useTransfersDb() {
       db.withTransactionAsync(async () => {
         const prev = await db.getFirstAsync<Transfer>('SELECT * FROM transfers WHERE id=?', id);
         await db.runAsync(
-          'UPDATE transfers SET from_account_id=?, to_account_id=?, amount=?, note=?, date=? WHERE id=?',
-          transfer.from_account_id!, transfer.to_account_id!, transfer.amount!, transfer.note ?? null, transfer.date!, id
+          'UPDATE transfers SET from_account_id=?, to_account_id=?, amount=?, to_amount=?, note=?, date=? WHERE id=?',
+          transfer.from_account_id!, transfer.to_account_id!, transfer.amount!, transfer.to_amount ?? null,
+          transfer.note ?? null, transfer.date!, id
         );
-        if (prev) await applyCurrentValueDelta(prev.to_account_id, prev.from_account_id, prev.amount); // reverse old
-        await applyCurrentValueDelta(transfer.from_account_id!, transfer.to_account_id!, transfer.amount!); // apply new
+        if (prev) {
+          // reverse old (swap sides + negate)
+          const prevTo = prev.to_amount ?? prev.amount;
+          await applyCurrentValueDelta(prev.to_account_id, prev.from_account_id, prevTo, prev.amount);
+        }
+        const newTo = transfer.to_amount ?? transfer.amount!;
+        await applyCurrentValueDelta(transfer.from_account_id!, transfer.to_account_id!, transfer.amount!, newTo);
       }),
 
     remove: (id: number) =>
       db.withTransactionAsync(async () => {
         const prev = await db.getFirstAsync<Transfer>('SELECT * FROM transfers WHERE id=?', id);
         await db.runAsync('DELETE FROM transfers WHERE id=?', id);
-        if (prev) await applyCurrentValueDelta(prev.to_account_id, prev.from_account_id, prev.amount); // reverse
+        if (prev) {
+          const prevTo = prev.to_amount ?? prev.amount;
+          await applyCurrentValueDelta(prev.to_account_id, prev.from_account_id, prevTo, prev.amount);
+        }
       }),
 
     getByAccount: (accountId: number) =>
@@ -498,14 +517,14 @@ export function useBudgetsDb() {
 
     insert: (budget: Omit<Budget, 'id' | 'created_at'>) =>
       db.runAsync(
-        'INSERT INTO budgets (category_id, amount, period) VALUES (?, ?, ?)',
-        budget.category_id, budget.amount, budget.period
+        'INSERT INTO budgets (category_id, amount, period, currency) VALUES (?, ?, ?, ?)',
+        budget.category_id, budget.amount, budget.period, budget.currency
       ),
 
     update: (id: number, budget: Partial<Omit<Budget, 'id' | 'created_at'>>) =>
       db.runAsync(
-        'UPDATE budgets SET category_id=?, amount=?, period=? WHERE id=?',
-        budget.category_id!, budget.amount!, budget.period!, id
+        'UPDATE budgets SET category_id=?, amount=?, period=?, currency=? WHERE id=?',
+        budget.category_id!, budget.amount!, budget.period!, budget.currency!, id
       ),
 
     remove: (id: number) => db.runAsync('DELETE FROM budgets WHERE id=?', id),

@@ -24,6 +24,7 @@ import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { Snackbar } from 'react-native-snackbar';
 import { getCurrencySymbol } from '@/constants/currencies';
+import type { Account } from '@/types';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { TransferWithDetails } from '@/types';
@@ -53,11 +54,12 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   const accounts = useAccountsStore((s) => s.accounts);
   const addTransfer = useTransfersStore((s) => s.addTransfer);
   const updateTransfer = useTransfersStore((s) => s.updateTransfer);
-  const currencySymbol = getCurrencySymbol(useSettingsStore((s) => s.currency));
+  const globalCurrency = useSettingsStore((s) => s.currency);
 
   const transfersDb = useTransfersDb();
 
   const [amount, setAmount] = useState('');
+  const [toAmount, setToAmount] = useState('');
   const [fromAccountId, setFromAccountId] = useState<number | null>(null);
   const [toAccountId, setToAccountId] = useState<number | null>(null);
   const [note, setNote] = useState('');
@@ -65,16 +67,28 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   const [attempted, setAttempted] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
 
+  const findAccount = (id: number | null): Account | undefined =>
+    id != null ? accounts.find((a) => a.id === id) : undefined;
+  const fromAccount = findAccount(fromAccountId);
+  const toAccount = findAccount(toAccountId);
+  const fromCurrency = fromAccount?.currency || globalCurrency;
+  const toCurrency = toAccount?.currency || globalCurrency;
+  const isCrossCurrency = fromAccount != null && toAccount != null && fromCurrency !== toCurrency;
+  const fromSymbol = getCurrencySymbol(fromCurrency);
+  const toSymbol = getCurrencySymbol(toCurrency);
+
   useEffect(() => {
     if (!isOpen) return;
     if (transfer) {
       setAmount(String(transfer.amount));
+      setToAmount(transfer.to_amount != null ? String(transfer.to_amount) : '');
       setFromAccountId(transfer.from_account_id);
       setToAccountId(transfer.to_account_id);
       setNote(transfer.note ?? '');
       setDate(transfer.date);
     } else {
       setAmount('');
+      setToAmount('');
       const filteredAccountId = useUIStore.getState().selectedAccountId;
       const defaultFromId = filteredAccountId ?? accounts[0]?.id ?? null;
       setFromAccountId(defaultFromId);
@@ -87,10 +101,11 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   }, [isOpen, transfer]);
 
 
-  const saveTransfer = useCallback(async (parsedAmount: number) => {
+  const saveTransfer = useCallback(async (parsedAmount: number, parsedToAmount: number | null) => {
     if (transfer) {
       await transfersDb.update(transfer.id, {
         amount: parsedAmount,
+        to_amount: parsedToAmount,
         from_account_id: fromAccountId!,
         to_account_id: toAccountId!,
         note: note.trim() || null,
@@ -101,6 +116,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     } else {
       const result = await transfersDb.insert({
         amount: parsedAmount,
+        to_amount: parsedToAmount,
         from_account_id: fromAccountId!,
         to_account_id: toAccountId!,
         note: note.trim() || null,
@@ -112,34 +128,46 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     }
   }, [transfer, fromAccountId, toAccountId, note, date, transfersDb, updateTransfer, addTransfer]);
 
+  // Returns [fromAmount, toAmountOrNull] when valid, or null otherwise.
+  const parseAmounts = (): [number, number | null] | null => {
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || parsedAmount <= 0) return null;
+    if (!isCrossCurrency) return [parsedAmount, null];
+    const parsedTo = parseFloat(toAmount);
+    if (!parsedTo || parsedTo <= 0) return null;
+    return [parsedAmount, parsedTo];
+  };
+
   const handleSave = useCallback(async () => {
     setAttempted(true);
-    const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
+    const parsed = parseAmounts();
+    if (!parsed || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
-      await saveTransfer(parsedAmount);
+      await saveTransfer(parsed[0], parsed[1]);
       Snackbar.show({ text: transfer ? 'Transfer updated' : 'Transfer saved', duration: Snackbar.LENGTH_SHORT });
       triggerCloseRef.current();
     } catch {
       setErrorModal('Failed to save transfer.');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, fromAccountId, toAccountId, saveTransfer, transfer]);
+  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer]);
 
   const handleSaveAndContinue = useCallback(async () => {
     setAttempted(true);
-    const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0 || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
+    const parsed = parseAmounts();
+    if (!parsed || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
-      await saveTransfer(parsedAmount);
+      await saveTransfer(parsed[0], parsed[1]);
       Snackbar.show({ text: transfer ? 'Transfer updated' : 'Transfer saved', duration: Snackbar.LENGTH_SHORT });
       setAmount('');
+      setToAmount('');
       setNote('');
       setAttempted(false);
     } catch {
       setErrorModal('Failed to save transfer.');
     }
-  }, [amount, fromAccountId, toAccountId, saveTransfer, transfer]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer]);
 
   const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
@@ -225,9 +253,12 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
             keyboardDismissMode="on-drag"
             automaticallyAdjustKeyboardInsets
           >
-            {/* Amount */}
+            {/* Amount sent (from source) */}
+            {isCrossCurrency && (
+              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Amount sent ({fromCurrency})</Text>
+            )}
             <View style={[styles.amountContainer, { backgroundColor: inputBg, borderColor: attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) ? '#F44336' : borderColor }]}>
-              <Text style={[styles.currencySymbol, { color: subTextColor }]}>{currencySymbol}</Text>
+              <Text style={[styles.currencySymbol, { color: subTextColor }]}>{fromSymbol}</Text>
               <TextInput
                 style={[styles.amountInput, { color: textColor }]}
                 value={amount}
@@ -241,6 +272,28 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
             </View>
             {attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) && (
               <Text style={styles.errorText}>Enter a valid amount greater than 0</Text>
+            )}
+
+            {/* Amount received (cross-currency only) */}
+            {isCrossCurrency && (
+              <>
+                <Text style={[styles.sectionLabel, { color: subTextColor }]}>Amount received ({toCurrency})</Text>
+                <View style={[styles.amountContainer, { backgroundColor: inputBg, borderColor: attempted && (!parseFloat(toAmount) || parseFloat(toAmount) <= 0) ? '#F44336' : borderColor }]}>
+                  <Text style={[styles.currencySymbol, { color: subTextColor }]}>{toSymbol}</Text>
+                  <TextInput
+                    style={[styles.amountInput, { color: textColor }]}
+                    value={toAmount}
+                    onChangeText={setToAmount}
+                    placeholder="0.00"
+                    placeholderTextColor={subTextColor}
+                    keyboardType="decimal-pad"
+                    returnKeyType="done"
+                  />
+                </View>
+                {attempted && (!parseFloat(toAmount) || parseFloat(toAmount) <= 0) && (
+                  <Text style={styles.errorText}>Enter the amount received in {toCurrency}</Text>
+                )}
+              </>
             )}
 
             {/* From account */}

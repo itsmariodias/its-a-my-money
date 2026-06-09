@@ -1,6 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Snackbar } from 'react-native-snackbar';
 import {
+  Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -29,6 +32,7 @@ import {
   accountFlowAsOf,
   accountBalanceAsOf,
   computePnL,
+  totalsByCurrency,
 } from '@/features/accounts/balanceUtils';
 import type { Account } from '@/types';
 
@@ -107,11 +111,11 @@ interface CardProps {
   account: Account;
   balance: number;
   stat: { amount: number; pct: number | null } | null;
-  currency: string;
   onPress: () => void;
 }
 
-function AccountCard({ account, balance, stat, currency, onPress }: CardProps) {
+function AccountCard({ account, balance, stat, onPress }: CardProps) {
+  const currency = account.currency || 'USD';
   const { cardBg, textColor, subColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const iconBg = account.color ?? '#55A3FF';
@@ -233,22 +237,36 @@ export default function AccountsScreen() {
     return map;
   }, [showPctChange, isPastPeriod, accounts, transactions, transfers, dateRange, balanceMap, prevBalanceMap]);
 
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const carouselRef = useRef<ScrollView>(null);
+  const carouselWidth = Dimensions.get('window').width - 32; // matches scrollContent horizontal padding
+  const onCarouselScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const i = Math.round(e.nativeEvent.contentOffset.x / carouselWidth);
+    if (i !== carouselIndex) setCarouselIndex(i);
+  };
+
   const cashAccounts = useMemo(() => accounts.filter((a) => a.account_type !== 'investment'), [accounts]);
   const investmentAccounts = useMemo(() => accounts.filter((a) => a.account_type === 'investment'), [accounts]);
 
-  const totalBalance = useMemo(
-    () => Object.values(balanceMap).reduce((s, v) => s + v, 0),
-    [balanceMap]
-  );
+  // Per-currency totals — this app does not convert across currencies, so each currency
+  // is its own page in the totals carousel. The user's primary (global) currency leads;
+  // the rest are sorted by code for stable order.
+  const currencyTotals = useMemo(() => {
+    const map = totalsByCurrency(accounts, balanceMap);
+    const entries = Object.entries(map);
+    entries.sort(([a], [b]) => {
+      if (a === currency) return -1;
+      if (b === currency) return 1;
+      return a.localeCompare(b);
+    });
+    return entries;
+  }, [accounts, balanceMap, currency]);
 
-  const prevTotalBalance = useMemo(
-    () => Object.values(prevBalanceMap).reduce((s, v) => s + v, 0),
-    [prevBalanceMap]
-  );
-
-  const totalPctChange = prevTotalBalance === 0 || totalBalance === prevTotalBalance
-    ? null
-    : ((totalBalance - prevTotalBalance) / Math.abs(prevTotalBalance)) * 100;
+  const prevCurrencyTotals = useMemo(() => {
+    if (!showPctChange) return new Map<string, number>();
+    const map = totalsByCurrency(accounts, prevBalanceMap);
+    return new Map(Object.entries(map));
+  }, [showPctChange, accounts, prevBalanceMap]);
 
   const handleDeletePress = useCallback(
     (account: Account) => {
@@ -296,21 +314,93 @@ export default function AccountsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Total balance card */}
-        <View style={[styles.totalCard, { backgroundColor: accentColor }]}>
-          <Text style={[styles.totalLabel, { color: onAccentColor + 'CC' }]}>Total Balance</Text>
-          <Text style={[styles.totalAmount, { color: onAccentColor }]}>
-            {formatAmount(totalBalance, currency, undefined, numberFormat)}
-          </Text>
-          {totalPctChange !== null && (
-            <Text style={[styles.totalPct, { color: onAccentColor }]}>
-              {totalPctChange >= 0 ? '▲' : '▼'} {Math.abs(totalPctChange).toFixed(1)}%
+        {/* Total balance card — one swipeable page per currency. */}
+        {currencyTotals.length <= 1 ? (
+          <View style={[styles.totalCard, { backgroundColor: accentColor }]}>
+            <Text style={[styles.totalLabel, { color: onAccentColor + 'CC' }]}>Total Balance</Text>
+            {(() => {
+              const [code, amount] = currencyTotals[0] ?? [currency, 0];
+              const prev = prevCurrencyTotals.get(code);
+              const pct = prev !== undefined && prev !== 0 && amount !== prev
+                ? ((amount - prev) / Math.abs(prev)) * 100
+                : null;
+              return (
+                <>
+                  <Text style={[styles.totalAmount, { color: onAccentColor }]}>
+                    {formatAmount(amount, code, undefined, numberFormat)}
+                  </Text>
+                  {pct !== null && (
+                    <Text style={[styles.totalPct, { color: onAccentColor }]}>
+                      {pct >= 0 ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
+                    </Text>
+                  )}
+                </>
+              );
+            })()}
+            <Text style={[styles.totalSub, { color: onAccentColor + 'A6' }]}>
+              as of {periodNavLabel(periodMode, periodDate)} · {accounts.length} account{accounts.length !== 1 ? 's' : ''}
             </Text>
-          )}
-          <Text style={[styles.totalSub, { color: onAccentColor + 'A6' }]}>
-            as of {periodNavLabel(periodMode, periodDate)} · {accounts.length} account{accounts.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
+          </View>
+        ) : (
+          <View style={styles.carouselWrapper}>
+            <ScrollView
+              ref={carouselRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onScroll={onCarouselScroll}
+              scrollEventThrottle={16}
+              decelerationRate="fast"
+            >
+              {currencyTotals.map(([code, amount]) => {
+                const prev = prevCurrencyTotals.get(code);
+                const pct = prev !== undefined && prev !== 0 && amount !== prev
+                  ? ((amount - prev) / Math.abs(prev)) * 100
+                  : null;
+                return (
+                  <View key={code} style={[styles.carouselCard, { backgroundColor: accentColor, width: carouselWidth }]}>
+                    <View style={styles.totalLabelRow}>
+                      <Text style={[styles.totalLabel, { color: onAccentColor + 'CC' }]}>Total Balance</Text>
+                      <View style={styles.totalHeaderRight}>
+                        <Text style={[styles.totalCurrencyTag, { color: onAccentColor + 'CC' }]}>{code}</Text>
+                        <View style={styles.inlineDots}>
+                          {currencyTotals.map(([dCode], i) => (
+                            <TouchableOpacity
+                              key={dCode}
+                              onPress={() => {
+                                carouselRef.current?.scrollTo({ x: i * carouselWidth, animated: true });
+                                setCarouselIndex(i);
+                              }}
+                              hitSlop={8}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Show ${dCode} total`}
+                            >
+                              <View style={[
+                                styles.inlineDot,
+                                { backgroundColor: onAccentColor + (i === carouselIndex ? 'FF' : '55') },
+                              ]} />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    </View>
+                    <Text style={[styles.totalAmount, { color: onAccentColor }]}>
+                      {formatAmount(amount, code, undefined, numberFormat)}
+                    </Text>
+                    {pct !== null && (
+                      <Text style={[styles.totalPct, { color: onAccentColor }]}>
+                        {pct >= 0 ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
+                      </Text>
+                    )}
+                    <Text style={[styles.totalSub, { color: onAccentColor + 'A6' }]}>
+                      as of {periodNavLabel(periodMode, periodDate)} · {accounts.length} account{accounts.length !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {accounts.length === 0 ? (
           <View style={styles.empty}>
@@ -330,7 +420,6 @@ export default function AccountsScreen() {
                     account={acc}
                     balance={balanceMap[acc.id] ?? acc.initial_balance}
                     stat={statMap[acc.id] ?? null}
-                    currency={currency}
                     onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
                   />
                 ))}
@@ -345,7 +434,6 @@ export default function AccountsScreen() {
                     account={acc}
                     balance={balanceMap[acc.id] ?? acc.initial_balance}
                     stat={statMap[acc.id] ?? null}
-                    currency={currency}
                     onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
                   />
                 ))}
@@ -424,6 +512,39 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 4,
+  },
+  carouselWrapper: {
+    marginBottom: 4,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  carouselCard: {
+    padding: 20,
+  },
+  totalLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  totalCurrencyTag: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  totalHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  inlineDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  inlineDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   totalLabel: {
     color: 'rgba(255,255,255,0.8)',

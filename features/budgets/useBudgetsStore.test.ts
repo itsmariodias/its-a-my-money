@@ -6,6 +6,7 @@ const makeItem = (id: number, overrides: Partial<BudgetWithDetails> = {}): Budge
   category_id: 1,
   amount: 500,
   period: 'monthly',
+  currency: 'USD',
   created_at: '2026-01-01T00:00:00.000Z',
   category_name: 'Food',
   category_color: '#4CAF50',

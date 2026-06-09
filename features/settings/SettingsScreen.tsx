@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -30,7 +29,8 @@ import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
-import { CURRENCIES, NUMBER_FORMATS, getCurrencyByCode } from '@/constants/currencies';
+import { NUMBER_FORMATS, getCurrencyByCode } from '@/constants/currencies';
+import CurrencyPicker from '@/shared/components/CurrencyPicker';
 import { ACCENT_COLORS, THEMES, isLightColor } from '@/constants/theme';
 import type { AccentColor, AppTheme, ResolvedThemeId } from '@/constants/theme';
 import type { ThemeId } from '@/constants/theme';
@@ -153,7 +153,6 @@ export default function SettingsScreen() {
   const [deletingCat, setDeletingCat] = useState<Category | null>(null);
   const [deleteCatTxCount, setDeleteCatTxCount] = useState(0);
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
-  const [currencySearch, setCurrencySearch] = useState('');
   const [accentOpen, setAccentOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
@@ -171,7 +170,7 @@ export default function SettingsScreen() {
 
   useEffect(() => { loadCategories(); }, []);
 
-  const openCurrencyPicker = () => { setCurrencySearch(''); setCurrencyPickerOpen(true); };
+  const openCurrencyPicker = () => { setCurrencyPickerOpen(true); };
   const selectCurrency = async (code: string) => {
     await settingsDb.set('currency', code);
     setCurrency(code);
@@ -223,13 +222,6 @@ export default function SettingsScreen() {
     await settingsDb.set('show_pct_change', String(newValue));
     setShowPctChange(newValue);
   };
-
-  const filteredCurrencies = currencySearch.trim()
-    ? CURRENCIES.filter((c) => {
-        const q = currencySearch.toLowerCase();
-        return c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || c.symbol.includes(q);
-      })
-    : CURRENCIES;
 
   const handleDeleteCatPress = async (cat: Category) => {
     const result = await categoriesDb.countTransactions(cat.id);
@@ -792,51 +784,12 @@ export default function SettingsScreen() {
       <BudgetsListScreen isOpen={budgetsOpen} onClose={() => setBudgetsOpen(false)} />
 
       {/* Currency picker */}
-      <Modal visible={currencyPickerOpen} animationType="slide" transparent={false} onRequestClose={() => setCurrencyPickerOpen(false)}>
-        <View style={[styles.fullModal, { backgroundColor: bg }]}>
-          <View style={[styles.modalHeader, { backgroundColor: cardBg, borderBottomColor: borderColor, paddingTop: insets.top + 14 }]}>
-            <TouchableOpacity onPress={() => setCurrencyPickerOpen(false)} hitSlop={8}>
-              <MaterialIcons name="close" size={24} color={subColor} />
-            </TouchableOpacity>
-            <Text style={[styles.modalHeaderTitle, { color: textColor }]}>Currency</Text>
-            <View style={{ width: 24 }} />
-          </View>
-          <View style={[styles.currencySearch, { backgroundColor: cardBg, borderBottomColor: borderColor }]}>
-            <MaterialIcons name="search" size={20} color={subColor} />
-            <TextInput
-              style={[styles.currencySearchInput, { color: textColor }]}
-              value={currencySearch}
-              onChangeText={setCurrencySearch}
-              placeholder="Search currencies…"
-              placeholderTextColor={subColor}
-              returnKeyType="search"
-              autoCorrect={false}
-            />
-            {currencySearch.length > 0 && (
-              <TouchableOpacity onPress={() => setCurrencySearch('')} hitSlop={8}>
-                <MaterialIcons name="cancel" size={18} color={subColor} />
-              </TouchableOpacity>
-            )}
-          </View>
-          <ScrollView keyboardShouldPersistTaps="handled">
-            {filteredCurrencies.map((c) => {
-              const isSelected = c.code === currency;
-              return (
-                <TouchableOpacity key={c.code} style={[styles.currencyRow, { borderBottomColor: borderColor }]} onPress={() => selectCurrency(c.code)} activeOpacity={0.7}>
-                  <View style={[styles.currencySymbolBadge, { backgroundColor: isSelected ? accentColor + '20' : inputBg }]}>
-                    <Text style={[styles.currencySymbolText, { color: isSelected ? accentColor : textColor }]}>{c.symbol}</Text>
-                  </View>
-                  <View style={styles.currencyInfo}>
-                    <Text style={[styles.currencyCode, { color: isSelected ? accentColor : textColor }]}>{c.code}</Text>
-                    <Text style={[styles.currencyName, { color: subColor }]}>{c.name}</Text>
-                  </View>
-                  {isSelected && <MaterialIcons name="check" size={20} color={accentColor} />}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      </Modal>
+      <CurrencyPicker
+        visible={currencyPickerOpen}
+        selectedCode={currency}
+        onSelect={selectCurrency}
+        onClose={() => setCurrencyPickerOpen(false)}
+      />
 
       {/* Categories modal */}
       <Modal visible={catModalOpen} animationType="slide" transparent={false} onRequestClose={() => setCatModalOpen(false)}>
@@ -931,14 +884,6 @@ const styles = StyleSheet.create({
   fmtOption: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
   fmtLabel: { fontSize: 13, fontWeight: '600' },
   fmtDesc: { fontSize: 11, marginTop: 2 },
-  currencySearch: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
-  currencySearchInput: { flex: 1, fontSize: 15, paddingVertical: 4 },
-  currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
-  currencySymbolBadge: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  currencySymbolText: { fontSize: 16, fontWeight: '700' },
-  currencyInfo: { flex: 1 },
-  currencyCode: { fontSize: 15, fontWeight: '600' },
-  currencyName: { fontSize: 12, marginTop: 1 },
   fullModal: { flex: 1 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
   modalHeaderTitle: { fontSize: 17, fontWeight: '700' },

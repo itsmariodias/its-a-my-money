@@ -17,7 +17,8 @@ import { Text } from '@/shared/components/Themed';
 import { useBudgetsDb, useCategoriesDb } from '@/db';
 import { useBudgetsStore } from './useBudgetsStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
-import { getCurrencySymbol } from '@/constants/currencies';
+import { getCurrencyByCode, getCurrencySymbol } from '@/constants/currencies';
+import CurrencyPicker from '@/shared/components/CurrencyPicker';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import { Snackbar } from 'react-native-snackbar';
@@ -46,15 +47,19 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
   const addBudget = useBudgetsStore((s) => s.addBudget);
   const updateBudget = useBudgetsStore((s) => s.updateBudget);
   const allBudgets = useBudgetsStore((s) => s.budgets);
-  const currencySymbol = getCurrencySymbol(useSettingsStore((s) => s.currency));
+  const globalCurrency = useSettingsStore((s) => s.currency);
 
   const [amount, setAmount] = useState('');
   const [period, setPeriod] = useState<BudgetPeriod>('monthly');
+  const [currency, setCurrency] = useState<string>(globalCurrency);
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [attempted, setAttempted] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
+
+  const currencySymbol = getCurrencySymbol(currency);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -69,10 +74,12 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
     if (budget) {
       setAmount(String(budget.amount));
       setPeriod(budget.period);
+      setCurrency(budget.currency || globalCurrency);
       setEditingId(budget.id);
     } else {
       setAmount('');
       setPeriod('monthly');
+      setCurrency(globalCurrency);
       setEditingId(null);
     }
     setAttempted(false);
@@ -81,10 +88,12 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
 
   // If the user picks a category that already has a budget while creating,
   // auto-switch the form into edit mode for the existing budget.
+  // Picking a category that already has a budget in this currency switches into edit
+  // mode for it. Same category in a different currency is a distinct budget.
   const handleSelectCategory = (cat: Category) => {
     setSelectedCategory(cat);
     if (editingId == null) {
-      const existing = allBudgets.find((b) => b.category_id === cat.id);
+      const existing = allBudgets.find((b) => b.category_id === cat.id && b.currency === currency);
       if (existing) {
         setEditingId(existing.id);
         setAmount(String(existing.amount));
@@ -111,6 +120,7 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
           category_id: selectedCategory!.id,
           amount: parsed,
           period,
+          currency,
         });
         const refreshed = await budgetsDb.getAll();
         const updated = refreshed.find((b) => b.id === editingId);
@@ -121,6 +131,7 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
           category_id: selectedCategory!.id,
           amount: parsed,
           period,
+          currency,
         });
         const refreshed = await budgetsDb.getAll();
         const added = refreshed.find((b) => b.id === result.lastInsertRowId);
@@ -135,7 +146,7 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
       setErrorModal('Failed to save budget.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, period, selectedCategory, editingId]);
+  }, [amount, period, selectedCategory, currency, editingId]);
 
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
@@ -241,6 +252,23 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
                 ))}
               </View>
 
+              {/* Currency */}
+              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Currency</Text>
+              <TouchableOpacity
+                style={[localStyles.currencyRow, { backgroundColor: inputBg, borderColor }]}
+                onPress={() => setCurrencyPickerOpen(true)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Currency: ${getCurrencyByCode(currency).name}`}
+              >
+                <Text style={[localStyles.currencyRowSymbol, { color: textColor }]}>{currencySymbol}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[localStyles.currencyRowCode, { color: textColor }]}>{currency}</Text>
+                  <Text style={[localStyles.currencyRowName, { color: subTextColor }]}>{getCurrencyByCode(currency).name}</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={subTextColor} />
+              </TouchableOpacity>
+
               {/* Category (expense only) */}
               <Text style={[styles.sectionLabel, { color: subTextColor }]}>Category</Text>
               <ScrollView
@@ -291,6 +319,13 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
         </View>
       </Modal>
 
+      <CurrencyPicker
+        visible={currencyPickerOpen}
+        selectedCode={currency}
+        onSelect={(code) => { setCurrency(code); setCurrencyPickerOpen(false); }}
+        onClose={() => setCurrencyPickerOpen(false)}
+      />
+
       <InfoModal
         visible={!!errorModal}
         onClose={() => setErrorModal(null)}
@@ -312,6 +347,10 @@ const localStyles = StyleSheet.create({
   categoryLabel: { fontSize: 11, textAlign: 'center' },
   periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   periodBtnText: { fontWeight: '600', fontSize: 12 },
+  currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 20 },
+  currencyRowSymbol: { fontSize: 20, fontWeight: '700', width: 28, textAlign: 'center' },
+  currencyRowCode: { fontSize: 15, fontWeight: '600' },
+  currencyRowName: { fontSize: 12, marginTop: 1 },
 });
 
 const styles = { ...sheetStyles, ...localStyles };

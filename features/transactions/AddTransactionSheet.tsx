@@ -169,7 +169,9 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       await saveTransaction(parsedAmount);
       const currTxs = useTransactionsStore.getState().transactions;
       const budgets = useBudgetsStore.getState().budgets;
-      const crossed = findCrossings(budgets, prevTxs, currTxs);
+      const accCurMap: Record<number, string> = {};
+      for (const a of accounts) accCurMap[a.id] = a.currency || '';
+      const crossed = findCrossings(budgets, prevTxs, currTxs, new Date(), accCurMap);
       if (crossed.length > 0) notifyCrossedBudgets(crossed);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       triggerCloseRef.current();
@@ -187,7 +189,9 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       await saveTransaction(parsedAmount);
       const currTxs = useTransactionsStore.getState().transactions;
       const budgets = useBudgetsStore.getState().budgets;
-      const crossed = findCrossings(budgets, prevTxs, currTxs);
+      const accCurMap: Record<number, string> = {};
+      for (const a of accounts) accCurMap[a.id] = a.currency || '';
+      const crossed = findCrossings(budgets, prevTxs, currTxs, new Date(), accCurMap);
       if (crossed.length > 0) notifyCrossedBudgets(crossed);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       setAmount('');

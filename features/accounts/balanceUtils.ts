@@ -1,7 +1,7 @@
 import type { Account, Transaction, Transfer } from '@/types';
 
 type TxLike = Pick<Transaction, 'account_id' | 'type' | 'amount' | 'date'>;
-type TransferLike = Pick<Transfer, 'from_account_id' | 'to_account_id' | 'amount' | 'date'>;
+type TransferLike = Pick<Transfer, 'from_account_id' | 'to_account_id' | 'amount' | 'to_amount' | 'date'>;
 
 /**
  * Sum of money flowing through an account: initial balance + net transactions + net transfers.
@@ -28,7 +28,7 @@ export function accountFlowAsOf(
     .filter((t) => keep(t.date))
     .reduce((sum, t) => {
       if (t.from_account_id === account.id) return sum - t.amount;
-      if (t.to_account_id === account.id) return sum + t.amount;
+      if (t.to_account_id === account.id) return sum + (t.to_amount ?? t.amount);
       return sum;
     }, 0);
 
@@ -79,6 +79,23 @@ export function computePnL(
   const pnl = current - invested;
   const pnlPct = invested === 0 ? null : (pnl / Math.abs(invested)) * 100;
   return { invested, current, pnl, pnlPct };
+}
+
+/**
+ * Group account balances by currency code. Used by per-currency subtotals
+ * (e.g. "Total: $1,200 · €800") since this app does not convert across currencies.
+ * `balanceMap` is keyed by account id.
+ */
+export function totalsByCurrency(
+  accounts: readonly Account[],
+  balanceMap: Record<number, number>
+): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const acc of accounts) {
+    const code = acc.currency || 'USD';
+    totals[code] = (totals[code] ?? 0) + (balanceMap[acc.id] ?? acc.initial_balance);
+  }
+  return totals;
 }
 
 /**

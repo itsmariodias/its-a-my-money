@@ -16,6 +16,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Portfolio allocation donut — per-investment-account slices sized by invested amount, with live P&L % beside each
 - Recent transactions list
 - Filter by account or time period (day, month, year)
+- Multi-currency aware — when no account filter is active, aggregates are scoped to your primary currency (no FX conversion); the currency code shows in the balance card
 
 **Transactions**
 - Full transaction history grouped by date
@@ -28,18 +29,21 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 **Transfers**
 - Move money between accounts with a dedicated transfer sheet
 - Save & Add Another for entering multiple transfers in one session
+- Cross-currency transfers — pick accounts in different currencies and the sheet reveals a second "Amount received" field. No FX rate ever invented; you type both sides
 
 **Accounts**
-- Manage multiple wallets (Cash, Bank, Credit Card, etc.)
-- Each account has a name, icon, color, currency, and initial balance
+- Manage multiple wallets (Cash, Bank, Credit Card, etc.) across any of 50+ currencies
+- Each account has a name, icon, color, currency, and initial balance — currency is set per-account at creation
 - Tap to edit; delete from inside the edit sheet. Linked transactions cascade-delete; transfers are kept and the deleted side renders as "Unknown"
 - Running balance calculated from initial balance + net transactions
+- Total Balance card is a swipeable carousel — one page per currency, primary currency leads (no cross-currency conversion)
 - P&L stats — percentage change vs. previous period shown on each account card and total balance
 - Investment accounts — track fixed deposits, mutual funds, trades alongside cash. Invested amount auto-computed from transfers and transactions; current market value is user-editable. P&L on each investment card is live market value vs. invested
 
 **Budgets**
-- Set spending limits per expense category — weekly, monthly, or yearly
+- Set spending limits per expense category — weekly, monthly, or yearly, in any currency
 - Each budget tracks its own period independent of the Dashboard filter
+- Currency-scoped spend — a USD food budget only counts expenses on USD accounts; same category in another currency is a separate budget
 - Dashboard card with one row per budget: progress bar, percent used, spent vs. limit
 - Color-coded status — green under 80%, amber 80–99%, red at or over 100%
 - Local notification when a transaction pushes a budget over its limit
@@ -61,7 +65,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Auto-generated transactions appear in the transaction list with a recurring indicator
 
 **Settings**
-- Currency picker (50+ currencies)
+- Currency picker (50+ currencies) — sets the default for new accounts and budgets
 - Theme — 4 presets: Dark Blue (default), White, OLED Black, Super Mario
 - Accent color — 8 color presets
 - Number format — US, European, French, Indian, or no-grouping
