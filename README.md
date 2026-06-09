@@ -66,8 +66,8 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 
 **Settings**
 - Currency picker (50+ currencies) — sets the default for new accounts and budgets
-- Theme — 4 presets: Dark Blue (default), White, OLED Black, Super Mario
-- Accent color — 8 color presets
+- Theme — 4 presets (Sky Blue, Starry Blue, White, OLED Black) plus Auto modes that follow the system light/dark setting
+- Accent color — 19 color presets
 - Number format — US, European, French, Indian, or no-grouping
 - Biometric lock — fingerprint/Face ID to protect the app
 - Show P&L Stats toggle — enable/disable percentage change indicators on the Accounts tab
