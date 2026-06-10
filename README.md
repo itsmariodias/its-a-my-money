@@ -56,23 +56,24 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - OS notifications when backup starts and completes
 - Connect/disconnect from Settings with one tap
 
-**Recurring Transactions**
-- Define repeating income or expenses — subscriptions, rent, salary, bills
+**Recurring Transactions & Transfers**
+- Define repeating income, expenses, or transfers between accounts — subscriptions, rent, salary, bills, monthly savings sweeps
 - Frequencies: daily, weekly, monthly, yearly
-- Transactions are auto-generated on app open for any missed due dates
+- Transactions and transfers are auto-generated on app open for any missed due dates
 - Set an optional end date; entries gray out when expired
-- Manage from Settings — add, edit, delete with optional cleanup of past transactions
-- Auto-generated transactions appear in the transaction list with a recurring indicator
+- Manage from Settings — add, edit, delete with optional cleanup of past entries
+- Auto-generated entries appear in the transaction list with a recurring indicator
 
 **Settings**
 - Currency picker (50+ currencies) — sets the default for new accounts and budgets
 - Theme — 4 presets (Sky Blue, Starry Blue, White, OLED Black) plus Auto modes that follow the system light/dark setting
 - Accent color — 19 color presets
 - Number format — US, European, French, Indian, or no-grouping
+- Date format — DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD, DD MMM YYYY, or MMM DD, YYYY
 - Biometric lock — fingerprint/Face ID to protect the app
 - Show P&L Stats toggle — enable/disable percentage change indicators on the Accounts tab
 - Manage income and expense categories (add, edit, delete)
-- Manage recurring transactions
+- Manage recurring transactions and transfers
 - Manage budgets
 - Export all data as JSON (includes theme preference)
 - Import from JSON backup or Monefy CSV
