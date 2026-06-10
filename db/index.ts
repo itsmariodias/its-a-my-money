@@ -235,7 +235,8 @@ export interface ExportData {
   transactions: Transaction[];
   transfers: Transfer[];
   recurring_transactions?: RecurringTransaction[];
-  settings?: { currency?: string; accent_color?: string; number_format?: string; biometric_lock?: string; theme_id?: string };
+  budgets?: Budget[];
+  settings?: { currency?: string; accent_color?: string; number_format?: string; biometric_lock?: string; theme_id?: string; show_pct_change?: string };
 }
 
 export function useImportDb() {
@@ -321,7 +322,18 @@ export function useImportDb() {
           );
         }
 
-        // 7. Settings
+        // 7. Budgets (remap category_id to actual DB id)
+        if (data.budgets) {
+          for (const b of data.budgets) {
+            const actualCategoryId = categoryIdMap.get(b.category_id) ?? b.category_id;
+            await db.runAsync(
+              'INSERT INTO budgets (category_id, amount, period, currency, created_at) VALUES (?, ?, ?, ?, ?)',
+              actualCategoryId, b.amount, b.period, b.currency, b.created_at
+            );
+          }
+        }
+
+        // 8. Settings
         if (data.settings) {
           for (const [key, value] of Object.entries(data.settings)) {
             if (value != null) {

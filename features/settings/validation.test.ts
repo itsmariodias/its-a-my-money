@@ -146,6 +146,22 @@ describe('isValidExport', () => {
     expect(isValidExport(data)).toBe(false);
   });
 
+  it('should accept transfer with null account ids (deleted account)', () => {
+    const data = {
+      ...validData,
+      transfers: [{ id: 1, amount: 100, from_account_id: null, to_account_id: 2, to_amount: null, date: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(true);
+  });
+
+  it('should accept cross-currency transfer with to_amount', () => {
+    const data = {
+      ...validData,
+      transfers: [{ id: 1, amount: 100, from_account_id: 1, to_account_id: 2, to_amount: 92.5, date: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(true);
+  });
+
   it('should reject transfer with non-numeric amount', () => {
     const data = {
       ...validData,
@@ -161,6 +177,30 @@ describe('isValidExport', () => {
 
   it('should reject when accounts array contains null', () => {
     const data = { ...validData, accounts: [null] };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should accept valid budgets array', () => {
+    const data = {
+      ...validData,
+      budgets: [{ id: 1, category_id: 1, amount: 200, period: 'monthly', currency: 'USD', created_at: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(true);
+  });
+
+  it('should reject budget with invalid period', () => {
+    const data = {
+      ...validData,
+      budgets: [{ id: 1, category_id: 1, amount: 200, period: 'daily', currency: 'USD', created_at: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should reject budget missing currency', () => {
+    const data = {
+      ...validData,
+      budgets: [{ id: 1, category_id: 1, amount: 200, period: 'monthly', created_at: '2026-03-01' }],
+    };
     expect(isValidExport(data)).toBe(false);
   });
 

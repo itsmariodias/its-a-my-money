@@ -375,20 +375,23 @@ export default function SettingsScreen() {
     setOperationMessage('Importing…');
     try {
       await importDb.importAll(data);
-      const [accs, txns, trfs] = await Promise.all([
+      const [accs, txns, trfs, bdgs] = await Promise.all([
         accountsDb.getAll(),
         transactionsDb.getAll(),
         transfersDb.getAll(),
+        budgetsDb.getAll(),
       ]);
       setAccounts(accs);
       setTransactions(txns);
       setTransfers(trfs);
+      setBudgets(bdgs);
       if (importRestoreSettings && data.settings) {
         if (data.settings.currency) { await settingsDb.set('currency', data.settings.currency); setCurrency(data.settings.currency); }
         if (data.settings.accent_color) { await settingsDb.set('accent_color', data.settings.accent_color); setAccentColor(data.settings.accent_color); }
         if (data.settings.number_format) { await settingsDb.set('number_format', data.settings.number_format); setNumberFormat(data.settings.number_format); }
         if (data.settings.biometric_lock) { await settingsDb.set('biometric_lock', data.settings.biometric_lock); setBiometricLock(data.settings.biometric_lock === 'true'); }
         if (data.settings.theme_id) { await settingsDb.set('theme_id', data.settings.theme_id); setThemeId(data.settings.theme_id as ThemeId); }
+        if (data.settings.show_pct_change) { await settingsDb.set('show_pct_change', data.settings.show_pct_change); setShowPctChange(data.settings.show_pct_change === 'true'); }
       }
       await loadCategories();
       setInfoModal({ icon: 'check-circle', iconColor: '#4CAF50', title: 'Import Successful', message: 'Your data has been restored.' });
@@ -409,6 +412,7 @@ export default function SettingsScreen() {
       setAccounts(accs);
       setTransactions(txns);
       setTransfers(trfs);
+      setBudgets([]);
       setCurrency('USD');
       setAccentColor('#FFB300');
       setNumberFormat('en-US');

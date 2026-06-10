@@ -42,8 +42,9 @@ function isValidTransfer(item: unknown): boolean {
   return (
     typeof tr.id === 'number' &&
     typeof tr.amount === 'number' &&
-    typeof tr.from_account_id === 'number' &&
-    typeof tr.to_account_id === 'number' &&
+    (tr.from_account_id === null || typeof tr.from_account_id === 'number') &&
+    (tr.to_account_id === null || typeof tr.to_account_id === 'number') &&
+    (tr.to_amount == null || typeof tr.to_amount === 'number') &&
     typeof tr.date === 'string'
   );
 }
@@ -71,6 +72,18 @@ function isValidRecurring(item: unknown): boolean {
   );
 }
 
+function isValidBudget(item: unknown): boolean {
+  if (!item || typeof item !== 'object') return false;
+  const b = item as Record<string, unknown>;
+  return (
+    typeof b.id === 'number' &&
+    typeof b.category_id === 'number' &&
+    typeof b.amount === 'number' &&
+    (b.period === 'weekly' || b.period === 'monthly' || b.period === 'yearly') &&
+    typeof b.currency === 'string'
+  );
+}
+
 export function isValidExport(data: unknown): data is ExportData {
   if (!data || typeof data !== 'object') return false;
   const d = data as Record<string, unknown>;
@@ -84,6 +97,7 @@ export function isValidExport(data: unknown): data is ExportData {
     d.categories.every(isValidCategory) &&
     d.transactions.every(isValidTransaction) &&
     d.transfers.every(isValidTransfer) &&
-    (d.recurring_transactions == null || (Array.isArray(d.recurring_transactions) && d.recurring_transactions.every(isValidRecurring)))
+    (d.recurring_transactions == null || (Array.isArray(d.recurring_transactions) && d.recurring_transactions.every(isValidRecurring))) &&
+    (d.budgets == null || (Array.isArray(d.budgets) && d.budgets.every(isValidBudget)))
   );
 }

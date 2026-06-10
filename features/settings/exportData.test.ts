@@ -21,14 +21,17 @@ describe('exportData', () => {
       .mockResolvedValueOnce(mockAccounts)
       .mockResolvedValueOnce(mockCategories)
       .mockResolvedValueOnce(mockTransactions)
-      .mockResolvedValueOnce(mockTransfers);
+      .mockResolvedValueOnce(mockTransfers)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 1, category_id: 1, amount: 200, period: 'monthly', currency: 'USD', created_at: '2026-03-01' }]);
 
     (mockDb.getFirstAsync as jest.Mock)
       .mockResolvedValueOnce({ value: 'EUR' })
       .mockResolvedValueOnce({ value: '#ff0000' })
       .mockResolvedValueOnce({ value: 'de-DE' })
       .mockResolvedValueOnce({ value: 'true' })
-      .mockResolvedValueOnce(null);
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ value: 'false' });
 
     // When: generating export data
     const result = await generateExportData(mockDb);
@@ -40,12 +43,14 @@ describe('exportData', () => {
     expect(result.categories).toEqual(mockCategories);
     expect(result.transactions).toEqual(mockTransactions);
     expect(result.transfers).toEqual(mockTransfers);
+    expect(result.budgets).toEqual([{ id: 1, category_id: 1, amount: 200, period: 'monthly', currency: 'USD', created_at: '2026-03-01' }]);
     expect(result.settings).toEqual({
       currency: 'EUR',
       accent_color: '#ff0000',
       number_format: 'de-DE',
       biometric_lock: 'true',
       theme_id: null,
+      show_pct_change: 'false',
     });
   });
 
@@ -79,6 +84,7 @@ describe('exportData', () => {
     expect(parsed).toHaveProperty('categories');
     expect(parsed).toHaveProperty('transactions');
     expect(parsed).toHaveProperty('transfers');
+    expect(parsed).toHaveProperty('budgets');
     expect(parsed).toHaveProperty('settings');
   });
 });
