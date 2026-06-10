@@ -21,6 +21,8 @@ import type { ExportData } from '@/db';
 import type { ExportJson } from '@/features/settings/exportData';
 import { generateExportJson } from '@/features/settings/exportData';
 import { requestNotificationPermission, notifyBackupStarted, dismissBackupNotification } from './notifications';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import { formatDate, type DateFormatId } from '@/constants/dateFormats';
 
 const FREQUENCY_OPTIONS: { value: BackupFrequency; label: string }[] = [
   { value: 'daily', label: 'Daily' },
@@ -28,7 +30,7 @@ const FREQUENCY_OPTIONS: { value: BackupFrequency; label: string }[] = [
   { value: 'monthly', label: 'Monthly' },
 ];
 
-function formatRelativeTime(isoDate: string | null): string {
+function formatRelativeTime(isoDate: string | null, dateFormat: DateFormatId): string {
   if (!isoDate) return 'Never';
   const diff = Date.now() - new Date(isoDate).getTime();
   const minutes = Math.floor(diff / 60000);
@@ -38,7 +40,7 @@ function formatRelativeTime(isoDate: string | null): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(isoDate).toLocaleDateString();
+  return formatDate(isoDate.split('T')[0], dateFormat);
 }
 
 interface Props {
@@ -64,6 +66,7 @@ export default function GoogleDriveSection({
   const backupFrequency = useBackupStore((s) => s.backupFrequency);
   const lastBackupAt = useBackupStore((s) => s.lastBackupAt);
   const isBackingUp = useBackupStore((s) => s.isBackingUp);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
 
   const setGoogleDriveEnabled = useBackupStore((s) => s.setGoogleDriveEnabled);
   const setGoogleEmail = useBackupStore((s) => s.setGoogleEmail);
@@ -274,7 +277,7 @@ export default function GoogleDriveSection({
             <MaterialIcons name="history" size={20} color="#4CAF50" />
           </View>
           <Text style={[styles.rowLabel, { color: textColor }]}>Last Backup</Text>
-          <Text style={[styles.rowValue, { color: subColor }]}>{formatRelativeTime(lastBackupAt)}</Text>
+          <Text style={[styles.rowValue, { color: subColor }]}>{formatRelativeTime(lastBackupAt, dateFormat)}</Text>
         </View>
 
         <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
@@ -359,7 +362,7 @@ export default function GoogleDriveSection({
             <Text style={[styles.modalTitle, { color: textColor }]}>Backup Found</Text>
             <Text style={[styles.restoreMessage, { color: subColor }]}>
               {pendingRestoreData
-                ? `A backup from ${new Date(pendingRestoreData.exported_at).toLocaleDateString()} was found in your Google Drive. Would you like to restore it now?\n\nThis will replace all current app data.`
+                ? `A backup from ${formatDate(pendingRestoreData.exported_at.split('T')[0], dateFormat)} was found in your Google Drive. Would you like to restore it now?\n\nThis will replace all current app data.`
                 : ''}
             </Text>
             <TouchableOpacity

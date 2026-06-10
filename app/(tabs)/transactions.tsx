@@ -22,20 +22,17 @@ import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
+import { formatDate, type DateFormatId } from '@/constants/dateFormats';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import type { TransactionWithDetails, TransferWithDetails } from '@/types';
 
 
-function formatDateHeader(d: string): string {
+function formatDateHeader(d: string, dateFormat: DateFormatId): string {
   const todayStr = new Date().toISOString().split('T')[0];
   const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
   if (d === todayStr) return 'Today';
   if (d === yesterdayStr) return 'Yesterday';
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatDate(d, dateFormat);
 }
 
 // ─── DeleteTxModal ─────────────────────────────────────────────────────────
@@ -50,6 +47,7 @@ interface DeleteTxModalProps {
 function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps) {
   const { inputBg, textColor, subColor, borderColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
 
   return (
     <DeleteModal
@@ -69,7 +67,7 @@ function DeleteTxModal({ tx, currency, onCancel, onConfirm }: DeleteTxModalProps
               {tx.category_name}
             </Text>
             <Text style={[chipStyles.chipSub, { color: subColor }]} numberOfLines={1}>
-              {tx.account_name} · {tx.date}
+              {tx.account_name} · {formatDate(tx.date, dateFormat)}
             </Text>
           </View>
           <Text style={[chipStyles.chipAmount, { color: tx.type === 'income' ? '#4CAF50' : '#F44336' }]}>
@@ -94,6 +92,7 @@ interface DeleteTransferModalProps {
 function DeleteTransferModal({ transfer, fromCurrency, toCurrency, onCancel, onConfirm }: DeleteTransferModalProps) {
   const { inputBg, textColor, subColor, borderColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
   const isCross = transfer != null && transfer.to_amount != null && fromCurrency !== toCurrency;
 
   return (
@@ -110,7 +109,7 @@ function DeleteTransferModal({ transfer, fromCurrency, toCurrency, onCancel, onC
             <Text style={[chipStyles.chipName, { color: textColor }]} numberOfLines={1}>
               {transfer.from_account_name ?? 'Unknown'} → {transfer.to_account_name ?? 'Unknown'}
             </Text>
-            <Text style={[chipStyles.chipSub, { color: subColor }]}>{transfer.date}</Text>
+            <Text style={[chipStyles.chipSub, { color: subColor }]}>{formatDate(transfer.date, dateFormat)}</Text>
           </View>
           <Text style={[chipStyles.chipAmount, { color: textColor }]}>
             {isCross
@@ -177,6 +176,7 @@ interface RowProps {
 function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, accountCurrencyById, fallbackCurrency, onPress }: RowProps) {
   const currency = accountCurrencyById[tx.account_id] ?? fallbackCurrency;
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
   const amountColor = tx.type === 'income' ? '#4CAF50' : '#F44336';
 
   return (
@@ -191,7 +191,7 @@ function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, s
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`${tx.category_name}, ${formatAmount(tx.amount, currency, tx.type, numberFormat)}, ${tx.date}`}
+      accessibilityLabel={`${tx.category_name}, ${formatAmount(tx.amount, currency, tx.type, numberFormat)}, ${formatDate(tx.date, dateFormat)}`}
       accessibilityHint="Double tap to edit"
     >
       <View style={[rowStyles.icon, { backgroundColor: tx.category_color || '#9E9E9E' }]}>
@@ -233,6 +233,7 @@ interface TransferRowProps {
 
 function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, accountCurrencyById, fallbackCurrency, onPress }: TransferRowProps) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
   const isOutgoing = transfer.from_account_id === selectedAccountId;
   const otherName = (isOutgoing ? transfer.to_account_name : transfer.from_account_name) ?? 'Unknown';
   const label = isOutgoing ? `To ${otherName}` : `From ${otherName}`;
@@ -259,7 +260,7 @@ function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, bor
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`${label}, ${formatAmount(sideAmount, currency, amountType, numberFormat)}, ${transfer.date}`}
+      accessibilityLabel={`${label}, ${formatAmount(sideAmount, currency, amountType, numberFormat)}, ${formatDate(transfer.date, dateFormat)}`}
       accessibilityHint="Double tap to edit"
     >
       <View style={[rowStyles.icon, { backgroundColor: '#9E9E9E' }]}>
@@ -497,6 +498,7 @@ function CategoryGroupRow({
   subColor,
 }: CategoryGroupRowProps) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
   // Group header rolls up across rows. When an account is selected those rows share a currency;
   // otherwise the group can span currencies, in which case the header just uses the global fallback.
   const headerCurrency = selectedAccountId !== null
@@ -566,7 +568,7 @@ function CategoryGroupRow({
                         {label}
                       </Text>
                       <Text style={[groupStyles.txSub, { color: subColor }]}>
-                        {t.note ? `${t.note} · ` : ''}{formatDateHeader(t.date)}
+                        {t.note ? `${t.note} · ` : ''}{formatDateHeader(t.date, dateFormat)}
                       </Text>
                     </View>
                     <Text style={[groupStyles.txAmount, { color: amountColor }]}>
@@ -605,7 +607,7 @@ function CategoryGroupRow({
                         {tx.note || tx.account_name}
                       </Text>
                       <Text style={[groupStyles.txSub, { color: subColor }]}>
-                        {tx.account_name}{tx.note ? ` · ${formatDateHeader(tx.date)}` : ` · ${formatDateHeader(tx.date)}`}
+                        {tx.account_name}{tx.note ? ` · ${formatDateHeader(tx.date, dateFormat)}` : ` · ${formatDateHeader(tx.date, dateFormat)}`}
                       </Text>
                     </View>
                     <Text style={[groupStyles.txAmount, { color: amountColor }]}>
@@ -734,6 +736,7 @@ export default function TransactionsScreen() {
   const setAccounts = useAccountsStore((s) => s.setAccounts);
   const currency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
 
   const accountCurrencyById = useMemo<Record<number, string>>(() => {
     const map: Record<number, string> = {};
@@ -866,7 +869,7 @@ export default function TransactionsScreen() {
     return Object.entries(byDate)
       .sort(([a], [b]) => b.localeCompare(a))
       .map(([date, data]) => ({
-        title: formatDateHeader(date),
+        title: formatDateHeader(date, dateFormat),
         date,
         net: data.reduce((sum, listItem) => {
           if (listItem.kind === 'tx') {
@@ -879,7 +882,7 @@ export default function TransactionsScreen() {
         }, 0),
         data,
       }));
-  }, [mergedItems, selectedId]);
+  }, [mergedItems, selectedId, dateFormat]);
 
   const categoryGroups = useMemo<CategoryGroup[]>(() => {
     if (viewMode !== 'grouped') return [];

@@ -236,7 +236,7 @@ export interface ExportData {
   transfers: Transfer[];
   recurring_transactions?: RecurringTransaction[];
   budgets?: Budget[];
-  settings?: { currency?: string; accent_color?: string; number_format?: string; biometric_lock?: string; theme_id?: string; show_pct_change?: string };
+  settings?: { currency?: string; accent_color?: string; number_format?: string; biometric_lock?: string; theme_id?: string; show_pct_change?: string; date_format?: string };
 }
 
 export function useImportDb() {

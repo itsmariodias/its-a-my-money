@@ -11,6 +11,7 @@ Built with Expo (managed workflow), TypeScript, expo-router, and SQLite for full
 
 - **Never commit without explicit permission.** Do not run `git commit` unless the user explicitly asks to commit.
 - **Always install Expo-compatible package versions.** Run `npx expo install --check` after adding any Expo-related dependency. The project uses Expo SDK 54 — packages from SDK 55+ will cause native build failures. Use `npx expo install <package>` instead of `pnpm add` for Expo packages to get the correct version automatically.
+- **Keep backup/restore in sync with the schema.** Any new SQLite table, new column on an existing table, or new user-preference settings key must be added to the JSON backup round-trip. See the [Backup/Restore contract](#backuprestore-contract) for the exact files to touch and the checklist.
 
 ## Code Principles
 
@@ -322,6 +323,31 @@ Automatic backups to Google Drive using the same JSON format as manual export.
 - **UI**: `GoogleDriveSection` component in Settings — connect/disconnect, frequency picker, backup now, last backup time
 
 Backup settings stored in SQLite: `google_drive_enabled`, `google_email`, `google_drive_folder_id`, `google_drive_folder_name`, `backup_frequency`, `last_backup_at`.
+
+### Backup/Restore contract
+
+Both manual JSON export/import and Google Drive backup share one code path. Whenever the schema or settings keys change, the round-trip must be updated in lockstep or restoring a backup will silently drop data (or reject the file).
+
+**When you add a new SQLite table** (e.g., a future `goals` table):
+1. **`features/settings/exportData.ts`** — add a `SELECT` for the table and a new field on `ExportJson`
+2. **`db/index.ts`** — add the field to the `ExportData` interface (optional, for backwards compat with old backups) and a wipe + re-insert step in `useImportDb().importAll`, remapping any foreign keys (`category_id`, etc.) via the existing `categoryIdMap` / `recurringIdMap` pattern
+3. **`features/settings/validation.ts`** — add an `isValid<Entity>` helper; treat the new array as optional in `isValidExport` so older backups still validate
+4. **`features/settings/SettingsScreen.tsx` `doImport`** — reload the corresponding Zustand store after import, and clear it in `handleReset`
+5. **Tests** — extend `features/settings/exportData.test.ts` and `validation.test.ts`
+
+**When you add a new column to an existing table** — usually free if the table is exported via `SELECT *` (e.g., `accounts`), but explicit selects (`transactions`, `transfers`, budgets) need the new column in the SELECT, and the `INSERT` in `importAll` needs the matching column + bind parameter. Verify by exporting a row that uses the new column and round-tripping it.
+
+**When you add a new user-preference settings key** (e.g., `date_format`):
+1. **`features/settings/exportData.ts`** — read the key alongside the others, add to `ExportJson.settings`
+2. **`db/index.ts`** — extend the `ExportData.settings` shape with the optional field
+3. **`features/settings/SettingsScreen.tsx` `doImport`** — restore via `settingsDb.set(...)` + Zustand setter; also reset to default in `handleReset`
+4. **`app/_layout.tsx`** — load the key on boot
+5. **`features/settings/useSettingsStore.ts`** — add field + setter
+6. **Tests** — update `exportData.test.ts` for the new key
+
+**Settings keys that must NOT be exported** (device-specific): `google_drive_enabled`, `google_email`, `google_drive_folder_id`, `google_drive_folder_name`, `backup_frequency`, `last_backup_at`, `last_recurring_check`, `export_directory_uri`. Restoring these onto a different device would break OAuth state and timing.
+
+**Schema version** stays at `1` — additions are made via optional fields so older backups still validate. Only bump the version on breaking changes.
 
 ### Environment Variables
 Google OAuth credentials and EAS config are injected via environment variables, not hardcoded.

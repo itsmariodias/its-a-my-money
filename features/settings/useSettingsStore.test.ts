@@ -40,4 +40,13 @@ describe('useSettingsStore', () => {
     // Then biometricLock should be true
     expect(useSettingsStore.getState().biometricLock).toBe(true);
   });
+
+  it('should default dateFormat to DD/MM/YYYY and update via setter', () => {
+    // Given a fresh store
+    expect(useSettingsStore.getState().dateFormat).toBe('DD/MM/YYYY');
+    // When setDateFormat is called
+    useSettingsStore.getState().setDateFormat('MMM DD, YYYY');
+    // Then dateFormat should match
+    expect(useSettingsStore.getState().dateFormat).toBe('MMM DD, YYYY');
+  });
 });

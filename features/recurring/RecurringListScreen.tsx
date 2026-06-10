@@ -19,6 +19,7 @@ import { useRecurringStore } from './useRecurringStore';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
+import { formatDate } from '@/constants/dateFormats';
 import RecurringFormSheet from './RecurringFormSheet';
 import type { RecurringTransactionWithDetails, RecurringFrequency } from '@/types';
 
@@ -43,6 +44,7 @@ export default function RecurringListScreen({ isOpen, onClose }: Props) {
   const { recurringTransactions, setRecurringTransactions, removeRecurring } = useRecurringStore();
   const currency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<RecurringTransactionWithDetails | null>(null);
@@ -136,7 +138,7 @@ export default function RecurringListScreen({ isOpen, onClose }: Props) {
             {subtitle}
           </Text>
           <Text style={[styles.itemNextDue, { color: subColor }]}>
-            {isInactive ? 'Inactive' : `Next: ${item.next_due_date}`}
+            {isInactive ? 'Inactive' : `Next: ${formatDate(item.next_due_date, dateFormat)}`}
           </Text>
         </View>
         <View style={styles.itemRight}>

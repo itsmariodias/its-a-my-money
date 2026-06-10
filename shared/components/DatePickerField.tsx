@@ -13,17 +13,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
+import { formatDate } from '@/constants/dateFormats';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 
 const YEARS = Array.from({ length: new Date().getFullYear() - 1977 + 11 }, (_, i) => 1977 + i);
-
-function formatDisplayDate(dateStr: string): string {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
 
 interface Props {
   date: string;
@@ -33,6 +26,7 @@ interface Props {
 
 export default function DatePickerField({ date, onChange, minDate }: Props) {
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
   const styles = { ...sheetStyles, ...localStyles };
 
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -57,7 +51,7 @@ export default function DatePickerField({ date, onChange, minDate }: Props) {
         activeOpacity={0.7}
       >
         <MaterialIcons name="calendar-today" size={18} color={subTextColor} />
-        <Text style={[styles.dateText, { color: textColor }]}>{formatDisplayDate(date)}</Text>
+        <Text style={[styles.dateText, { color: textColor }]}>{formatDate(date, dateFormat)}</Text>
         <MaterialIcons name="expand-more" size={20} color={subTextColor} />
       </TouchableOpacity>
 

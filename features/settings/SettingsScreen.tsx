@@ -30,6 +30,7 @@ import { useTransactionsStore } from '@/features/transactions/useTransactionsSto
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
 import { NUMBER_FORMATS, getCurrencyByCode } from '@/constants/currencies';
+import { DATE_FORMATS, type DateFormatId, isValidDateFormat } from '@/constants/dateFormats';
 import CurrencyPicker from '@/shared/components/CurrencyPicker';
 import { ACCENT_COLORS, THEMES, isLightColor } from '@/constants/theme';
 import type { AccentColor, AppTheme, ResolvedThemeId } from '@/constants/theme';
@@ -130,6 +131,8 @@ export default function SettingsScreen() {
   const setThemeId = useSettingsStore((s) => s.setThemeId);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const setNumberFormat = useSettingsStore((s) => s.setNumberFormat);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
+  const setDateFormat = useSettingsStore((s) => s.setDateFormat);
   const biometricLock = useSettingsStore((s) => s.biometricLock);
   const setBiometricLock = useSettingsStore((s) => s.setBiometricLock);
   const showPctChange = useSettingsStore((s) => s.showPctChange);
@@ -156,6 +159,7 @@ export default function SettingsScreen() {
   const [accentOpen, setAccentOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
+  const [dateFormatOpen, setDateFormatOpen] = useState(false);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
 
   const loadCategories = useCallback(async () => {
@@ -195,6 +199,10 @@ export default function SettingsScreen() {
   const handleNumberFormat = async (format: string) => {
     await settingsDb.set('number_format', format);
     setNumberFormat(format);
+  };
+  const handleDateFormat = async (format: DateFormatId) => {
+    await settingsDb.set('date_format', format);
+    setDateFormat(format);
   };
 
   const handleBiometricToggle = async () => {
@@ -392,6 +400,7 @@ export default function SettingsScreen() {
         if (data.settings.biometric_lock) { await settingsDb.set('biometric_lock', data.settings.biometric_lock); setBiometricLock(data.settings.biometric_lock === 'true'); }
         if (data.settings.theme_id) { await settingsDb.set('theme_id', data.settings.theme_id); setThemeId(data.settings.theme_id as ThemeId); }
         if (data.settings.show_pct_change) { await settingsDb.set('show_pct_change', data.settings.show_pct_change); setShowPctChange(data.settings.show_pct_change === 'true'); }
+        if (data.settings.date_format && isValidDateFormat(data.settings.date_format)) { await settingsDb.set('date_format', data.settings.date_format); setDateFormat(data.settings.date_format); }
       }
       await loadCategories();
       setInfoModal({ icon: 'check-circle', iconColor: '#4CAF50', title: 'Import Successful', message: 'Your data has been restored.' });
@@ -416,6 +425,7 @@ export default function SettingsScreen() {
       setCurrency('USD');
       setAccentColor('#FFB300');
       setNumberFormat('en-US');
+      setDateFormat('DD/MM/YYYY');
       setBiometricLock(false);
       await loadCategories();
       setInfoModal({ icon: 'check-circle', iconColor: '#4CAF50', title: 'Reset Successful', message: 'All data has been cleared and the app restored to its default state.' });
@@ -558,6 +568,34 @@ export default function SettingsScreen() {
                   >
                     <Text style={[styles.fmtLabel, { color: numberFormat === f.id ? onAccentColor : textColor }]}>{f.label}</Text>
                     <Text style={[styles.fmtDesc, { color: numberFormat === f.id ? onAccentColor + 'BF' : subColor }]}>{f.description}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
+
+          <TouchableOpacity style={styles.row} onPress={() => { setDateFormatOpen((v) => !v); setFormatOpen(false); setAccentOpen(false); setThemeOpen(false); }} activeOpacity={0.7}>
+            <View style={[styles.rowIcon, { backgroundColor: accentColor + '20' }]}>
+              <MaterialIcons name="calendar-today" size={20} color={accentColor} />
+            </View>
+            <Text style={[styles.rowLabel, { color: textColor }]}>Date Format</Text>
+            <Text style={[styles.rowValue, { color: subColor }]}>{DATE_FORMATS.find((f) => f.id === dateFormat)?.label ?? 'DD/MM/YYYY'}</Text>
+            <MaterialIcons name={dateFormatOpen ? 'expand-less' : 'expand-more'} size={20} color={subColor} />
+          </TouchableOpacity>
+          {dateFormatOpen && (
+            <View style={[styles.dropdownPanel, { borderTopColor: borderColor }]}>
+              <View style={styles.fmtRow}>
+                {DATE_FORMATS.map((f) => (
+                  <TouchableOpacity
+                    key={f.id}
+                    style={[styles.fmtOption, { borderColor }, dateFormat === f.id && { backgroundColor: accentColor, borderColor: accentColor }]}
+                    onPress={() => { handleDateFormat(f.id); setDateFormatOpen(false); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.fmtLabel, { color: dateFormat === f.id ? onAccentColor : textColor }]}>{f.label}</Text>
+                    <Text style={[styles.fmtDesc, { color: dateFormat === f.id ? onAccentColor + 'BF' : subColor }]}>{f.example}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

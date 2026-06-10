@@ -31,7 +31,8 @@ describe('exportData', () => {
       .mockResolvedValueOnce({ value: 'de-DE' })
       .mockResolvedValueOnce({ value: 'true' })
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ value: 'false' });
+      .mockResolvedValueOnce({ value: 'false' })
+      .mockResolvedValueOnce({ value: 'YYYY-MM-DD' });
 
     // When: generating export data
     const result = await generateExportData(mockDb);
@@ -51,6 +52,7 @@ describe('exportData', () => {
       biometric_lock: 'true',
       theme_id: null,
       show_pct_change: 'false',
+      date_format: 'YYYY-MM-DD',
     });
   });
 

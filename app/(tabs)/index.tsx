@@ -34,6 +34,7 @@ import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
+import { formatDate } from '@/constants/dateFormats';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import {
   accountBalanceAsOf,
@@ -119,6 +120,7 @@ export default function DashboardScreen() {
   const setBudgets = useBudgetsStore((s) => s.setBudgets);
   const currency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
   const [budgetsOpen, setBudgetsOpen] = useState(false);
 
   useFocusEffect(
@@ -667,7 +669,7 @@ export default function DashboardScreen() {
                       <Text style={[styles.txName, { color: textColor }]}>
                         {isOutgoing ? `To ${otherName}` : `From ${otherName}`}
                       </Text>
-                      <Text style={[styles.txDate, { color: subTextColor }]}>{t.date}</Text>
+                      <Text style={[styles.txDate, { color: subTextColor }]}>{formatDate(t.date, dateFormat)}</Text>
                     </View>
                     <Text style={[styles.txAmount, { color: amountColor }]}>
                       {formatAmount(t.amount, scopeCurrency, amountType, numberFormat)}
@@ -687,7 +689,7 @@ export default function DashboardScreen() {
                   </View>
                   <View style={styles.txInfo}>
                     <Text style={[styles.txName, { color: textColor }]}>{tx.category_name}</Text>
-                    <Text style={[styles.txDate, { color: subTextColor }]}>{tx.date}</Text>
+                    <Text style={[styles.txDate, { color: subTextColor }]}>{formatDate(tx.date, dateFormat)}</Text>
                   </View>
                   <Text
                     style={[

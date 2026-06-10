@@ -17,6 +17,7 @@ export interface ExportJson {
     biometric_lock: string;
     theme_id: string | null;
     show_pct_change: string;
+    date_format: string;
   };
 }
 
@@ -30,13 +31,14 @@ export async function generateExportData(db: SQLiteDatabase): Promise<ExportJson
     db.getAllAsync<Budget>('SELECT id, category_id, amount, period, currency, created_at FROM budgets ORDER BY created_at ASC'),
   ]);
 
-  const [currencyRow, accentRow, formatRow, biometricRow, themeRow, pctRow] = await Promise.all([
+  const [currencyRow, accentRow, formatRow, biometricRow, themeRow, pctRow, dateFmtRow] = await Promise.all([
     db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'currency'),
     db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'accent_color'),
     db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'number_format'),
     db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'biometric_lock'),
     db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'theme_id'),
     db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'show_pct_change'),
+    db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key=?', 'date_format'),
   ]);
 
   return {
@@ -55,6 +57,7 @@ export async function generateExportData(db: SQLiteDatabase): Promise<ExportJson
       biometric_lock: biometricRow?.value ?? 'false',
       theme_id: themeRow?.value ?? null,
       show_pct_change: pctRow?.value ?? 'true',
+      date_format: dateFmtRow?.value ?? 'DD/MM/YYYY',
     },
   };
 }
