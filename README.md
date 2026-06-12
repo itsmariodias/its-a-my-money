@@ -134,6 +134,22 @@ Install the resulting APK/IPA on your device, then run `pnpm start` and scan the
 
 ---
 
+## Screenshots
+
+<div align="center">
+
+| Dashboard | Accounts | Budgets |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/01-dashboard.png" width="250" alt="Dashboard" /> | <img src="docs/screenshots/02-accounts.png" width="250" alt="Accounts" /> | <img src="docs/screenshots/05-budgets.png" width="250" alt="Budgets" /> |
+| **Transactions (grouped)** | **Add transaction** | **Settings** |
+| <img src="docs/screenshots/03-transactions-grouped.png" width="250" alt="Transactions grouped" /> | <img src="docs/screenshots/04-add-transaction.png" width="250" alt="Add transaction" /> | <img src="docs/screenshots/07-settings.png" width="250" alt="Settings" /> |
+| **Cross-currency transfer** | **Theme picker** | |
+| <img src="docs/screenshots/06-transfer-cross-currency.png" width="250" alt="Cross-currency transfer" /> | <img src="docs/screenshots/08-theme-picker.png" width="250" alt="Theme picker" /> | |
+
+</div>
+
+---
+
 ## About
 
 Built by [@itsmariodias](https://github.com/itsmariodias) as a personal project.
