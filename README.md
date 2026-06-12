@@ -2,23 +2,6 @@
 
 A personal finance app built with Expo. Track your income, expenses, transfers, and account balances — all data stored locally on your device. Cloud backup is opt-in and only stores data in your own Google Drive.
 
-|     Dashboard     |     Accounts      |      Budgets      |
-| :---------------: | :---------------: | :---------------: |
-| ![Dashboard][dashboard] | ![Accounts][accounts] | ![Budgets][budgets] |
-| **Transactions (grouped)** | **Add transaction** | **Settings** |
-| ![Transactions grouped][transactions] | ![Add transaction][addtx] | ![Settings][settings] |
-| **Cross-currency transfer** | **Theme picker** | |
-| ![Cross-currency transfer][transfer] | ![Theme picker][theme] | |
-
-[dashboard]: docs/screenshots/01-dashboard.png
-[accounts]: docs/screenshots/02-accounts.png
-[budgets]: docs/screenshots/05-budgets.png
-[transactions]: docs/screenshots/03-transactions-grouped.png
-[addtx]: docs/screenshots/04-add-transaction.png
-[settings]: docs/screenshots/07-settings.png
-[transfer]: docs/screenshots/06-transfer-cross-currency.png
-[theme]: docs/screenshots/08-theme-picker.png
-
 > **Platform support:** Android is fully supported. iOS is **not yet supported** — if you'd like to help test or contribute to iOS support, check the [issues](https://github.com/itsmariodias/its-a-my-money/issues) or open a new one!
 
 > Vibe coded by [@itsmariodias](https://github.com/itsmariodias) with [Claude Code](https://claude.ai/code) (Anthropic). Every screen, component, and feature in this app was built through a conversation with Claude — no manual coding required.
@@ -148,6 +131,22 @@ npx eas build --profile development --platform android
 ```
 
 Install the resulting APK/IPA on your device, then run `pnpm start` and scan the QR code.
+
+---
+
+## Screenshots
+
+<div align="center">
+
+| Dashboard | Accounts | Budgets |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/01-dashboard.png" width="250" alt="Dashboard" /> | <img src="docs/screenshots/02-accounts.png" width="250" alt="Accounts" /> | <img src="docs/screenshots/05-budgets.png" width="250" alt="Budgets" /> |
+| **Transactions (grouped)** | **Add transaction** | **Settings** |
+| <img src="docs/screenshots/03-transactions-grouped.png" width="250" alt="Transactions grouped" /> | <img src="docs/screenshots/04-add-transaction.png" width="250" alt="Add transaction" /> | <img src="docs/screenshots/07-settings.png" width="250" alt="Settings" /> |
+| **Cross-currency transfer** | **Theme picker** | |
+| <img src="docs/screenshots/06-transfer-cross-currency.png" width="250" alt="Cross-currency transfer" /> | <img src="docs/screenshots/08-theme-picker.png" width="250" alt="Theme picker" /> | |
+
+</div>
 
 ---
 
