@@ -23,6 +23,15 @@ export function advanceDate(current: string, frequency: RecurringFrequency): str
       const clampedDay = Math.min(day, lastDay);
       return `${String(targetYear).padStart(4, '0')}-${String(targetMonth).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
     }
+    case 'quarterly': {
+      // Advance by 3 months, clamping to the last day of the target month.
+      const zeroBasedTarget = month - 1 + 3;
+      const targetYear = year + Math.floor(zeroBasedTarget / 12);
+      const targetMonth = (zeroBasedTarget % 12) + 1;
+      const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+      const clampedDay = Math.min(day, lastDay);
+      return `${String(targetYear).padStart(4, '0')}-${String(targetMonth).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+    }
     case 'yearly': {
       // Feb 29 in a non-leap year → Feb 28
       const targetYear = year + 1;

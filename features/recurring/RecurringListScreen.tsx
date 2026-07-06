@@ -27,6 +27,7 @@ const FREQ_LABELS: Record<RecurringFrequency, string> = {
   daily: 'Daily',
   weekly: 'Weekly',
   monthly: 'Monthly',
+  quarterly: 'Quarterly',
   yearly: 'Yearly',
 };
 

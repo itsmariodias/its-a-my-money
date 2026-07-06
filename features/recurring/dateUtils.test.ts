@@ -49,6 +49,30 @@ describe('advanceDate', () => {
     });
   });
 
+  describe('quarterly', () => {
+    it('advances by three months', () => {
+      expect(advanceDate('2025-01-15', 'quarterly')).toBe('2025-04-15');
+    });
+
+    it('crosses year boundary', () => {
+      expect(advanceDate('2025-11-15', 'quarterly')).toBe('2026-02-15');
+    });
+
+    it('advances December to March of the next year', () => {
+      expect(advanceDate('2025-12-10', 'quarterly')).toBe('2026-03-10');
+    });
+
+    it('clamps to last day of shorter target month', () => {
+      // Nov 30 -> Feb has 28 days in 2025
+      expect(advanceDate('2024-11-30', 'quarterly')).toBe('2025-02-28');
+    });
+
+    it('clamps to Feb 29 when the target year is a leap year', () => {
+      // Nov 30 2023 + 3 months = Feb 2024 (leap)
+      expect(advanceDate('2023-11-30', 'quarterly')).toBe('2024-02-29');
+    });
+  });
+
   describe('yearly', () => {
     it('advances by one year', () => {
       expect(advanceDate('2025-03-15', 'yearly')).toBe('2026-03-15');

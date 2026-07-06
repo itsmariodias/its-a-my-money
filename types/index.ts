@@ -1,6 +1,6 @@
 export type TransactionType = 'income' | 'expense';
 export type BudgetPeriod = 'monthly' | 'weekly' | 'yearly';
-export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 export type AccountType = 'cash' | 'investment';
 
 export interface Account {

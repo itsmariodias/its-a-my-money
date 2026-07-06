@@ -35,6 +35,7 @@ const FREQUENCIES: { key: RecurringFrequency; label: string }[] = [
   { key: 'daily', label: 'Daily' },
   { key: 'weekly', label: 'Weekly' },
   { key: 'monthly', label: 'Monthly' },
+  { key: 'quarterly', label: 'Quarterly' },
   { key: 'yearly', label: 'Yearly' },
 ];
 
@@ -415,7 +416,7 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
                     accessibilityRole="radio"
                     accessibilityState={{ selected: frequency === f.key }}
                   >
-                    <Text style={[styles.freqBtnText, { color: frequency === f.key ? onAccentColor : subTextColor }]}>
+                    <Text style={[styles.freqOptionText, { color: frequency === f.key ? onAccentColor : subTextColor }]}>
                       {f.label}
                     </Text>
                   </TouchableOpacity>
@@ -577,6 +578,8 @@ const localStyles = StyleSheet.create({
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   freqBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   freqBtnText: { fontWeight: '600', fontSize: 12 },
+  // Frequency has 5 options in one row (incl. "Quarterly"); slightly smaller to avoid wrapping on narrow screens.
+  freqOptionText: { fontWeight: '600', fontSize: 11 },
   transferHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
 });
 
