@@ -1,5 +1,5 @@
+import type { Account, Budget, BudgetWithDetails, Category, RecurringTransaction, RecurringTransactionWithDetails, Transaction, TransactionWithDetails, Transfer, TransferWithDetails } from '@/types';
 import { useSQLiteContext } from 'expo-sqlite';
-import type { Account, Category, Transaction, Transfer, TransactionWithDetails, TransferWithDetails, RecurringTransaction, RecurringTransactionWithDetails, Budget, BudgetWithDetails } from '@/types';
 
 // --- Accounts ---
 
@@ -454,8 +454,8 @@ export function useTransfersDb() {
 const RECURRING_SELECT = `
   SELECT r.*,
     c.name as category_name, c.color as category_color, c.icon as category_icon,
-    a.name as account_name,
-    ta.name as to_account_name, ta.color as to_account_color, ta.icon as to_account_icon
+    a.name as account_name, a.currency as account_currency,
+    ta.name as to_account_name, ta.color as to_account_color, ta.icon as to_account_icon, ta.currency as to_account_currency
   FROM recurring_transactions r
   LEFT JOIN categories c ON r.category_id = c.id
   JOIN accounts a ON r.account_id = a.id

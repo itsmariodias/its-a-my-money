@@ -1,5 +1,22 @@
+import { formatAmount } from '@/constants/currencies';
+import { formatDate, type DateFormatId } from '@/constants/dateFormats';
+import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
+import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
+import { getSectionAmountColor, getSectionCurrencySummary } from '@/features/transactions/sectionUtils';
+import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
+import TransferSheet from '@/features/transfers/TransferSheet';
+import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import DeleteModal from '@/shared/components/DeleteModal';
+import { getDateRange } from '@/shared/components/PeriodSelector';
+import { Text } from '@/shared/components/Themed';
+import { useAppTheme } from '@/shared/components/useAppTheme';
+import { useUIStore } from '@/shared/store/useUIStore';
+import type { TransactionWithDetails, TransferWithDetails } from '@/types';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Snackbar } from 'react-native-snackbar';
 import {
   FlatList,
   ScrollView,
@@ -8,23 +25,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
-import { Text } from '@/shared/components/Themed';
-import DeleteModal from '@/shared/components/DeleteModal';
-import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
-import TransferSheet from '@/features/transfers/TransferSheet';
-import { getDateRange } from '@/shared/components/PeriodSelector';
-import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
-import { useAccountsStore } from '@/features/accounts/useAccountsStore';
-import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
-import { useTransfersStore } from '@/features/transfers/useTransfersStore';
-import { useSettingsStore } from '@/features/settings/useSettingsStore';
-import { useUIStore } from '@/shared/store/useUIStore';
-import { formatAmount } from '@/constants/currencies';
-import { formatDate, type DateFormatId } from '@/constants/dateFormats';
-import { useAppTheme } from '@/shared/components/useAppTheme';
-import type { TransactionWithDetails, TransferWithDetails } from '@/types';
+import { Snackbar } from 'react-native-snackbar';
 
 
 function formatDateHeader(d: string, dateFormat: DateFormatId): string {
@@ -503,7 +504,22 @@ function CategoryGroupRow({
   // otherwise the group can span currencies, in which case the header just uses the global fallback.
   const headerCurrency = selectedAccountId !== null
     ? (accountCurrencyById[selectedAccountId] ?? fallbackCurrency)
-    : fallbackCurrency;
+    : (() => {
+        const groupCurrencies = new Set<string>();
+        if (group.transfers) {
+          for (const t of group.transfers) {
+            const sideAccountId = t.from_account_id ?? t.to_account_id;
+            if (sideAccountId != null) {
+              groupCurrencies.add(accountCurrencyById[sideAccountId] ?? fallbackCurrency);
+            }
+          }
+        } else {
+          for (const tx of group.transactions) {
+            groupCurrencies.add(accountCurrencyById[tx.account_id] ?? fallbackCurrency);
+          }
+        }
+        return groupCurrencies.size === 1 ? Array.from(groupCurrencies)[0] : fallbackCurrency;
+      })();
   const totalColor = group.total === 0 ? subColor : group.total >= 0 ? '#4CAF50' : '#F44336';
   const totalType = group.total >= 0 ? 'income' : 'expense';
   const countLabel = group.count === 1 ? '1 item' : `${group.count} items`;
@@ -703,7 +719,7 @@ type ListItem =
 interface Section {
   title: string;
   date: string;
-  net: number;
+  summary: Array<{ currency: string; net: number }>;
   data: ListItem[];
 }
 
@@ -743,13 +759,6 @@ export default function TransactionsScreen() {
     for (const a of accounts) map[a.id] = a.currency || currency;
     return map;
   }, [accounts, currency]);
-
-  // Currency to use for roll-ups (section header net, group header).
-  // When an account is selected we know the row-set is single-currency; otherwise mixed,
-  // and we fall back to the global setting rather than picking arbitrarily.
-  const rollupCurrency = selectedId !== null
-    ? (accountCurrencyById[selectedId] ?? currency)
-    : currency;
 
   useFocusEffect(
     useCallback(() => {
@@ -868,21 +877,28 @@ export default function TransactionsScreen() {
     }
     return Object.entries(byDate)
       .sort(([a], [b]) => b.localeCompare(a))
-      .map(([date, data]) => ({
-        title: formatDateHeader(date, dateFormat),
-        date,
-        net: data.reduce((sum, listItem) => {
+      .map(([date, data]) => {
+        const currencies = new Set<string>();
+        for (const listItem of data) {
           if (listItem.kind === 'tx') {
-            return sum + (listItem.item.type === 'income' ? listItem.item.amount : -listItem.item.amount);
-          } else {
-            if (listItem.item.from_account_id === selectedId) return sum - listItem.item.amount;
-            if (listItem.item.to_account_id === selectedId) return sum + (listItem.item.to_amount ?? listItem.item.amount);
-            return sum;
+            currencies.add(accountCurrencyById[listItem.item.account_id] ?? currency);
+          } else if (selectedId !== null) {
+            const transfer = listItem.item;
+            const sideAccountId = transfer.from_account_id === selectedId ? transfer.from_account_id : transfer.to_account_id;
+            if (sideAccountId != null) {
+              currencies.add(accountCurrencyById[sideAccountId] ?? currency);
+            }
           }
-        }, 0),
-        data,
-      }));
-  }, [mergedItems, selectedId, dateFormat]);
+        }
+
+        return {
+          title: formatDateHeader(date, dateFormat),
+          date,
+          summary: getSectionCurrencySummary(data, selectedId, accountCurrencyById, currency),
+          data,
+        };
+      });
+  }, [mergedItems, selectedId, dateFormat, accountCurrencyById, currency]);
 
   const categoryGroups = useMemo<CategoryGroup[]>(() => {
     if (viewMode !== 'grouped') return [];
@@ -1024,8 +1040,15 @@ export default function TransactionsScreen() {
           renderSectionHeader={({ section }) => (
             <View style={[styles.sectionHeader, { backgroundColor: bg }]}>
               <Text style={[styles.sectionDate, { color: textColor }]}>{section.title}</Text>
-              <Text style={[styles.sectionNet, { color: section.net >= 0 ? '#4CAF50' : '#F44336' }]}>
-                {formatAmount(section.net, rollupCurrency, undefined, numberFormat)}
+              <Text style={[styles.sectionNet, { color: textColor }]}>
+                {section.summary.map((item, index) => (
+                  <Text key={`${item.currency}-${index}`}>
+                    {index > 0 ? ', ' : ''}
+                    <Text style={{ color: getSectionAmountColor(item.net) }}>
+                      {formatAmount(item.net, item.currency, undefined, numberFormat)}
+                    </Text>
+                  </Text>
+                ))}
               </Text>
             </View>
           )}

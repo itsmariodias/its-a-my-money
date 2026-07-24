@@ -1,4 +1,4 @@
-import { useAccountsDb, useCategoriesDb, useTransactionsDb, useTransfersDb, useSettingsDb, useBudgetsDb } from '@/db';
+import { useAccountsDb, useBudgetsDb, useCategoriesDb, useRecurringDb, useSettingsDb, useTransactionsDb, useTransfersDb } from '@/db';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { getMockDb } = require('../__mocks__/expo-sqlite');
@@ -152,6 +152,18 @@ describe('useSettingsDb', () => {
     const [sql, ...params] = mockDb.getFirstAsync.mock.calls[0];
     expect(sql).toContain('SELECT');
     expect(params).toEqual(['currency']);
+  });
+});
+
+describe('useRecurringDb', () => {
+  const db = useRecurringDb();
+
+  it('should select account currency fields for recurring transactions', async () => {
+    await db.getAll();
+
+    const [sql] = mockDb.getAllAsync.mock.calls[0];
+    expect(sql).toContain('a.currency as account_currency');
+    expect(sql).toContain('ta.currency as to_account_currency');
   });
 });
 

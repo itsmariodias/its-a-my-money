@@ -89,9 +89,11 @@ export interface RecurringTransactionWithDetails extends RecurringTransaction {
   category_color: string | null;
   category_icon: string | null;
   account_name: string;
+  account_currency: string;
   to_account_name: string | null;
   to_account_color: string | null;
   to_account_icon: string | null;
+  to_account_currency: string | null;
 }
 
 // Enriched types (joins)

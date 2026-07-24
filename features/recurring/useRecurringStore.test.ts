@@ -1,5 +1,5 @@
-import { useRecurringStore } from './useRecurringStore';
 import type { RecurringTransactionWithDetails } from '@/types';
+import { useRecurringStore } from './useRecurringStore';
 
 const makeItem = (id: number, overrides: Partial<RecurringTransactionWithDetails> = {}): RecurringTransactionWithDetails => ({
   id,
@@ -20,9 +20,11 @@ const makeItem = (id: number, overrides: Partial<RecurringTransactionWithDetails
   category_color: '#607D8B',
   category_icon: 'receipt',
   account_name: 'Cash',
+  account_currency: 'USD',
   to_account_name: null,
   to_account_color: null,
   to_account_icon: null,
+  to_account_currency: null,
   ...overrides,
 });
 

@@ -1,27 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  FlatList,
-  Modal,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Snackbar } from 'react-native-snackbar';
-import { Text } from '@/shared/components/Themed';
-import DeleteModal from '@/shared/components/DeleteModal';
-import InfoModal from '@/shared/components/InfoModal';
-import { useRecurringDb, useTransactionsDb, useTransfersDb } from '@/db';
-import { todayString } from './dateUtils';
-import { useRecurringStore } from './useRecurringStore';
-import { useAppTheme } from '@/shared/components/useAppTheme';
-import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
 import { formatDate } from '@/constants/dateFormats';
+import { useRecurringDb, useTransactionsDb, useTransfersDb } from '@/db';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import DeleteModal from '@/shared/components/DeleteModal';
+import InfoModal from '@/shared/components/InfoModal';
+import { Text } from '@/shared/components/Themed';
+import { useAppTheme } from '@/shared/components/useAppTheme';
+import type { RecurringFrequency, RecurringTransactionWithDetails } from '@/types';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useCallback, useEffect, useState } from 'react';
+import {
+    FlatList,
+    Modal,
+    StyleSheet,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Snackbar } from 'react-native-snackbar';
+import { todayString } from './dateUtils';
 import RecurringFormSheet from './RecurringFormSheet';
-import type { RecurringTransactionWithDetails, RecurringFrequency } from '@/types';
+import { getRecurringItemCurrency } from './recurringUtils';
+import { useRecurringStore } from './useRecurringStore';
 
 const FREQ_LABELS: Record<RecurringFrequency, string> = {
   daily: 'Daily',
@@ -105,8 +105,9 @@ export default function RecurringListScreen({ isOpen, onClose }: Props) {
 
   const renderItem = ({ item, index }: { item: RecurringTransactionWithDetails; index: number }) => {
     const isTransfer = item.kind === 'transfer';
+    const itemCurrency = getRecurringItemCurrency(item, currency);
     const amountColor = isTransfer ? textColor : item.type === 'income' ? '#4CAF50' : '#F44336';
-    const formattedAmount = formatAmount(item.amount, currency, isTransfer ? undefined : (item.type ?? undefined), numberFormat);
+    const formattedAmount = formatAmount(item.amount, itemCurrency, isTransfer ? undefined : (item.type ?? undefined), numberFormat);
     const isInactive = item.is_active === 0 || (item.end_date != null && item.end_date < todayString());
     const isFirst = index === 0;
     const isLast = index === recurringTransactions.length - 1;
