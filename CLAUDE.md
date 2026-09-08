@@ -266,8 +266,12 @@ Current shared components:
 ### State Management
 Zustand stores hold in-memory app state derived from the DB. DB writes always happen first, then stores are updated. Stores are not persisted — they are populated from SQLite on startup.
 
+Every entity has a store (`useAccountsStore`, `useTransactionsStore`, `useTransfersStore`, `useRecurringStore`, `useBudgetsStore`) **except categories**, which each screen loads into its own local `useState` via `useCategoriesDb().getByType()`. Anything showing categories must therefore re-read them itself after a write elsewhere — the sheets do this on open, and `SettingsScreen` on `isVisible` (see below). Adding a `useCategoriesStore` would remove that obligation.
+
 ### Settings
-User preferences are persisted in SQLite (`settings` table, key-value) and synced to `useSettingsStore` on app load and on settings screen focus.
+User preferences are persisted in SQLite (`settings` table, key-value) and read into `useSettingsStore` once on app load (`app/_layout.tsx`); from then on the store is the live source and each setter writes SQLite and updates the store together. There is no re-sync on opening Settings — the overlay is never unmounted, so there is no focus event to hang one on.
+
+**The settings overlay stays mounted.** `app/(tabs)/_layout.tsx` keeps `<SettingsScreen isVisible={settingsOpen} />` rendered at all times and only slides it with a `translateX` transform. A `useEffect` with `[]` deps there runs **once per app launch**, not once per open — which silently served a stale category list until it was keyed on `isVisible` instead. Anything in Settings that reads the DB directly (rather than through a store) must depend on `isVisible`.
 
 - **Currency** — ISO code (e.g. `USD`). The global setting is the default for new accounts and budgets; actual money is displayed in each account's own currency. `formatAmount()` in `constants/currencies.ts` handles symbol + formatting.
 - **Accent color** — hex string stored as `accent_color`. All screens read it from the store; never hardcode `#2f95dc`.
