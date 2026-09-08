@@ -1,5 +1,11 @@
 import type { TransactionWithDetails, TransferWithDetails } from '@/types';
-import { getSectionAmountColor, getSectionCurrencySummary, type TransactionListItem } from './sectionUtils';
+import {
+  getSectionAmountColor,
+  getSectionCurrencySummary,
+  netInCurrency,
+  rollUpByCurrency,
+  type TransactionListItem,
+} from './sectionUtils';
 
 const makeTx = (overrides: Partial<TransactionWithDetails> = {}): TransactionWithDetails => ({
   id: 1,
@@ -110,5 +116,56 @@ describe('getSectionCurrencySummary', () => {
 
     // Then both fall back rather than dropping out
     expect(summary).toEqual([{ currency: 'USD', net: 200 }]);
+  });
+});
+
+describe('rollUpByCurrency', () => {
+  it('keeps one subtotal per currency instead of blending them', () => {
+    // Given signed amounts across two currencies
+    const rows = [
+      { currency: 'INR', amount: -500 },
+      { currency: 'AUD', amount: -100 },
+      { currency: 'INR', amount: 200 },
+    ];
+
+    // When rolling them up
+    const totals = rollUpByCurrency(rows);
+
+    // Then each currency nets out on its own, ordered by code
+    expect(totals).toEqual([
+      { currency: 'AUD', net: -100 },
+      { currency: 'INR', net: -300 },
+    ]);
+  });
+
+  it('returns nothing for no rows', () => {
+    // Given an empty category
+    // When rolling up
+    // Then there is no subtotal to show
+    expect(rollUpByCurrency([])).toEqual([]);
+  });
+});
+
+describe('netInCurrency', () => {
+  it('reads the subtotal for one currency', () => {
+    // Given a mixed-currency roll-up
+    const totals = [
+      { currency: 'AUD', net: -100 },
+      { currency: 'INR', net: -300 },
+    ];
+
+    // When asking for each currency
+    // Then the matching subtotal comes back
+    expect(netInCurrency(totals, 'INR')).toBe(-300);
+    expect(netInCurrency(totals, 'AUD')).toBe(-100);
+  });
+
+  it('reports zero for a currency the group holds nothing in', () => {
+    // Given a group with no euro rows — this is what keeps grouped-view sorting stable
+    const totals = [{ currency: 'AUD', net: -100 }];
+
+    // When asking for euros
+    // Then it sorts as zero rather than dropping out
+    expect(netInCurrency(totals, 'EUR')).toBe(0);
   });
 });

@@ -6,7 +6,7 @@ import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { getTransferSide } from '@/features/transfers/transferSide';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
-import { getSectionAmountColor, getSectionCurrencySummary } from '@/features/transactions/sectionUtils';
+import { getSectionAmountColor, getSectionCurrencySummary, netInCurrency, rollUpByCurrency, type SectionCurrencySummary } from '@/features/transactions/sectionUtils';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import TransferSheet from '@/features/transfers/TransferSheet';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
@@ -454,7 +454,8 @@ type CategoryGroup = {
   category_name: string;
   category_color: string;
   category_icon: string;
-  total: number;
+  /** One subtotal per currency — the app never blends currencies into a single number. */
+  totals: SectionCurrencySummary[];
   count: number;
   transactions: TransactionWithDetails[];
   transfers?: TransferWithDetails[];
@@ -489,26 +490,6 @@ function CategoryGroupRow({
 }: CategoryGroupRowProps) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const dateFormat = useSettingsStore((s) => s.dateFormat);
-  // Group header rolls up across rows. When an account is selected those rows share its currency
-  // (that is what `fallbackCurrency` carries); otherwise the group can span currencies, in which
-  // case the header falls back to the global one.
-  const headerCurrency = selectedAccountId !== null
-    ? fallbackCurrency
-    : (() => {
-        const groupCurrencies = new Set<string>();
-        if (group.transfers) {
-          for (const t of group.transfers) {
-            groupCurrencies.add(t.from_account_currency || t.to_account_currency || fallbackCurrency);
-          }
-        } else {
-          for (const tx of group.transactions) {
-            groupCurrencies.add(tx.account_currency || fallbackCurrency);
-          }
-        }
-        return groupCurrencies.size === 1 ? Array.from(groupCurrencies)[0] : fallbackCurrency;
-      })();
-  const totalColor = group.total === 0 ? subColor : group.total >= 0 ? '#4CAF50' : '#F44336';
-  const totalType = group.total >= 0 ? 'income' : 'expense';
   const countLabel = group.count === 1 ? '1 item' : `${group.count} items`;
 
   return (
@@ -528,8 +509,15 @@ function CategoryGroupRow({
           <Text style={[groupStyles.categoryName, { color: textColor }]}>{group.category_name}</Text>
           <Text style={[groupStyles.countText, { color: subColor }]}>{countLabel}</Text>
         </View>
-        <Text style={[groupStyles.total, { color: totalColor }]}>
-          {formatAmount(Math.abs(group.total), headerCurrency, totalType, numberFormat)}
+        <Text style={groupStyles.total}>
+          {group.totals.map((item, index) => (
+            <Text key={item.currency}>
+              {index > 0 ? ', ' : ''}
+              <Text style={{ color: item.net === 0 ? subColor : getSectionAmountColor(item.net) }}>
+                {formatAmount(Math.abs(item.net), item.currency, item.net >= 0 ? 'income' : 'expense', numberFormat)}
+              </Text>
+            </Text>
+          ))}
         </Text>
         <MaterialIcons
           name={isExpanded ? 'expand-less' : 'expand-more'}
@@ -876,16 +864,27 @@ export default function TransactionsScreen() {
           category_name: tx.category_name,
           category_color: tx.category_color,
           category_icon: tx.category_icon,
-          total: 0,
+          totals: [],
           count: 0,
           transactions: [],
         });
       const g = map.get(tx.category_id)!;
-      g.total += tx.type === 'income' ? tx.amount : -tx.amount;
       g.count += 1;
       g.transactions.push(tx);
     }
-    const groups = Array.from(map.values()).sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+    for (const g of map.values()) {
+      g.totals = rollUpByCurrency(
+        g.transactions.map((tx) => ({
+          currency: tx.account_currency || rowFallbackCurrency,
+          amount: tx.type === 'income' ? tx.amount : -tx.amount,
+        }))
+      );
+    }
+    // Ranked by the subtotal in the primary currency, so ordering is stable and does not
+    // compare raw numbers across currencies (where 500 INR would outrank 100 AUD).
+    const groups = Array.from(map.values()).sort(
+      (a, b) => Math.abs(netInCurrency(b.totals, currency)) - Math.abs(netInCurrency(a.totals, currency))
+    );
 
     // Append a synthetic Transfers group when an account is selected
     const scopedTransfers = selectedId !== null
@@ -898,17 +897,20 @@ export default function TransactionsScreen() {
       : [];
     const showTransfers = selectedCategoryIds.length === 0 || selectedCategoryIds.includes(-1);
     if (scopedTransfers.length > 0 && showTransfers) {
-      const transferTotal = scopedTransfers.reduce((sum, t) => {
-        if (t.from_account_id === selectedId) return sum - t.amount;
-        if (t.to_account_id === selectedId) return sum + (t.to_amount ?? t.amount);
-        return sum;
-      }, 0);
+      // Only built with an account selected, so in practice this is a single currency —
+      // rolled up the same way regardless.
+      const transferTotals = rollUpByCurrency(
+        scopedTransfers.map((t) => {
+          const side = getTransferSide(t, selectedId, rowFallbackCurrency);
+          return { currency: side.currency, amount: side.isOutgoing ? -side.amount : side.amount };
+        })
+      );
       groups.push({
         category_id: -1,
         category_name: 'Transfers',
         category_color: '#9E9E9E',
         category_icon: 'swap-horiz',
-        total: transferTotal,
+        totals: transferTotals,
         count: scopedTransfers.length,
         transactions: [],
         transfers: scopedTransfers,
@@ -916,7 +918,7 @@ export default function TransactionsScreen() {
     }
 
     return groups;
-  }, [viewMode, categoryFilteredTx, transfers, selectedId, dateRange, selectedCategoryIds]);
+  }, [viewMode, categoryFilteredTx, transfers, selectedId, dateRange, selectedCategoryIds, rowFallbackCurrency, currency]);
 
   const handleDeleteCancel = useCallback(() => {
     setDeletingTx(null);
