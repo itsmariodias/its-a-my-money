@@ -65,6 +65,24 @@ export interface BudgetWithDetails extends Budget {
   category_icon: string;
 }
 
+export interface Goal {
+  id: number;
+  category_id: number;
+  target_amount: number;
+  currency: string;
+  /** Spend before this date does not count — a new goal starts empty. */
+  start_date: string;
+  /** Optional deadline. Display only: it never filters which transactions count. */
+  target_date: string | null;
+  created_at: string;
+}
+
+export interface GoalWithDetails extends Goal {
+  category_name: string;
+  category_color: string;
+  category_icon: string;
+}
+
 export type RecurringKind = 'transaction' | 'transfer';
 
 export interface RecurringTransaction {

@@ -318,6 +318,18 @@ Per-category spending limits with weekly, monthly, or yearly periods. Managed fr
 - **Color thresholds** — `< 80%` green `#4CAF50`, `80–99%` amber `#FFC107`, `≥ 100%` red `#F44336`.
 - **Alerts** — when a manual transaction save in `AddTransactionSheet` pushes a budget from `<limit` to `≥limit` for the current period, `findCrossings()` in `budgetCrossings.ts` flags it and `notifyCrossedBudgets()` fires a local notification via `expo-notifications` (Android channel `'budgets'`). `findCrossings` receives `accountCurrencyById` so only budgets matching the transaction's account currency are evaluated. Permission is requested best-effort when the user first saves a budget. Recurring auto-generated transactions don't fire alerts.
 
+### Goals
+The inverse of a budget: an amount you spend *toward* rather than stay under. Same mechanism — a category and an amount — with the meaning flipped, so 100% is the win rather than the warning. Managed from Settings; tracked on the Dashboard.
+
+- **Schema**: `goals (id, category_id, target_amount, currency, start_date, target_date, created_at)` (migration 015). Expense categories only, since progress is measured from expense transactions.
+- **Progress** — `goalProgress()` in `features/goals/goalUtils.ts` reuses `spentInRange` from the budgets `periodUtils.ts` with an open-ended window: everything in the category from `start_date` to a far-future sentinel. Future-dated spend counts; a goal has no period end.
+- **`start_date` is its own column**, set from `todayString()` at insert. It is not derived from `created_at`, which is UTC while `transactions.date` is a local date — the two disagree for goals created near midnight. It also means a new goal starts empty rather than being retroactively filled by category history.
+- **`target_date` is optional and display-only.** It never filters which transactions count; it drives the countdown badge (`targetDateLabel`) and the overdue colour.
+- **Colours** — `goalStatusColor()`: `≥ 100%` green `#4CAF50`; past `target_date` and under target red `#F44336`; otherwise the accent colour. Defined once and used by both the list screen and the dashboard card (unlike the budgets `statusColor`, which is duplicated across its two files).
+- **Uniqueness / currency scope** — one goal per (category, currency), same UX-side switch-to-edit as budgets. A goal only counts spend on accounts of its own currency.
+- **Alerts** — `findReachedGoals()` in `goalCrossings.ts` flags a goal a save pushed from under to at-or-over target; `notifyReachedGoals()` fires a "Goal reached" notification (Android channel `'goals'`). The edge is strict, so it fires once and stays quiet on later payments.
+- **Both budget and goal alerts** now run through `notifyThresholdsCrossed()` in `features/transactions/postSaveAlerts.ts`, called from both `handleSave` and `handleSaveAndContinue`. Add any future post-save threshold check there rather than inlining it twice.
+
 ### Cloud Backup (Google Drive)
 Automatic backups to Google Drive using the same JSON format as manual export.
 

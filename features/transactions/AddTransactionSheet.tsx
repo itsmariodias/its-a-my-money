@@ -21,10 +21,9 @@ import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
 import { categoriesOfType, useCategoriesStore } from '@/features/transactions/useCategoriesStore';
 import { useTransactionsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
-import { buildAccountCurrencyMap, getAccountCurrency } from '@/features/accounts/currencyUtils';
+import { getAccountCurrency } from '@/features/accounts/currencyUtils';
+import { notifyThresholdsCrossed } from '@/features/transactions/postSaveAlerts';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
-import { useBudgetsStore } from '@/features/budgets/useBudgetsStore';
-import { findCrossings, notifyCrossedBudgets } from '@/features/budgets/budgetAlerts';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { Snackbar } from 'react-native-snackbar';
@@ -168,10 +167,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       const prevTxs = useTransactionsStore.getState().transactions;
       await saveTransaction(parsedAmount);
       const currTxs = useTransactionsStore.getState().transactions;
-      const budgets = useBudgetsStore.getState().budgets;
-      const accCurMap = buildAccountCurrencyMap(accounts, '');
-      const crossed = findCrossings(budgets, prevTxs, currTxs, new Date(), accCurMap);
-      if (crossed.length > 0) notifyCrossedBudgets(crossed);
+      notifyThresholdsCrossed(prevTxs, currTxs, accounts);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       triggerCloseRef.current();
     } catch {
@@ -187,10 +183,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       const prevTxs = useTransactionsStore.getState().transactions;
       await saveTransaction(parsedAmount);
       const currTxs = useTransactionsStore.getState().transactions;
-      const budgets = useBudgetsStore.getState().budgets;
-      const accCurMap = buildAccountCurrencyMap(accounts, '');
-      const crossed = findCrossings(budgets, prevTxs, currTxs, new Date(), accCurMap);
-      if (crossed.length > 0) notifyCrossedBudgets(crossed);
+      notifyThresholdsCrossed(prevTxs, currTxs, accounts);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       setAmount('');
       setNote('');

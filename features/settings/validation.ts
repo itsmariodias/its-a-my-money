@@ -84,6 +84,19 @@ function isValidBudget(item: unknown): boolean {
   );
 }
 
+function isValidGoal(item: unknown): boolean {
+  if (!item || typeof item !== 'object') return false;
+  const g = item as Record<string, unknown>;
+  return (
+    typeof g.id === 'number' &&
+    typeof g.category_id === 'number' &&
+    typeof g.target_amount === 'number' &&
+    typeof g.currency === 'string' &&
+    typeof g.start_date === 'string' &&
+    (g.target_date == null || typeof g.target_date === 'string')
+  );
+}
+
 export function isValidExport(data: unknown): data is ExportData {
   if (!data || typeof data !== 'object') return false;
   const d = data as Record<string, unknown>;
@@ -98,6 +111,7 @@ export function isValidExport(data: unknown): data is ExportData {
     d.transactions.every(isValidTransaction) &&
     d.transfers.every(isValidTransfer) &&
     (d.recurring_transactions == null || (Array.isArray(d.recurring_transactions) && d.recurring_transactions.every(isValidRecurring))) &&
-    (d.budgets == null || (Array.isArray(d.budgets) && d.budgets.every(isValidBudget)))
+    (d.budgets == null || (Array.isArray(d.budgets) && d.budgets.every(isValidBudget))) &&
+    (d.goals == null || (Array.isArray(d.goals) && d.goals.every(isValidGoal)))
   );
 }

@@ -204,6 +204,37 @@ describe('isValidExport', () => {
     expect(isValidExport(data)).toBe(false);
   });
 
+  it('should accept valid goals array', () => {
+    const data = {
+      ...validData,
+      goals: [{ id: 1, category_id: 1, target_amount: 10000, currency: 'USD', start_date: '2026-03-01', target_date: '2026-12-31', created_at: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(true);
+  });
+
+  it('should accept a goal with no target date', () => {
+    const data = {
+      ...validData,
+      goals: [{ id: 1, category_id: 1, target_amount: 10000, currency: 'USD', start_date: '2026-03-01', target_date: null, created_at: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(true);
+  });
+
+  it('should reject goal missing start date', () => {
+    const data = {
+      ...validData,
+      goals: [{ id: 1, category_id: 1, target_amount: 10000, currency: 'USD', target_date: null, created_at: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should accept a backup exported before goals existed', () => {
+    // Given a backup with no goals key at all
+    // When validating
+    // Then it still passes — goals are optional for backwards compatibility
+    expect(isValidExport(validData)).toBe(true);
+  });
+
   it('should validate a realistic round-trip export structure', () => {
     // Given a realistic export with multiple entities and valid FK references
     const data = {
