@@ -1,4 +1,5 @@
 import type { TransactionWithDetails, TransferWithDetails } from '@/types';
+import { getTransferSide } from '@/features/transfers/transferSide';
 
 export type TransactionListItem =
   | { kind: 'tx'; item: TransactionWithDetails }
@@ -16,7 +17,6 @@ export function getSectionAmountColor(net: number): string {
 export function getSectionCurrencySummary(
   items: TransactionListItem[],
   selectedId: number | null,
-  accountCurrencyById: Record<number, string>,
   fallbackCurrency: string,
 ): SectionCurrencySummary[] {
   const totalsByCurrency = new Map<string, number>();
@@ -26,18 +26,16 @@ export function getSectionCurrencySummary(
     let amount: number;
 
     if (listItem.kind === 'tx') {
-      currency = accountCurrencyById[listItem.item.account_id] ?? fallbackCurrency;
+      currency = listItem.item.account_currency || fallbackCurrency;
       amount = listItem.item.type === 'income' ? listItem.item.amount : -listItem.item.amount;
     } else {
       if (selectedId === null) {
         continue;
       }
 
-      const transfer = listItem.item;
-      const isOutgoing = transfer.from_account_id === selectedId;
-      const sideAccountId = isOutgoing ? transfer.from_account_id : transfer.to_account_id;
-      currency = (sideAccountId != null ? accountCurrencyById[sideAccountId] : undefined) ?? fallbackCurrency;
-      amount = isOutgoing ? -transfer.amount : (transfer.to_amount ?? transfer.amount);
+      const side = getTransferSide(listItem.item, selectedId, fallbackCurrency);
+      currency = side.currency;
+      amount = side.isOutgoing ? -side.amount : side.amount;
     }
 
     totalsByCurrency.set(currency, (totalsByCurrency.get(currency) ?? 0) + amount);

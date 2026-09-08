@@ -19,6 +19,7 @@ import { Text } from '@/shared/components/Themed';
 import AccountIcon from '@/shared/components/AccountIcon';
 import { useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
@@ -71,8 +72,8 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     id != null ? accounts.find((a) => a.id === id) : undefined;
   const fromAccount = findAccount(fromAccountId);
   const toAccount = findAccount(toAccountId);
-  const fromCurrency = fromAccount?.currency || globalCurrency;
-  const toCurrency = toAccount?.currency || globalCurrency;
+  const fromCurrency = getAccountCurrency(accounts, fromAccountId, globalCurrency);
+  const toCurrency = getAccountCurrency(accounts, toAccountId, globalCurrency);
   const isCrossCurrency = fromAccount != null && toAccount != null && fromCurrency !== toCurrency;
   const fromSymbol = getCurrencySymbol(fromCurrency);
   const toSymbol = getCurrencySymbol(toCurrency);

@@ -102,13 +102,17 @@ export interface TransactionWithDetails extends Transaction {
   category_color: string;
   category_icon: string;
   account_name: string;
+  account_currency: string;
 }
 
 export interface TransferWithDetails extends Transfer {
   from_account_name: string | null;
   from_account_color: string | null;
   from_account_icon: string | null;
+  // Null when the account has been deleted (ON DELETE SET NULL keeps the history).
+  from_account_currency: string | null;
   to_account_name: string | null;
   to_account_color: string | null;
   to_account_icon: string | null;
+  to_account_currency: string | null;
 }

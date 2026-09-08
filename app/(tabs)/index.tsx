@@ -26,6 +26,7 @@ import {
 } from '@/shared/components/PeriodSelector';
 import { useAccountsDb, useTransactionsDb, useTransfersDb, useBudgetsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useBudgetsStore } from '@/features/budgets/useBudgetsStore';
 import BudgetsDashboardCard from '@/features/budgets/BudgetsDashboardCard';
@@ -146,13 +147,10 @@ export default function DashboardScreen() {
   // The dashboard does not convert across currencies. With an account filter, the row-set
   // is already single-currency; without one, scope every aggregation to accounts of the
   // user's primary (global) currency. The displayed currency is derived from that scope.
-  const scopeCurrency = useMemo(() => {
-    if (selectedId !== null) {
-      const acc = accounts.find((a) => a.id === selectedId);
-      return acc?.currency || currency;
-    }
-    return currency;
-  }, [accounts, selectedId, currency]);
+  const scopeCurrency = useMemo(
+    () => getAccountCurrency(accounts, selectedId, currency),
+    [accounts, selectedId, currency],
+  );
 
   const scopedAccounts = useMemo(() => {
     if (selectedId !== null) return accounts;

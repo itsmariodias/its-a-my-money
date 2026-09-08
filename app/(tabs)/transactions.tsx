@@ -2,6 +2,8 @@ import { formatAmount } from '@/constants/currencies';
 import { formatDate, type DateFormatId } from '@/constants/dateFormats';
 import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { getAccountCurrency } from '@/features/accounts/currencyUtils';
+import { getTransferSide } from '@/features/transfers/transferSide';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
 import { getSectionAmountColor, getSectionCurrencySummary } from '@/features/transactions/sectionUtils';
@@ -169,13 +171,12 @@ interface RowProps {
   borderColor: string;
   textColor: string;
   subTextColor: string;
-  accountCurrencyById: Record<number, string>;
   fallbackCurrency: string;
   onPress: () => void;
 }
 
-function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, accountCurrencyById, fallbackCurrency, onPress }: RowProps) {
-  const currency = accountCurrencyById[tx.account_id] ?? fallbackCurrency;
+function TransactionRow({ tx, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, fallbackCurrency, onPress }: RowProps) {
+  const currency = tx.account_currency || fallbackCurrency;
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const dateFormat = useSettingsStore((s) => s.dateFormat);
   const amountColor = tx.type === 'income' ? '#4CAF50' : '#F44336';
@@ -227,27 +228,17 @@ interface TransferRowProps {
   borderColor: string;
   textColor: string;
   subTextColor: string;
-  accountCurrencyById: Record<number, string>;
   fallbackCurrency: string;
   onPress: () => void;
 }
 
-function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, accountCurrencyById, fallbackCurrency, onPress }: TransferRowProps) {
+function TransferRow({ transfer, selectedAccountId, isFirst, isLast, cardBg, borderColor, textColor, subTextColor, fallbackCurrency, onPress }: TransferRowProps) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const dateFormat = useSettingsStore((s) => s.dateFormat);
-  const isOutgoing = transfer.from_account_id === selectedAccountId;
-  const otherName = (isOutgoing ? transfer.to_account_name : transfer.from_account_name) ?? 'Unknown';
+  const { isOutgoing, amount: sideAmount, currency, otherName } = getTransferSide(transfer, selectedAccountId, fallbackCurrency);
   const label = isOutgoing ? `To ${otherName}` : `From ${otherName}`;
   const amountColor = isOutgoing ? '#F44336' : '#4CAF50';
   const amountType = isOutgoing ? 'expense' : 'income';
-  // The displayed amount and currency follow the side the user is viewing from:
-  // source side = `amount` in from_account's currency, destination side = `to_amount` (or
-  // `amount` for same-currency) in to_account's currency.
-  const sideAmount = isOutgoing ? transfer.amount : (transfer.to_amount ?? transfer.amount);
-  const sideAccountId = isOutgoing ? transfer.from_account_id : transfer.to_account_id;
-  const currency = (sideAccountId != null ? accountCurrencyById[sideAccountId] : undefined)
-    ?? accountCurrencyById[selectedAccountId]
-    ?? fallbackCurrency;
 
   return (
     <TouchableOpacity
@@ -476,7 +467,6 @@ interface CategoryGroupRowProps {
   onPressTx: (tx: TransactionWithDetails) => void;
   onPressTransfer: (t: TransferWithDetails) => void;
   selectedAccountId: number | null;
-  accountCurrencyById: Record<number, string>;
   fallbackCurrency: string;
   cardBg: string;
   borderColor: string;
@@ -491,7 +481,6 @@ function CategoryGroupRow({
   onPressTx,
   onPressTransfer,
   selectedAccountId,
-  accountCurrencyById,
   fallbackCurrency,
   cardBg,
   borderColor,
@@ -500,22 +489,20 @@ function CategoryGroupRow({
 }: CategoryGroupRowProps) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const dateFormat = useSettingsStore((s) => s.dateFormat);
-  // Group header rolls up across rows. When an account is selected those rows share a currency;
-  // otherwise the group can span currencies, in which case the header just uses the global fallback.
+  // Group header rolls up across rows. When an account is selected those rows share its currency
+  // (that is what `fallbackCurrency` carries); otherwise the group can span currencies, in which
+  // case the header falls back to the global one.
   const headerCurrency = selectedAccountId !== null
-    ? (accountCurrencyById[selectedAccountId] ?? fallbackCurrency)
+    ? fallbackCurrency
     : (() => {
         const groupCurrencies = new Set<string>();
         if (group.transfers) {
           for (const t of group.transfers) {
-            const sideAccountId = t.from_account_id ?? t.to_account_id;
-            if (sideAccountId != null) {
-              groupCurrencies.add(accountCurrencyById[sideAccountId] ?? fallbackCurrency);
-            }
+            groupCurrencies.add(t.from_account_currency || t.to_account_currency || fallbackCurrency);
           }
         } else {
           for (const tx of group.transactions) {
-            groupCurrencies.add(accountCurrencyById[tx.account_id] ?? fallbackCurrency);
+            groupCurrencies.add(tx.account_currency || fallbackCurrency);
           }
         }
         return groupCurrencies.size === 1 ? Array.from(groupCurrencies)[0] : fallbackCurrency;
@@ -558,12 +545,10 @@ function CategoryGroupRow({
           {group.transfers
             ? group.transfers.map((t, index) => {
                 const isLast = index === group.transfers!.length - 1;
-                const isOutgoing = t.from_account_id === selectedAccountId;
-                const label = isOutgoing ? `To ${t.to_account_name ?? 'Unknown'}` : `From ${t.from_account_name ?? 'Unknown'}`;
+                const { isOutgoing, amount: sideAmount, currency: sideCurrency, otherName } = getTransferSide(t, selectedAccountId, fallbackCurrency);
+                const label = isOutgoing ? `To ${otherName}` : `From ${otherName}`;
                 const amountColor = isOutgoing ? '#F44336' : '#4CAF50';
                 const amountType = isOutgoing ? 'expense' : 'income';
-                const sideAmount = isOutgoing ? t.amount : (t.to_amount ?? t.amount);
-                const sideAccountId = isOutgoing ? t.from_account_id : t.to_account_id;
                 return (
                   <TouchableOpacity
                     key={t.id}
@@ -588,14 +573,7 @@ function CategoryGroupRow({
                       </Text>
                     </View>
                     <Text style={[groupStyles.txAmount, { color: amountColor }]}>
-                      {formatAmount(
-                        sideAmount,
-                        (sideAccountId != null ? accountCurrencyById[sideAccountId] : undefined)
-                          ?? accountCurrencyById[selectedAccountId ?? -1]
-                          ?? fallbackCurrency,
-                        amountType,
-                        numberFormat,
-                      )}
+                      {formatAmount(sideAmount, sideCurrency, amountType, numberFormat)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -627,7 +605,7 @@ function CategoryGroupRow({
                       </Text>
                     </View>
                     <Text style={[groupStyles.txAmount, { color: amountColor }]}>
-                      {formatAmount(tx.amount, accountCurrencyById[tx.account_id] ?? fallbackCurrency, tx.type, numberFormat)}
+                      {formatAmount(tx.amount, tx.account_currency || fallbackCurrency, tx.type, numberFormat)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -754,11 +732,12 @@ export default function TransactionsScreen() {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const dateFormat = useSettingsStore((s) => s.dateFormat);
 
-  const accountCurrencyById = useMemo<Record<number, string>>(() => {
-    const map: Record<number, string> = {};
-    for (const a of accounts) map[a.id] = a.currency || currency;
-    return map;
-  }, [accounts, currency]);
+  // Rows carry their own account currency from the DB join. This is only the fallback for rows
+  // whose account has since been deleted: the currency of the account being viewed, else global.
+  const rowFallbackCurrency = useMemo(
+    () => getAccountCurrency(accounts, selectedId, currency),
+    [accounts, selectedId, currency],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -878,27 +857,14 @@ export default function TransactionsScreen() {
     return Object.entries(byDate)
       .sort(([a], [b]) => b.localeCompare(a))
       .map(([date, data]) => {
-        const currencies = new Set<string>();
-        for (const listItem of data) {
-          if (listItem.kind === 'tx') {
-            currencies.add(accountCurrencyById[listItem.item.account_id] ?? currency);
-          } else if (selectedId !== null) {
-            const transfer = listItem.item;
-            const sideAccountId = transfer.from_account_id === selectedId ? transfer.from_account_id : transfer.to_account_id;
-            if (sideAccountId != null) {
-              currencies.add(accountCurrencyById[sideAccountId] ?? currency);
-            }
-          }
-        }
-
         return {
           title: formatDateHeader(date, dateFormat),
           date,
-          summary: getSectionCurrencySummary(data, selectedId, accountCurrencyById, currency),
+          summary: getSectionCurrencySummary(data, selectedId, rowFallbackCurrency),
           data,
         };
       });
-  }, [mergedItems, selectedId, dateFormat, accountCurrencyById, currency]);
+  }, [mergedItems, selectedId, dateFormat, rowFallbackCurrency]);
 
   const categoryGroups = useMemo<CategoryGroup[]>(() => {
     if (viewMode !== 'grouped') return [];
@@ -1021,8 +987,7 @@ export default function TransactionsScreen() {
               onPressTx={setEditingTx}
               onPressTransfer={setEditingTransfer}
               selectedAccountId={selectedId}
-              accountCurrencyById={accountCurrencyById}
-              fallbackCurrency={currency}
+              fallbackCurrency={rowFallbackCurrency}
               cardBg={cardBg}
               borderColor={borderColor}
               textColor={textColor}
@@ -1055,7 +1020,7 @@ export default function TransactionsScreen() {
           renderItem={({ item: listItem, index, section }) => {
             const isFirst = index === 0;
             const isLast = index === section.data.length - 1;
-            const commonProps = { isFirst, isLast, cardBg, borderColor, textColor, subTextColor, accountCurrencyById, fallbackCurrency: currency };
+            const commonProps = { isFirst, isLast, cardBg, borderColor, textColor, subTextColor, fallbackCurrency: rowFallbackCurrency };
             if (listItem.kind === 'transfer') {
               return (
                 <TransferRow
@@ -1093,23 +1058,15 @@ export default function TransactionsScreen() {
 
       <DeleteTransferModal
         transfer={deletingTransfer}
-        fromCurrency={
-          deletingTransfer && deletingTransfer.from_account_id != null
-            ? (accountCurrencyById[deletingTransfer.from_account_id] ?? currency)
-            : currency
-        }
-        toCurrency={
-          deletingTransfer && deletingTransfer.to_account_id != null
-            ? (accountCurrencyById[deletingTransfer.to_account_id] ?? currency)
-            : currency
-        }
+        fromCurrency={deletingTransfer?.from_account_currency || currency}
+        toCurrency={deletingTransfer?.to_account_currency || currency}
         onCancel={() => setDeletingTransfer(null)}
         onConfirm={handleTransferDeleteConfirm}
       />
 
       <DeleteTxModal
         tx={deletingTx}
-        currency={deletingTx ? (accountCurrencyById[deletingTx.account_id] ?? currency) : currency}
+        currency={deletingTx?.account_currency || currency}
         onCancel={handleDeleteCancel}
         onConfirm={handleDeleteConfirm}
       />

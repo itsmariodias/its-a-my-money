@@ -20,6 +20,7 @@ import AccountIcon from '@/shared/components/AccountIcon';
 import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
 import { useCategoriesDb, useTransactionsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { buildAccountCurrencyMap, getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useBudgetsStore } from '@/features/budgets/useBudgetsStore';
 import { findCrossings, notifyCrossedBudgets } from '@/features/budgets/budgetAlerts';
@@ -58,7 +59,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   const accounts = useAccountsStore((s) => s.accounts);
   const addTransaction = useTransactionsStore((s) => s.addTransaction);
   const updateTransaction = useTransactionsStore((s) => s.updateTransaction);
-  const currencySymbol = getCurrencySymbol(useSettingsStore((s) => s.currency));
+  const globalCurrency = useSettingsStore((s) => s.currency);
 
   const categoriesDb = useCategoriesDb();
   const transactionsDb = useTransactionsDb();
@@ -68,6 +69,8 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  // The amount is entered in the selected account's own currency, never the global default.
+  const currencySymbol = getCurrencySymbol(getAccountCurrency(accounts, selectedAccountId, globalCurrency));
   const [note, setNote] = useState('');
   const [date, setDate] = useState(today());
   const [attempted, setAttempted] = useState(false);
@@ -169,8 +172,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       await saveTransaction(parsedAmount);
       const currTxs = useTransactionsStore.getState().transactions;
       const budgets = useBudgetsStore.getState().budgets;
-      const accCurMap: Record<number, string> = {};
-      for (const a of accounts) accCurMap[a.id] = a.currency || '';
+      const accCurMap = buildAccountCurrencyMap(accounts, '');
       const crossed = findCrossings(budgets, prevTxs, currTxs, new Date(), accCurMap);
       if (crossed.length > 0) notifyCrossedBudgets(crossed);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
@@ -189,8 +191,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       await saveTransaction(parsedAmount);
       const currTxs = useTransactionsStore.getState().transactions;
       const budgets = useBudgetsStore.getState().budgets;
-      const accCurMap: Record<number, string> = {};
-      for (const a of accounts) accCurMap[a.id] = a.currency || '';
+      const accCurMap = buildAccountCurrencyMap(accounts, '');
       const crossed = findCrossings(budgets, prevTxs, currTxs, new Date(), accCurMap);
       if (crossed.length > 0) notifyCrossedBudgets(crossed);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });

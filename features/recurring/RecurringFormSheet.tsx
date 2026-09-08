@@ -19,6 +19,7 @@ import AccountIcon from '@/shared/components/AccountIcon';
 import { useCategoriesDb, useRecurringDb } from '@/db';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { useRecurringStore } from './useRecurringStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
@@ -50,7 +51,7 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
   const accounts = useAccountsStore((s) => s.accounts);
   const addRecurring = useRecurringStore((s) => s.addRecurring);
   const updateRecurring = useRecurringStore((s) => s.updateRecurring);
-  const currencySymbol = getCurrencySymbol(useSettingsStore((s) => s.currency));
+  const globalCurrency = useSettingsStore((s) => s.currency);
 
   const db = useSQLiteContext();
   const categoriesDb = useCategoriesDb();
@@ -62,6 +63,9 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [fromAccountId, setFromAccountId] = useState<number | null>(null);
+  // Cross-currency recurring transfers are blocked below, so the source account's currency
+  // is the single currency for both the transaction and the transfer kind.
+  const currencySymbol = getCurrencySymbol(getAccountCurrency(accounts, fromAccountId, globalCurrency));
   const [toAccountId, setToAccountId] = useState<number | null>(null);
   const [frequency, setFrequency] = useState<RecurringFrequency>('monthly');
   const [startDate, setStartDate] = useState(todayString());

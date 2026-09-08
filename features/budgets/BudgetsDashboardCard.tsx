@@ -6,6 +6,7 @@ import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useBudgetsStore } from './useBudgetsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { buildAccountCurrencyMap } from '@/features/accounts/currencyUtils';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
 import { currentPeriodRange, spentInRange, periodLabel } from './periodUtils';
@@ -39,11 +40,10 @@ export default function BudgetsDashboardCard({ onPress }: Props) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const { cardBg, textColor, subColor, borderColor, accentColor } = useAppTheme();
 
-  const accountCurrencyById = useMemo<Record<number, string>>(() => {
-    const map: Record<number, string> = {};
-    for (const a of accounts) map[a.id] = a.currency || globalCurrency;
-    return map;
-  }, [accounts, globalCurrency]);
+  const accountCurrencyById = useMemo(
+    () => buildAccountCurrencyMap(accounts, globalCurrency),
+    [accounts, globalCurrency],
+  );
 
   const rows: BudgetRowData[] = useMemo(() => {
     return budgets.map((b) => {

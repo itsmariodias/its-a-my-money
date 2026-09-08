@@ -78,6 +78,15 @@ export function useSettingsDb() {
 
 // --- Transactions ---
 
+const TRANSACTION_SELECT = `
+  SELECT t.*,
+    c.name as category_name, c.color as category_color, c.icon as category_icon,
+    a.name as account_name, a.currency as account_currency
+  FROM transactions t
+  JOIN categories c ON t.category_id = c.id
+  JOIN accounts a ON t.account_id = a.id
+`;
+
 export function useTransactionsDb() {
   const db = useSQLiteContext();
 
@@ -90,23 +99,17 @@ export function useTransactionsDb() {
 
   return {
     getAll: () =>
-      db.getAllAsync<TransactionWithDetails>(`
-        SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-        FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        JOIN accounts a ON t.account_id = a.id
-        ORDER BY t.date DESC, t.created_at DESC
-      `),
+      db.getAllAsync<TransactionWithDetails>(
+        `${TRANSACTION_SELECT} ORDER BY t.date DESC, t.created_at DESC`
+      ),
 
     getByMonth: (year: number, month: number) =>
-      db.getAllAsync<TransactionWithDetails>(`
-        SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-        FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        JOIN accounts a ON t.account_id = a.id
-        WHERE strftime('%Y', t.date) = ? AND strftime('%m', t.date) = ?
-        ORDER BY t.date DESC, t.created_at DESC
-      `, String(year), String(month).padStart(2, '0')),
+      db.getAllAsync<TransactionWithDetails>(
+        `${TRANSACTION_SELECT}
+         WHERE strftime('%Y', t.date) = ? AND strftime('%m', t.date) = ?
+         ORDER BY t.date DESC, t.created_at DESC`,
+        String(year), String(month).padStart(2, '0')
+      ),
 
     insert: async (tx: Omit<Transaction, 'id' | 'created_at'>) => {
       let result!: Awaited<ReturnType<typeof db.runAsync>>;
@@ -135,13 +138,9 @@ export function useTransactionsDb() {
       }),
 
     getById: (id: number) =>
-      db.getFirstAsync<TransactionWithDetails>(`
-        SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-        FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        JOIN accounts a ON t.account_id = a.id
-        WHERE t.id = ?
-      `, id),
+      db.getFirstAsync<TransactionWithDetails>(
+        `${TRANSACTION_SELECT} WHERE t.id = ?`, id
+      ),
 
     remove: (id: number) =>
       db.withTransactionAsync(async () => {
@@ -351,7 +350,9 @@ export function useImportDb() {
 const TRANSFER_SELECT = `
   SELECT t.*,
     fa.name as from_account_name, fa.color as from_account_color, fa.icon as from_account_icon,
-    ta.name as to_account_name, ta.color as to_account_color, ta.icon as to_account_icon
+    fa.currency as from_account_currency,
+    ta.name as to_account_name, ta.color as to_account_color, ta.icon as to_account_icon,
+    ta.currency as to_account_currency
   FROM transfers t
   LEFT JOIN accounts fa ON fa.id = t.from_account_id
   LEFT JOIN accounts ta ON ta.id = t.to_account_id
