@@ -416,7 +416,7 @@ export default function TabLayout() {
           <Text style={[styles.headerTitleLogo, { color: textColor, marginLeft: 8 }]}>Settings</Text>
           <View style={{ width: 24 }} />
         </View>
-        <SettingsScreen />
+        <SettingsScreen isVisible={settingsOpen} />
       </Animated.View>
     </View>
   );

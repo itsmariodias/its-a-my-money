@@ -107,7 +107,12 @@ function DeleteCategoryModal({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function SettingsScreen() {
+interface SettingsScreenProps {
+  /** True while the settings overlay is on screen. */
+  isVisible?: boolean;
+}
+
+export default function SettingsScreen({ isVisible = true }: SettingsScreenProps) {
   const { isDark, bg, cardBg, inputBg, textColor, subColor, borderColor, accentColor, onAccentColor } = useAppTheme();
   const insets = useSafeAreaInsets();
 
@@ -172,7 +177,12 @@ export default function SettingsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { loadCategories(); }, []);
+  // The overlay stays mounted and only slides in and out, so there is no mount to hang this on:
+  // re-read on every open, otherwise a category added from the transaction sheet never shows up.
+  useEffect(() => {
+    if (isVisible) loadCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVisible]);
 
   const openCurrencyPicker = () => { setCurrencyPickerOpen(true); };
   const selectCurrency = async (code: string) => {
