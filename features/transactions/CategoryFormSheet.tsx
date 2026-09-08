@@ -16,6 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
 import InfoModal from '@/shared/components/InfoModal';
 import { useCategoriesDb } from '@/db';
+import { useCategoriesStore } from '@/features/transactions/useCategoriesStore';
 import { Snackbar } from 'react-native-snackbar';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
@@ -55,7 +56,8 @@ interface Props {
   category: Category | null;
   defaultType?: 'expense' | 'income';
   onClose: () => void;
-  onSaved: () => void;
+  /** Optional — the store is updated either way; use this only to react to the saved category. */
+  onSaved?: (saved: Category) => void;
   onDelete?: () => void;
   deleteDisabled?: boolean;
 }
@@ -63,6 +65,7 @@ interface Props {
 export default function CategoryFormSheet({ isOpen, category, defaultType = 'expense', onClose, onSaved, onDelete, deleteDisabled }: Props) {
 
   const categoriesDb = useCategoriesDb();
+  const upsertCategory = useCategoriesStore((s) => s.upsertCategory);
 
   const [name, setName] = useState('');
   const [type, setType] = useState<'expense' | 'income'>('expense');
@@ -91,13 +94,19 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
     setAttempted(true);
     if (!name.trim()) return;
     try {
+      const fields = { name: name.trim(), type, color, icon };
+      let saved: Category;
       if (category) {
-        await categoriesDb.update(category.id, { name: name.trim(), type, color, icon, is_default: category.is_default });
+        await categoriesDb.update(category.id, { ...fields, is_default: category.is_default });
+        saved = { ...category, ...fields };
       } else {
-        await categoriesDb.insert({ name: name.trim(), type, color, icon, is_default: 0 });
+        const result = await categoriesDb.insert({ ...fields, is_default: 0 });
+        saved = { ...fields, id: result.lastInsertRowId, is_default: 0 };
       }
+      // DB first, then the store — every screen showing categories reads from it.
+      upsertCategory(saved);
       Snackbar.show({ text: category ? 'Category updated' : 'Category created', duration: Snackbar.LENGTH_SHORT });
-      onSaved();
+      onSaved?.(saved);
       onClose();
     } catch {
       setErrorModal('Failed to save category.');

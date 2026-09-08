@@ -266,12 +266,14 @@ Current shared components:
 ### State Management
 Zustand stores hold in-memory app state derived from the DB. DB writes always happen first, then stores are updated. Stores are not persisted — they are populated from SQLite on startup.
 
-Every entity has a store (`useAccountsStore`, `useTransactionsStore`, `useTransfersStore`, `useRecurringStore`, `useBudgetsStore`) **except categories**, which each screen loads into its own local `useState` via `useCategoriesDb().getByType()`. Anything showing categories must therefore re-read them itself after a write elsewhere — the sheets do this on open, and `SettingsScreen` on `isVisible` (see below). Adding a `useCategoriesStore` would remove that obligation.
+Every entity has a store: `useAccountsStore`, `useTransactionsStore`, `useTransfersStore`, `useRecurringStore`, `useBudgetsStore`, `useCategoriesStore`.
+
+**Categories** (`features/transactions/useCategoriesStore.ts`) hold every category of both types in one list, kept in DB order (grouped by type, alphabetical within a type). Filter with the exported `categoriesOfType(categories, type)` helper, memoised — never subscribe with a selector that builds a new array, which re-renders on every store read. The store is filled once in `app/(tabs)/_layout.tsx` for the whole tab shell; `CategoryFormSheet` writes the DB and then calls `upsertCategory`, so every sheet and the settings list update together. Screens showing categories must **not** load their own copy — that is what left the Settings list stale until an app restart.
 
 ### Settings
 User preferences are persisted in SQLite (`settings` table, key-value) and read into `useSettingsStore` once on app load (`app/_layout.tsx`); from then on the store is the live source and each setter writes SQLite and updates the store together. There is no re-sync on opening Settings — the overlay is never unmounted, so there is no focus event to hang one on.
 
-**The settings overlay stays mounted.** `app/(tabs)/_layout.tsx` keeps `<SettingsScreen isVisible={settingsOpen} />` rendered at all times and only slides it with a `translateX` transform. A `useEffect` with `[]` deps there runs **once per app launch**, not once per open — which silently served a stale category list until it was keyed on `isVisible` instead. Anything in Settings that reads the DB directly (rather than through a store) must depend on `isVisible`.
+**The settings overlay stays mounted.** `app/(tabs)/_layout.tsx` keeps `<SettingsScreen isVisible={settingsOpen} />` rendered at all times and only slides it with a `translateX` transform. A `useEffect` with `[]` deps there runs **once per app launch**, not once per open — which is what left the category list stale before categories moved into a store. Anything in Settings that reads the DB directly rather than through a store must depend on `isVisible`.
 
 - **Currency** — ISO code (e.g. `USD`). The global setting is the default for new accounts and budgets; actual money is displayed in each account's own currency. `formatAmount()` in `constants/currencies.ts` handles symbol + formatting.
 - **Accent color** — hex string stored as `accent_color`. All screens read it from the store; never hardcode `#2f95dc`.

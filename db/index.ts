@@ -45,8 +45,6 @@ export function useCategoriesDb() {
 
   return {
     getAll: () => db.getAllAsync<Category>('SELECT * FROM categories ORDER BY type, name ASC'),
-    getByType: (type: 'income' | 'expense') =>
-      db.getAllAsync<Category>('SELECT * FROM categories WHERE type=? ORDER BY name ASC', type),
     insert: (cat: Omit<Category, 'id'>) =>
       db.runAsync(
         'INSERT INTO categories (name, type, color, icon, is_default) VALUES (?, ?, ?, ?, 0)',

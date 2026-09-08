@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Snackbar } from 'react-native-snackbar';
 import {
   Modal,
@@ -23,6 +23,7 @@ import InfoModal from '@/shared/components/InfoModal';
 import OperationLockModal from '@/shared/components/OperationLockModal';
 import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb, useRecurringDb, useBudgetsDb } from '@/db';
 import { useBudgetsStore } from '@/features/budgets/useBudgetsStore';
+import { categoriesOfType, useCategoriesStore } from '@/features/transactions/useCategoriesStore';
 import type { ExportData } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
@@ -127,6 +128,8 @@ export default function SettingsScreen({ isVisible = true }: SettingsScreenProps
   const recurringDb = useRecurringDb();
   const budgetsDb = useBudgetsDb();
   const setBudgets = useBudgetsStore((s) => s.setBudgets);
+  const setCategories = useCategoriesStore((s) => s.setCategories);
+  const removeCategory = useCategoriesStore((s) => s.removeCategory);
 
   const currency = useSettingsStore((s) => s.currency);
   const setCurrency = useSettingsStore((s) => s.setCurrency);
@@ -154,8 +157,6 @@ export default function SettingsScreen({ isVisible = true }: SettingsScreenProps
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [budgetsOpen, setBudgetsOpen] = useState(false);
   const [activeType, setActiveType] = useState<'expense' | 'income'>('expense');
-  const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
-  const [incomeCategories, setIncomeCategories] = useState<Category[]>([]);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [catFormOpen, setCatFormOpen] = useState(false);
   const [deletingCat, setDeletingCat] = useState<Category | null>(null);
@@ -167,22 +168,15 @@ export default function SettingsScreen({ isVisible = true }: SettingsScreenProps
   const [dateFormatOpen, setDateFormatOpen] = useState(false);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
 
+  const allCategories = useCategoriesStore((s) => s.categories);
+  const expenseCategories = useMemo(() => categoriesOfType(allCategories, 'expense'), [allCategories]);
+  const incomeCategories = useMemo(() => categoriesOfType(allCategories, 'income'), [allCategories]);
+
+  // Re-read after an import or reset replaces the table wholesale.
   const loadCategories = useCallback(async () => {
-    const [expense, income] = await Promise.all([
-      categoriesDb.getByType('expense'),
-      categoriesDb.getByType('income'),
-    ]);
-    setExpenseCategories(expense);
-    setIncomeCategories(income);
+    setCategories(await categoriesDb.getAll());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // The overlay stays mounted and only slides in and out, so there is no mount to hang this on:
-  // re-read on every open, otherwise a category added from the transaction sheet never shows up.
-  useEffect(() => {
-    if (isVisible) loadCategories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVisible]);
 
   const openCurrencyPicker = () => { setCurrencyPickerOpen(true); };
   const selectCurrency = async (code: string) => {
@@ -257,7 +251,7 @@ export default function SettingsScreen({ isVisible = true }: SettingsScreenProps
       setBudgets(await budgetsDb.getAll());
     } catch { /* ignore */ }
     setDeletingCat(null);
-    loadCategories();
+    removeCategory(deletingCat.id);
     Snackbar.show({ text: 'Category deleted', duration: Snackbar.LENGTH_SHORT });
   };
 
@@ -889,7 +883,6 @@ export default function SettingsScreen({ isVisible = true }: SettingsScreenProps
           category={editingCat}
           defaultType={activeType}
           onClose={() => { setCatFormOpen(false); setEditingCat(null); }}
-          onSaved={loadCategories}
           onDelete={() => {
             const cat = editingCat;
             setCatFormOpen(false);

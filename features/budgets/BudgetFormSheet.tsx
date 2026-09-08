@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -14,7 +14,8 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
-import { useBudgetsDb, useCategoriesDb } from '@/db';
+import { useBudgetsDb } from '@/db';
+import { categoriesOfType, useCategoriesStore } from '@/features/transactions/useCategoriesStore';
 import { useBudgetsStore } from './useBudgetsStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getCurrencyByCode, getCurrencySymbol } from '@/constants/currencies';
@@ -43,7 +44,9 @@ interface Props {
 
 export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDelete }: Props) {
   const budgetsDb = useBudgetsDb();
-  const categoriesDb = useCategoriesDb();
+  // Budgets only apply to expense categories.
+  const allCategories = useCategoriesStore((s) => s.categories);
+  const categories = useMemo(() => categoriesOfType(allCategories, 'expense'), [allCategories]);
   const addBudget = useBudgetsStore((s) => s.addBudget);
   const updateBudget = useBudgetsStore((s) => s.updateBudget);
   const allBudgets = useBudgetsStore((s) => s.budgets);
@@ -53,7 +56,6 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
   const [period, setPeriod] = useState<BudgetPeriod>('monthly');
   const [currency, setCurrency] = useState<string>(globalCurrency);
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [attempted, setAttempted] = useState(false);
@@ -63,14 +65,7 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
 
   useEffect(() => {
     if (!isOpen) return;
-    categoriesDb.getByType('expense').then((cats) => {
-      setCategories(cats);
-      if (budget) {
-        setSelectedCategory(cats.find((c) => c.id === budget.category_id) ?? null);
-      } else {
-        setSelectedCategory(null);
-      }
-    });
+    setSelectedCategory(budget ? categories.find((c) => c.id === budget.category_id) ?? null : null);
     if (budget) {
       setAmount(String(budget.amount));
       setPeriod(budget.period);

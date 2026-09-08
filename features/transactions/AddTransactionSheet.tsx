@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -18,7 +18,8 @@ import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
 import AccountIcon from '@/shared/components/AccountIcon';
 import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
-import { useCategoriesDb, useTransactionsDb } from '@/db';
+import { categoriesOfType, useCategoriesStore } from '@/features/transactions/useCategoriesStore';
+import { useTransactionsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { buildAccountCurrencyMap, getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
@@ -61,12 +62,12 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   const updateTransaction = useTransactionsStore((s) => s.updateTransaction);
   const globalCurrency = useSettingsStore((s) => s.currency);
 
-  const categoriesDb = useCategoriesDb();
   const transactionsDb = useTransactionsDb();
 
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [amount, setAmount] = useState('');
-  const [categories, setCategories] = useState<Category[]>([]);
+  const allCategories = useCategoriesStore((s) => s.categories);
+  const categories = useMemo(() => categoriesOfType(allCategories, type), [allCategories, type]);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   // The amount is entered in the selected account's own currency, never the global default.
@@ -103,10 +104,10 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       setNote(transaction.note ?? '');
       setDate(transaction.date);
       setSelectedAccountId(transaction.account_id);
-      categoriesDb.getByType(transaction.type).then((cats) => {
-        setCategories(cats);
-        setSelectedCategory(cats.find((c) => c.id === transaction.category_id) ?? null);
-      });
+      setSelectedCategory(
+        categoriesOfType(useCategoriesStore.getState().categories, transaction.type)
+          .find((c) => c.id === transaction.category_id) ?? null
+      );
     } else {
       setType('expense');
       setAmount('');
@@ -115,24 +116,20 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       setSelectedCategory(null);
       const filteredAccountId = useUIStore.getState().selectedAccountId;
       setSelectedAccountId(filteredAccountId ?? accounts[0]?.id ?? null);
-      categoriesDb.getByType('expense').then(setCategories);
     }
     setAttempted(false);
   }, [isOpen, transaction]);
 
-  // Reload categories when type toggles (add mode only — in edit mode the
+  // Re-select when the type toggles (add mode only — in edit mode the
   // initial useEffect handles it, and subsequent type changes are intentional)
   useEffect(() => {
     if (!isOpen) return;
-    categoriesDb.getByType(type).then((cats) => {
-      setCategories(cats);
-      // Re-select the original category if we're back on the same type in edit mode
-      if (transaction && type === transaction.type) {
-        setSelectedCategory(cats.find((c) => c.id === transaction.category_id) ?? null);
-      } else {
-        setSelectedCategory(null);
-      }
-    });
+    // Re-select the original category if we're back on the same type in edit mode
+    if (transaction && type === transaction.type) {
+      setSelectedCategory(categories.find((c) => c.id === transaction.category_id) ?? null);
+    } else {
+      setSelectedCategory(null);
+    }
   }, [type]);
 
 
@@ -203,12 +200,11 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     }
   }, [amount, selectedCategory, selectedAccountId, saveTransaction, transaction]);
 
-  const handleCategorySaved = useCallback(async () => {
-    const updatedCats = await categoriesDb.getByType(type);
-    setCategories(updatedCats);
-    const newCat = updatedCats.find((c) => !categories.some((existing) => existing.id === c.id));
-    if (newCat) setSelectedCategory(newCat);
-  }, [type, categories]);
+  // The store already holds the saved category. Select it only when it belongs to the type
+  // currently shown — the category sheet lets the user switch type while creating one.
+  const handleCategorySaved = useCallback((saved: Category) => {
+    if (saved.type === type) setSelectedCategory(saved);
+  }, [type]);
 
   const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
