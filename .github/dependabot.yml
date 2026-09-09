@@ -1,0 +1,52 @@
+version: 2
+
+# Scoped deliberately narrow. Almost every alert on this repo comes from build and test
+# tooling reached transitively (eslint, jest, @expo/cli, react-devtools-core) — none of it is
+# bundled into the APK, and none of it is worth a PR. What is left here is the small set of
+# packages that actually ship to users and whose versions this project is free to move.
+#
+# Note: this file controls Dependabot's *pull requests*. The alert count in the Security tab
+# comes from Dependabot alerts, which is a repository setting and is unaffected by this config.
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    # Only packages that ship in the app. Everything in devDependencies is build-time only.
+    allow:
+      - dependency-type: production
+    ignore:
+      # Expo SDK 54 owns these versions — `npx expo install` picks them, and a Dependabot bump
+      # to an SDK 55+ release causes native build failures. They move when the SDK moves.
+      # Their alerts still appear in the Security tab; only the automated PR is suppressed.
+      - dependency-name: expo
+      - dependency-name: expo-*
+      - dependency-name: "@expo/*"
+      - dependency-name: react-native
+      - dependency-name: react-native-*
+      - dependency-name: "@react-native-*/*"
+      # Expo pins these to exact versions alongside the SDK.
+      - dependency-name: react
+      - dependency-name: react-dom
+      # expo-router is built on React Navigation, so a major bump breaks routing.
+      # Patch and minor updates still come through.
+      - dependency-name: "@react-navigation/*"
+        update-types: [version-update:semver-major]
+    groups:
+      app-dependencies:
+        patterns: ["*"]
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
