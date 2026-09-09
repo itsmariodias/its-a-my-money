@@ -86,19 +86,32 @@ The app is local-first with all business logic in pure functions and Zustand sto
 ### Test File Locations
 ```
 constants/currencies.test.ts          # formatAmount, getCurrencySymbol
+constants/dateFormats.test.ts         # formatDate, isValidDateFormat
 constants/theme.test.ts               # getColors, ACCENT_COLORS
 db/index.test.ts                      # DB hook SQL verification
-features/accounts/useAccountsStore.test.ts
 features/accounts/balanceUtils.test.ts
-features/transactions/useTransactionsStore.test.ts
-features/transfers/useTransfersStore.test.ts
+features/accounts/currencyUtils.test.ts
+features/accounts/useAccountsStore.test.ts
+features/backup/googleDrive.test.ts
+features/backup/useAutoBackup.test.ts
+features/backup/useBackupStore.test.ts
+features/budgets/budgetCrossings.test.ts
+features/budgets/periodUtils.test.ts
+features/budgets/useBudgetsStore.test.ts
+features/goals/goalCrossings.test.ts
+features/goals/goalUtils.test.ts
+features/goals/useGoalsStore.test.ts
 features/recurring/dateUtils.test.ts
+features/recurring/recurringUtils.test.ts
 features/recurring/useRecurringStore.test.ts
+features/settings/exportData.test.ts
 features/settings/useSettingsStore.test.ts
 features/settings/validation.test.ts
-features/settings/exportData.test.ts
-features/backup/googleDrive.test.ts
-features/backup/useBackupStore.test.ts
+features/transactions/sectionUtils.test.ts
+features/transactions/useCategoriesStore.test.ts
+features/transactions/useTransactionsStore.test.ts
+features/transfers/transferSide.test.ts
+features/transfers/useTransfersStore.test.ts
 shared/store/useUIStore.test.ts
 ```
 
@@ -131,6 +144,8 @@ features/                             # Feature modules (screens + logic co-loca
     AccountFormSheet.tsx              # Create/edit account bottom sheet (Cash vs Investment toggle, current market value field)
     balanceUtils.ts                   # accountFlowAsOf, accountBalanceAsOf, computePnL, aggregatePortfolio
     balanceUtils.test.ts
+    currencyUtils.ts                  # getAccountCurrency, buildAccountCurrencyMap
+    currencyUtils.test.ts
     useAccountsStore.ts              # Zustand store
     useAccountsStore.test.ts
   transactions/
@@ -138,10 +153,17 @@ features/                             # Feature modules (screens + logic co-loca
     CategoryFormSheet.tsx             # Create/edit category bottom sheet
     useTransactionsStore.ts
     useTransactionsStore.test.ts
+    useCategoriesStore.ts             # Zustand store for categories + categoriesOfType() helper
+    useCategoriesStore.test.ts
+    sectionUtils.ts                   # rollUpByCurrency, netInCurrency, per-day section summaries
+    sectionUtils.test.ts
+    postSaveAlerts.ts                 # Runs the budget + goal threshold detectors after a manual save
   transfers/
     TransferSheet.tsx                 # Create/edit transfer bottom sheet
     useTransfersStore.ts
     useTransfersStore.test.ts
+    transferSide.ts                   # getTransferSide() — how a transfer reads from one account's view
+    transferSide.test.ts
   recurring/
     RecurringListScreen.tsx           # Full-screen modal listing recurring entries (opened from Settings)
     RecurringFormSheet.tsx            # Create/edit recurring transaction bottom sheet
@@ -150,6 +172,8 @@ features/                             # Feature modules (screens + logic co-loca
     useRecurringCheck.ts              # AppState-based auto-generation trigger (mirrors useAutoBackup pattern)
     dateUtils.ts                      # advanceDate() — date math for recurring schedules with month-end clamping
     dateUtils.test.ts
+    recurringUtils.ts                 # getRecurringItemCurrency()
+    recurringUtils.test.ts
   budgets/
     BudgetsListScreen.tsx             # Full-screen modal listing budgets (opened from Settings)
     BudgetFormSheet.tsx               # Create/edit budget bottom sheet (amount, period, expense-category)
@@ -161,6 +185,17 @@ features/                             # Feature modules (screens + logic co-loca
     budgetCrossings.ts                # findCrossings() — pure detector for budgets crossing the limit
     budgetCrossings.test.ts
     budgetAlerts.ts                   # expo-notifications wrapper that fires "Budget exceeded" alerts
+  goals/
+    GoalsListScreen.tsx               # Full-screen modal listing goals (opened from Settings)
+    GoalFormSheet.tsx                 # Create/edit goal bottom sheet (target, optional target date, expense-category)
+    GoalsDashboardCard.tsx            # Dashboard widget with per-goal progress bars
+    useGoalsStore.ts                  # Zustand store
+    useGoalsStore.test.ts
+    goalUtils.ts                      # goalProgress (reuses spentInRange), goalStatusColor, targetDateLabel
+    goalUtils.test.ts
+    goalCrossings.ts                  # findReachedGoals() — pure detector for goals hitting their target
+    goalCrossings.test.ts
+    goalAlerts.ts                     # expo-notifications wrapper that fires "Goal reached" alerts
   settings/
     SettingsScreen.tsx                # Settings overlay
     useSettingsStore.ts
@@ -231,6 +266,7 @@ Core entities:
 - `transfers` — money movements between accounts (full CRUD via `TransferSheet`)
 - `recurring_transactions` — repeating transaction templates; auto-generate real transactions on app open via `useRecurringCheck`
 - `budgets` — per-category spending limits with weekly/monthly/yearly periods (full CRUD via `BudgetFormSheet`)
+- `goals` — per-category savings targets with an optional deadline (migration 015, full CRUD via `GoalFormSheet`)
 - `transfers.from_account_id` and `to_account_id` are nullable with `ON DELETE SET NULL` (migration 010) so deleting an account preserves transfer history; the deleted side renders as "Unknown"
 
 `SQLiteProvider` wraps the app in `app/_layout.tsx` and calls `runMigrations` on init (via `useSuspense`).
@@ -244,7 +280,7 @@ expo-router with a bottom tab layout (`app/(tabs)/`). Tabs support horizontal sw
 A single expandable speed-dial FAB lives in `app/(tabs)/_layout.tsx`. Tapping it expands to two labeled options: **Transaction** and **Transfer**. Tapping either opens the corresponding sheet and collapses the menu. A dimmed backdrop closes the menu on tap. The FAB icon rotates 45 degrees when expanded. Hidden when the settings overlay is open.
 
 ### Bottom Sheets
-All sheets (`AddTransactionSheet`, `TransferSheet`, `AccountFormSheet`, `CategoryFormSheet`) share the same animation pattern:
+All sheets (`AddTransactionSheet`, `TransferSheet`, `AccountFormSheet`, `CategoryFormSheet`, `BudgetFormSheet`, `GoalFormSheet`, `RecurringFormSheet`) share the same animation pattern:
 - Slide in via `Animated.spring` on `sheetTranslateY`; backdrop (`absoluteFill`, `rgba(0,0,0,0.4)`) snaps to full opacity instantly on open
 - Slide out via `Animated.timing`; backdrop fades out after the sheet has fully exited
 - Drag handle with `PanResponder` — swipe down to dismiss (dy > 120 or vy > 0.3)
@@ -260,7 +296,7 @@ Current shared components:
 - **`DatePickerField`** — calendar date picker rendered as a modal popup. Includes month navigation, a year picker grid (years from 1977), and full theme support. Used by both `AddTransactionSheet` and `TransferSheet`. Accepts `date` (YYYY-MM-DD string) and `onChange` callback.
 - **`AccountIcon`** — renders account icons consistently across all screens.
 - **`PeriodSelector`** — month/year navigation used on Dashboard and Transactions.
-- **`CurrencyPicker`** — full-screen searchable currency picker modal. Used by `SettingsScreen`, `AccountFormSheet`, and `BudgetFormSheet`. Accepts `{ visible, selectedCode, onSelect, onClose }`.
+- **`CurrencyPicker`** — full-screen searchable currency picker modal. Used by `SettingsScreen`, `AccountFormSheet`, `BudgetFormSheet`, and `GoalFormSheet`. Accepts `{ visible, selectedCode, onSelect, onClose }`.
 - **`Themed`** — theme-aware `Text` and `View` wrappers.
 
 ### State Management
@@ -282,6 +318,7 @@ User preferences are persisted in SQLite (`settings` table, key-value) and read 
 - **Show P&L Stats** — boolean (`show_pct_change`). When enabled, shows percentage change vs. previous period on each account card and the total balance card in the Accounts tab. Defaults to `true`.
 - **Cloud Backup** — Google Drive backup settings (see below).
 - **Budgets** — per-category spending limits (see below).
+- **Goals** — per-category savings targets (see below).
 
 ### Investment Accounts
 Accounts carry an `account_type` column (`'cash' | 'investment'`). Investment accounts also have a nullable `current_value` — the user-entered market value. Everything else (transfers, transactions, delete flow, migration) is shared with cash accounts.
@@ -347,7 +384,7 @@ Backup settings stored in SQLite: `google_drive_enabled`, `google_email`, `googl
 
 Both manual JSON export/import and Google Drive backup share one code path. Whenever the schema or settings keys change, the round-trip must be updated in lockstep or restoring a backup will silently drop data (or reject the file).
 
-**When you add a new SQLite table** (e.g., a future `goals` table):
+**When you add a new SQLite table** (the `goals` table in migration 015 is the worked example — follow what it touches):
 1. **`features/settings/exportData.ts`** — add a `SELECT` for the table and a new field on `ExportJson`
 2. **`db/index.ts`** — add the field to the `ExportData` interface (optional, for backwards compat with old backups) and a wipe + re-insert step in `useImportDb().importAll`, remapping any foreign keys (`category_id`, etc.) via the existing `categoryIdMap` / `recurringIdMap` pattern
 3. **`features/settings/validation.ts`** — add an `isValid<Entity>` helper; treat the new array as optional in `isValidExport` so older backups still validate
@@ -363,6 +400,8 @@ Both manual JSON export/import and Google Drive backup share one code path. When
 4. **`app/_layout.tsx`** — load the key on boot
 5. **`features/settings/useSettingsStore.ts`** — add field + setter
 6. **Tests** — update `exportData.test.ts` for the new key
+
+**When you add a value to a union type** (a recurring frequency, a budget period): add it to the runtime array in `types/index.ts` — `RECURRING_FREQUENCIES`, `BUDGET_PERIODS` — never to a hand-written union. The types derive from those arrays and `features/settings/validation.ts` checks against the same arrays, so the two cannot drift. This is not theoretical: `'quarterly'` was added to the schema, the type, the form and the list screen but not to the validator, and every backup containing a quarterly recurring entry was rejected as corrupt — manual import and Google Drive restore alike.
 
 **Settings keys that must NOT be exported** (device-specific): `google_drive_enabled`, `google_email`, `google_drive_folder_id`, `google_drive_folder_name`, `backup_frequency`, `last_backup_at`, `last_recurring_check`, `export_directory_uri`. Restoring these onto a different device would break OAuth state and timing.
 
@@ -412,7 +451,7 @@ The shared header lives in `app/(tabs)/_layout.tsx` (not in individual screens).
 - **Sheet swipe-down**: `PanResponder` on the drag handle in each sheet. Downward drag (dy > 120 or vy > 0.3) dismisses the sheet.
 
 ### Delete UX
-Swipe-to-delete on rows is **not used** — it conflicted with horizontal tab swipe. Deletion happens from inside the corresponding form sheet (transaction, transfer, account, budget, recurring), using the shared `DeleteModal` in `shared/components/DeleteModal.tsx`. Category deletion in `SettingsScreen` cascades to recurring entries, transactions, and budgets via the matching `removeByCategory` helpers in `db/index.ts`.
+Swipe-to-delete on rows is **not used** — it conflicted with horizontal tab swipe. Deletion happens from inside the corresponding form sheet (transaction, transfer, account, budget, goal, recurring), using the shared `DeleteModal` in `shared/components/DeleteModal.tsx`. Category deletion in `SettingsScreen` cascades to recurring entries, transactions, budgets, and goals via the matching `removeByCategory` helpers in `db/index.ts`.
 
 ### Transaction Filters (transactions.tsx)
 All filter state is local to `TransactionsScreen` — nothing in UIStore.
