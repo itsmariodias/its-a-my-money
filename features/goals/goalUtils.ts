@@ -46,13 +46,13 @@ export function goalStatusColor(
   return accentColor;
 }
 
-/** "12 days left" / "4 months left" / "overdue", or null when the goal has no deadline. */
+/** "12 days left" / "4 months left" / "Overdue", or null when the goal has no deadline. */
 export function targetDateLabel(targetDate: string | null, today: string): string | null {
   if (!targetDate) return null;
-  if (targetDate < today) return 'overdue';
+  if (targetDate < today) return 'Overdue';
 
   const days = daysBetween(today, targetDate);
-  if (days === 0) return 'due today';
+  if (days === 0) return 'Due today';
   if (days === 1) return '1 day left';
   // 30 days out is a month away, not "30 days left".
   if (days < 30) return `${days} days left`;

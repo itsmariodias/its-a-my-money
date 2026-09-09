@@ -127,7 +127,7 @@ describe('targetDateLabel', () => {
     // Given deadlines a few days out
     // When labelling them
     // Then the wording is singular or plural as appropriate
-    expect(targetDateLabel('2026-06-01', '2026-06-01')).toBe('due today');
+    expect(targetDateLabel('2026-06-01', '2026-06-01')).toBe('Due today');
     expect(targetDateLabel('2026-06-02', '2026-06-01')).toBe('1 day left');
     expect(targetDateLabel('2026-06-13', '2026-06-01')).toBe('12 days left');
   });
@@ -144,6 +144,6 @@ describe('targetDateLabel', () => {
     // Given yesterday's deadline
     // When labelling it
     // Then it reads as overdue rather than a negative countdown
-    expect(targetDateLabel('2026-05-31', '2026-06-01')).toBe('overdue');
+    expect(targetDateLabel('2026-05-31', '2026-06-01')).toBe('Overdue');
   });
 });
