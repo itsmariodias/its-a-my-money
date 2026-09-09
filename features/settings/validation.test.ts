@@ -1,4 +1,5 @@
 import { isValidExport } from './validation';
+import { BUDGET_PERIODS, RECURRING_FREQUENCIES } from '@/types';
 
 describe('isValidExport', () => {
   const validData = {
@@ -202,6 +203,83 @@ describe('isValidExport', () => {
       budgets: [{ id: 1, category_id: 1, amount: 200, period: 'monthly', created_at: '2026-03-01' }],
     };
     expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should accept every recurring frequency the app can write', () => {
+    // Given one export per frequency the form offers — quarterly included, which was added to
+    // the schema and the form but not to validation, making those backups unimportable
+    for (const frequency of RECURRING_FREQUENCIES) {
+      const data = {
+        ...validData,
+        recurring_transactions: [{
+          id: 1, amount: 100, kind: 'transaction', type: 'expense', category_id: 1,
+          account_id: 1, to_account_id: null, frequency, start_date: '2026-01-01',
+          next_due_date: '2026-02-01', is_active: 1, created_at: '2026-01-01',
+        }],
+      };
+      // When validating
+      // Then it passes
+      expect(isValidExport(data)).toBe(true);
+    }
+  });
+
+  it('should reject an unknown recurring frequency', () => {
+    // Given a frequency the app never writes
+    const data = {
+      ...validData,
+      recurring_transactions: [{
+        id: 1, amount: 100, kind: 'transaction', type: 'expense', category_id: 1,
+        account_id: 1, to_account_id: null, frequency: 'fortnightly', start_date: '2026-01-01',
+        next_due_date: '2026-02-01', is_active: 1, created_at: '2026-01-01',
+      }],
+    };
+    // When validating
+    // Then it is still rejected — deriving the list did not loosen the check
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should accept every budget period the app can write', () => {
+    // Given one export per period
+    for (const period of BUDGET_PERIODS) {
+      const data = {
+        ...validData,
+        budgets: [{ id: 1, category_id: 1, amount: 200, period, currency: 'USD', created_at: '2026-03-01' }],
+      };
+      // When validating
+      // Then it passes
+      expect(isValidExport(data)).toBe(true);
+    }
+  });
+
+  it('should accept valid goals array', () => {
+    const data = {
+      ...validData,
+      goals: [{ id: 1, category_id: 1, target_amount: 10000, currency: 'USD', start_date: '2026-03-01', target_date: '2026-12-31', created_at: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(true);
+  });
+
+  it('should accept a goal with no target date', () => {
+    const data = {
+      ...validData,
+      goals: [{ id: 1, category_id: 1, target_amount: 10000, currency: 'USD', start_date: '2026-03-01', target_date: null, created_at: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(true);
+  });
+
+  it('should reject goal missing start date', () => {
+    const data = {
+      ...validData,
+      goals: [{ id: 1, category_id: 1, target_amount: 10000, currency: 'USD', target_date: null, created_at: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should accept a backup exported before goals existed', () => {
+    // Given a backup with no goals key at all
+    // When validating
+    // Then it still passes — goals are optional for backwards compatibility
+    expect(isValidExport(validData)).toBe(true);
   });
 
   it('should validate a realistic round-trip export structure', () => {

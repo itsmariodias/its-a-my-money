@@ -1,6 +1,14 @@
 export type TransactionType = 'income' | 'expense';
-export type BudgetPeriod = 'monthly' | 'weekly' | 'yearly';
-export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+
+// These unions are derived from runtime arrays so backup validation can check against the same
+// list the app writes. Adding a value here is enough — a value that exists only in the type is
+// invisible to `validation.ts`, which is how 'quarterly' made older backups unimportable.
+export const BUDGET_PERIODS = ['monthly', 'weekly', 'yearly'] as const;
+export type BudgetPeriod = (typeof BUDGET_PERIODS)[number];
+
+export const RECURRING_FREQUENCIES = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'] as const;
+export type RecurringFrequency = (typeof RECURRING_FREQUENCIES)[number];
+
 export type AccountType = 'cash' | 'investment';
 
 export interface Account {
@@ -65,6 +73,24 @@ export interface BudgetWithDetails extends Budget {
   category_icon: string;
 }
 
+export interface Goal {
+  id: number;
+  category_id: number;
+  target_amount: number;
+  currency: string;
+  /** Spend before this date does not count — a new goal starts empty. */
+  start_date: string;
+  /** Optional deadline. Display only: it never filters which transactions count. */
+  target_date: string | null;
+  created_at: string;
+}
+
+export interface GoalWithDetails extends Goal {
+  category_name: string;
+  category_color: string;
+  category_icon: string;
+}
+
 export type RecurringKind = 'transaction' | 'transfer';
 
 export interface RecurringTransaction {
@@ -102,13 +128,17 @@ export interface TransactionWithDetails extends Transaction {
   category_color: string;
   category_icon: string;
   account_name: string;
+  account_currency: string;
 }
 
 export interface TransferWithDetails extends Transfer {
   from_account_name: string | null;
   from_account_color: string | null;
   from_account_icon: string | null;
+  // Null when the account has been deleted (ON DELETE SET NULL keeps the history).
+  from_account_currency: string | null;
   to_account_name: string | null;
   to_account_color: string | null;
   to_account_icon: string | null;
+  to_account_currency: string | null;
 }

@@ -14,9 +14,10 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
-import { useBudgetsDb } from '@/db';
+import DatePickerField from '@/shared/components/DatePickerField';
+import { useGoalsDb } from '@/db';
 import { categoriesOfType, useCategoriesStore } from '@/features/transactions/useCategoriesStore';
-import { useBudgetsStore } from './useBudgetsStore';
+import { useGoalsStore } from './useGoalsStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getCurrencyByCode, getCurrencySymbol } from '@/constants/currencies';
 import CurrencyPicker from '@/shared/components/CurrencyPicker';
@@ -24,36 +25,32 @@ import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import { Snackbar } from 'react-native-snackbar';
 import { requestNotificationPermission } from '@/features/backup/notifications';
-import type { BudgetPeriod, BudgetWithDetails, Category } from '@/types';
+import { todayString } from '@/features/recurring/dateUtils';
+import type { Category, GoalWithDetails } from '@/types';
 
 const CATEGORY_GRID_3_ROWS = 230;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
-const PERIODS: { key: BudgetPeriod; label: string }[] = [
-  { key: 'weekly', label: 'Weekly' },
-  { key: 'monthly', label: 'Monthly' },
-  { key: 'yearly', label: 'Yearly' },
-];
-
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  budget?: BudgetWithDetails | null;
+  goal?: GoalWithDetails | null;
   onDelete?: () => void;
 }
 
-export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDelete }: Props) {
-  const budgetsDb = useBudgetsDb();
-  // Budgets only apply to expense categories.
+export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }: Props) {
+  const goalsDb = useGoalsDb();
+  // Progress is measured from expense transactions, so only expense categories can hold a goal.
   const allCategories = useCategoriesStore((s) => s.categories);
   const categories = useMemo(() => categoriesOfType(allCategories, 'expense'), [allCategories]);
-  const addBudget = useBudgetsStore((s) => s.addBudget);
-  const updateBudget = useBudgetsStore((s) => s.updateBudget);
-  const allBudgets = useBudgetsStore((s) => s.budgets);
+  const addGoal = useGoalsStore((s) => s.addGoal);
+  const updateGoal = useGoalsStore((s) => s.updateGoal);
+  const allGoals = useGoalsStore((s) => s.goals);
   const globalCurrency = useSettingsStore((s) => s.currency);
 
   const [amount, setAmount] = useState('');
-  const [period, setPeriod] = useState<BudgetPeriod>('monthly');
+  const [targetDate, setTargetDate] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState(todayString());
   const [currency, setCurrency] = useState<string>(globalCurrency);
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -65,34 +62,35 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
 
   useEffect(() => {
     if (!isOpen) return;
-    setSelectedCategory(budget ? categories.find((c) => c.id === budget.category_id) ?? null : null);
-    if (budget) {
-      setAmount(String(budget.amount));
-      setPeriod(budget.period);
-      setCurrency(budget.currency || globalCurrency);
-      setEditingId(budget.id);
+    setSelectedCategory(goal ? categories.find((c) => c.id === goal.category_id) ?? null : null);
+    if (goal) {
+      setAmount(String(goal.target_amount));
+      setTargetDate(goal.target_date);
+      setStartDate(goal.start_date);
+      setCurrency(goal.currency || globalCurrency);
+      setEditingId(goal.id);
     } else {
       setAmount('');
-      setPeriod('monthly');
+      setTargetDate(null);
+      setStartDate(todayString());
       setCurrency(globalCurrency);
       setEditingId(null);
     }
     setAttempted(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, budget]);
+  }, [isOpen, goal]);
 
-  // If the user picks a category that already has a budget while creating,
-  // auto-switch the form into edit mode for the existing budget.
-  // Picking a category that already has a budget in this currency switches into edit
-  // mode for it. Same category in a different currency is a distinct budget.
+  // Picking a category that already has a goal in this currency switches into edit mode for it.
+  // Same category in a different currency is a distinct goal.
   const handleSelectCategory = (cat: Category) => {
     setSelectedCategory(cat);
     if (editingId == null) {
-      const existing = allBudgets.find((b) => b.category_id === cat.id && b.currency === currency);
+      const existing = allGoals.find((g) => g.category_id === cat.id && g.currency === currency);
       if (existing) {
         setEditingId(existing.id);
-        setAmount(String(existing.amount));
-        setPeriod(existing.period);
+        setAmount(String(existing.target_amount));
+        setTargetDate(existing.target_date);
+        setStartDate(existing.start_date);
       }
     }
   };
@@ -111,37 +109,40 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
 
     try {
       if (editingId != null) {
-        await budgetsDb.update(editingId, {
+        await goalsDb.update(editingId, {
           category_id: selectedCategory!.id,
-          amount: parsed,
-          period,
+          target_amount: parsed,
           currency,
+          start_date: startDate,
+          target_date: targetDate,
         });
-        const refreshed = await budgetsDb.getAll();
-        const updated = refreshed.find((b) => b.id === editingId);
-        if (updated) updateBudget(updated);
-        Snackbar.show({ text: 'Budget updated', duration: Snackbar.LENGTH_SHORT });
+        const refreshed = await goalsDb.getAll();
+        const updated = refreshed.find((g) => g.id === editingId);
+        if (updated) updateGoal(updated);
+        Snackbar.show({ text: 'Goal updated', duration: Snackbar.LENGTH_SHORT });
       } else {
-        const result = await budgetsDb.insert({
+        const result = await goalsDb.insert({
           category_id: selectedCategory!.id,
-          amount: parsed,
-          period,
+          target_amount: parsed,
           currency,
+          // Spend before today does not count, so a new goal always starts empty.
+          start_date: todayString(),
+          target_date: targetDate,
         });
-        const refreshed = await budgetsDb.getAll();
-        const added = refreshed.find((b) => b.id === result.lastInsertRowId);
-        if (added) addBudget(added);
-        Snackbar.show({ text: 'Budget saved', duration: Snackbar.LENGTH_SHORT });
+        const refreshed = await goalsDb.getAll();
+        const added = refreshed.find((g) => g.id === result.lastInsertRowId);
+        if (added) addGoal(added);
+        Snackbar.show({ text: 'Goal saved', duration: Snackbar.LENGTH_SHORT });
       }
-      // Best-effort: ask for notification permission so we can alert when the
-      // user crosses this budget's limit later. Silently ignored if denied.
+      // Best-effort: ask for notification permission so we can alert when this goal is
+      // reached later. Silently ignored if denied.
       requestNotificationPermission().catch(() => {});
       triggerCloseRef.current();
     } catch {
-      setErrorModal('Failed to save budget.');
+      setErrorModal('Failed to save goal.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, period, selectedCategory, currency, editingId]);
+  }, [amount, targetDate, startDate, selectedCategory, currency, editingId]);
 
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
@@ -203,7 +204,7 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
 
             <View style={styles.header}>
               <Text style={[styles.headerTitle, { color: textColor }]}>
-                {editingId != null ? 'Edit Budget' : 'Add Budget'}
+                {editingId != null ? 'Edit Goal' : 'Add Goal'}
               </Text>
               <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                 <MaterialIcons name="close" size={24} color={subTextColor} />
@@ -211,7 +212,7 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
-              {/* Amount (limit) */}
+              {/* Target amount */}
               <View style={[styles.amountContainer, { backgroundColor: inputBg, borderColor: amountInvalid ? '#F44336' : borderColor }]}>
                 <Text style={[styles.currencySymbol, { color: subTextColor }]}>{currencySymbol}</Text>
                 <TextInput
@@ -229,23 +230,21 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
                 <Text style={styles.errorText}>Enter a valid amount greater than 0</Text>
               )}
 
-              {/* Period */}
-              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Period</Text>
-              <View style={[styles.typeToggle, { backgroundColor: inputBg, marginBottom: 20 }]}>
-                {PERIODS.map((p) => (
-                  <TouchableOpacity
-                    key={p.key}
-                    style={[localStyles.periodBtn, period === p.key && { backgroundColor: accentColor }]}
-                    onPress={() => setPeriod(p.key)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: period === p.key }}
-                  >
-                    <Text style={[localStyles.periodBtnText, { color: period === p.key ? onAccentColor : subTextColor }]}>
-                      {p.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {/* Target date (optional) */}
+              <TouchableOpacity
+                style={localStyles.targetDateToggle}
+                onPress={() => setTargetDate(targetDate ? null : todayString())}
+                activeOpacity={0.7}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: targetDate != null }}
+                accessibilityLabel="Set a target date"
+              >
+                <Text style={[localStyles.targetDateToggleLabel, { color: subTextColor }]}>Target Date</Text>
+                <View style={[localStyles.checkbox, { borderColor: targetDate ? accentColor : borderColor, backgroundColor: targetDate ? accentColor : 'transparent' }]}>
+                  {targetDate && <MaterialIcons name="check" size={14} color={onAccentColor} />}
+                </View>
+              </TouchableOpacity>
+              {targetDate && <DatePickerField date={targetDate} onChange={setTargetDate} minDate={startDate} />}
 
               {/* Currency */}
               <Text style={[styles.sectionLabel, { color: subTextColor }]}>Currency</Text>
@@ -300,13 +299,13 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
 
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
                 <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                  {editingId != null ? 'Save Changes' : 'Save Budget'}
+                  {editingId != null ? 'Save Changes' : 'Save Goal'}
                 </Text>
               </TouchableOpacity>
 
               {editingId != null && onDelete && (
                 <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button">
-                  <Text style={styles.deleteBtnText}>Delete Budget</Text>
+                  <Text style={styles.deleteBtnText}>Delete Goal</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
@@ -340,8 +339,9 @@ const localStyles = StyleSheet.create({
   categoryCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   categoryCircleSelected: { borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
   categoryLabel: { fontSize: 11, textAlign: 'center' },
-  periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-  periodBtnText: { fontWeight: '600', fontSize: 12 },
+  targetDateToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  targetDateToggleLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 20 },
   currencyRowSymbol: { fontSize: 20, fontWeight: '700', width: 28, textAlign: 'center' },
   currencyRowCode: { fontSize: 15, fontWeight: '600' },

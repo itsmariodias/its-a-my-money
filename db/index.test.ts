@@ -1,4 +1,4 @@
-import { useAccountsDb, useBudgetsDb, useCategoriesDb, useRecurringDb, useSettingsDb, useTransactionsDb, useTransfersDb } from '@/db';
+import { useAccountsDb, useBudgetsDb, useCategoriesDb, useGoalsDb, useRecurringDb, useSettingsDb, useTransactionsDb, useTransfersDb } from '@/db';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { getMockDb } = require('../__mocks__/expo-sqlite');
@@ -164,6 +164,72 @@ describe('useRecurringDb', () => {
     const [sql] = mockDb.getAllAsync.mock.calls[0];
     expect(sql).toContain('a.currency as account_currency');
     expect(sql).toContain('ta.currency as to_account_currency');
+  });
+});
+
+describe('useGoalsDb', () => {
+  const db = useGoalsDb();
+
+  it('passes every goal field for insert', async () => {
+    // Given a goal with a deadline
+    // When it is inserted
+    await db.insert({ category_id: 5, target_amount: 10000, currency: 'INR', start_date: '2026-03-01', target_date: '2026-12-31' });
+    // Then the row carries its own start date and target date
+    const [sql, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(sql).toContain('INSERT INTO goals');
+    expect(sql).toContain('start_date');
+    expect(params).toEqual([5, 10000, 'INR', '2026-03-01', '2026-12-31']);
+  });
+
+  it('stores a null target date when the goal has no deadline', async () => {
+    // Given a goal with no target date
+    // When it is inserted
+    await db.insert({ category_id: 5, target_amount: 500, currency: 'USD', start_date: '2026-03-01', target_date: null });
+    // Then null is persisted rather than undefined
+    const [, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(params).toEqual([5, 500, 'USD', '2026-03-01', null]);
+  });
+
+  it('passes id as the last parameter for update', async () => {
+    // Given an existing goal
+    // When it is updated
+    await db.update(7, { category_id: 5, target_amount: 750, currency: 'JPY', start_date: '2026-01-01', target_date: null });
+    // Then the id binds last, after every column
+    const [sql, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(sql).toContain('UPDATE goals');
+    expect(params).toEqual([5, 750, 'JPY', '2026-01-01', null, 7]);
+  });
+
+  it('should pass the correct id for delete', async () => {
+    // Given a mocked SQLite context
+    // When remove is called with id 12
+    await db.remove(12);
+    // Then runAsync should be called with DELETE and id 12
+    const [sql, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(sql).toContain('DELETE FROM goals');
+    expect(params).toEqual([12]);
+  });
+
+  it('should delete goals by category id', async () => {
+    // Given a category being deleted
+    // When removeByCategory is called with category 4
+    await db.removeByCategory(4);
+    // Then its goals go with it
+    const [sql, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(sql).toContain('DELETE FROM goals');
+    expect(sql).toContain('category_id=?');
+    expect(params).toEqual([4]);
+  });
+
+  it('should join categories for getAll', async () => {
+    // Given a mocked SQLite context
+    // When getAll is called
+    await db.getAll();
+    // Then getAllAsync should join goals with categories
+    const [sql] = mockDb.getAllAsync.mock.calls[0];
+    expect(sql).toContain('FROM goals');
+    expect(sql).toContain('JOIN categories');
+    expect(sql).toContain('category_name');
   });
 });
 

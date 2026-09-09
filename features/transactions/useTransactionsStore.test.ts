@@ -4,7 +4,7 @@ import type { TransactionWithDetails } from '@/types';
 const makeTx = (overrides: Partial<TransactionWithDetails> = {}): TransactionWithDetails => ({
   id: 1, amount: 50, type: 'expense', category_id: 1, account_id: 1,
   note: null, date: '2026-01-01', recurring_transaction_id: null, created_at: '2026-01-01T00:00:00Z',
-  category_name: 'Food', category_color: '#f00', category_icon: 'restaurant', account_name: 'Cash',
+  category_name: 'Food', category_color: '#f00', category_icon: 'restaurant', account_name: 'Cash', account_currency: 'USD',
   ...overrides,
 });
 

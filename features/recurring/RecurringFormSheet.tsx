@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -16,9 +16,11 @@ import DatePickerField from '@/shared/components/DatePickerField';
 import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
 import AccountIcon from '@/shared/components/AccountIcon';
-import { useCategoriesDb, useRecurringDb } from '@/db';
+import { useRecurringDb } from '@/db';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { getAccountCurrency } from '@/features/accounts/currencyUtils';
+import { categoriesOfType, useCategoriesStore } from '@/features/transactions/useCategoriesStore';
 import { useRecurringStore } from './useRecurringStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { getCurrencySymbol } from '@/constants/currencies';
@@ -50,18 +52,21 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
   const accounts = useAccountsStore((s) => s.accounts);
   const addRecurring = useRecurringStore((s) => s.addRecurring);
   const updateRecurring = useRecurringStore((s) => s.updateRecurring);
-  const currencySymbol = getCurrencySymbol(useSettingsStore((s) => s.currency));
+  const globalCurrency = useSettingsStore((s) => s.currency);
 
   const db = useSQLiteContext();
-  const categoriesDb = useCategoriesDb();
+  const allCategories = useCategoriesStore((s) => s.categories);
   const recurringDb = useRecurringDb();
 
   const [kind, setKind] = useState<RecurringKind>('transaction');
   const [type, setType] = useState<'expense' | 'income'>('expense');
+  const categories = useMemo(() => categoriesOfType(allCategories, type), [allCategories, type]);
   const [amount, setAmount] = useState('');
-  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [fromAccountId, setFromAccountId] = useState<number | null>(null);
+  // Cross-currency recurring transfers are blocked below, so the source account's currency
+  // is the single currency for both the transaction and the transfer kind.
+  const currencySymbol = getCurrencySymbol(getAccountCurrency(accounts, fromAccountId, globalCurrency));
   const [toAccountId, setToAccountId] = useState<number | null>(null);
   const [frequency, setFrequency] = useState<RecurringFrequency>('monthly');
   const [startDate, setStartDate] = useState(todayString());
@@ -87,12 +92,11 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
       setFromAccountId(recurring.account_id);
       setToAccountId(recurring.to_account_id);
       if (recurring.kind === 'transaction' && recurring.type) {
-        categoriesDb.getByType(recurring.type).then((cats) => {
-          setCategories(cats);
-          setSelectedCategory(cats.find((c) => c.id === recurring.category_id) ?? null);
-        });
+        setSelectedCategory(
+          categoriesOfType(useCategoriesStore.getState().categories, recurring.type)
+            .find((c) => c.id === recurring.category_id) ?? null
+        );
       } else {
-        setCategories([]);
         setSelectedCategory(null);
       }
     } else {
@@ -106,21 +110,18 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
       setSelectedCategory(null);
       setFromAccountId(accounts[0]?.id ?? null);
       setToAccountId(accounts[1]?.id ?? null);
-      categoriesDb.getByType('expense').then(setCategories);
     }
     setAttempted(false);
   }, [isOpen, recurring]);
 
   useEffect(() => {
     if (!isOpen || kind !== 'transaction') return;
-    categoriesDb.getByType(type).then((cats) => {
-      setCategories(cats);
-      if (recurring && recurring.kind === 'transaction' && type === recurring.type) {
-        setSelectedCategory(cats.find((c) => c.id === recurring.category_id) ?? null);
-      } else {
-        setSelectedCategory(null);
-      }
-    });
+    if (recurring && recurring.kind === 'transaction' && type === recurring.type) {
+      setSelectedCategory(categories.find((c) => c.id === recurring.category_id) ?? null);
+    } else {
+      setSelectedCategory(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, kind]);
 
   const swapAccounts = () => {

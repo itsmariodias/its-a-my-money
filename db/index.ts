@@ -1,4 +1,4 @@
-import type { Account, Budget, BudgetWithDetails, Category, RecurringTransaction, RecurringTransactionWithDetails, Transaction, TransactionWithDetails, Transfer, TransferWithDetails } from '@/types';
+import type { Account, Budget, BudgetWithDetails, Category, Goal, GoalWithDetails, RecurringTransaction, RecurringTransactionWithDetails, Transaction, TransactionWithDetails, Transfer, TransferWithDetails } from '@/types';
 import { useSQLiteContext } from 'expo-sqlite';
 
 // --- Accounts ---
@@ -45,8 +45,6 @@ export function useCategoriesDb() {
 
   return {
     getAll: () => db.getAllAsync<Category>('SELECT * FROM categories ORDER BY type, name ASC'),
-    getByType: (type: 'income' | 'expense') =>
-      db.getAllAsync<Category>('SELECT * FROM categories WHERE type=? ORDER BY name ASC', type),
     insert: (cat: Omit<Category, 'id'>) =>
       db.runAsync(
         'INSERT INTO categories (name, type, color, icon, is_default) VALUES (?, ?, ?, ?, 0)',
@@ -78,6 +76,15 @@ export function useSettingsDb() {
 
 // --- Transactions ---
 
+const TRANSACTION_SELECT = `
+  SELECT t.*,
+    c.name as category_name, c.color as category_color, c.icon as category_icon,
+    a.name as account_name, a.currency as account_currency
+  FROM transactions t
+  JOIN categories c ON t.category_id = c.id
+  JOIN accounts a ON t.account_id = a.id
+`;
+
 export function useTransactionsDb() {
   const db = useSQLiteContext();
 
@@ -90,23 +97,17 @@ export function useTransactionsDb() {
 
   return {
     getAll: () =>
-      db.getAllAsync<TransactionWithDetails>(`
-        SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-        FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        JOIN accounts a ON t.account_id = a.id
-        ORDER BY t.date DESC, t.created_at DESC
-      `),
+      db.getAllAsync<TransactionWithDetails>(
+        `${TRANSACTION_SELECT} ORDER BY t.date DESC, t.created_at DESC`
+      ),
 
     getByMonth: (year: number, month: number) =>
-      db.getAllAsync<TransactionWithDetails>(`
-        SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-        FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        JOIN accounts a ON t.account_id = a.id
-        WHERE strftime('%Y', t.date) = ? AND strftime('%m', t.date) = ?
-        ORDER BY t.date DESC, t.created_at DESC
-      `, String(year), String(month).padStart(2, '0')),
+      db.getAllAsync<TransactionWithDetails>(
+        `${TRANSACTION_SELECT}
+         WHERE strftime('%Y', t.date) = ? AND strftime('%m', t.date) = ?
+         ORDER BY t.date DESC, t.created_at DESC`,
+        String(year), String(month).padStart(2, '0')
+      ),
 
     insert: async (tx: Omit<Transaction, 'id' | 'created_at'>) => {
       let result!: Awaited<ReturnType<typeof db.runAsync>>;
@@ -135,13 +136,9 @@ export function useTransactionsDb() {
       }),
 
     getById: (id: number) =>
-      db.getFirstAsync<TransactionWithDetails>(`
-        SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-        FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        JOIN accounts a ON t.account_id = a.id
-        WHERE t.id = ?
-      `, id),
+      db.getFirstAsync<TransactionWithDetails>(
+        `${TRANSACTION_SELECT} WHERE t.id = ?`, id
+      ),
 
     remove: (id: number) =>
       db.withTransactionAsync(async () => {
@@ -191,6 +188,7 @@ export function useResetDb() {
         DELETE FROM transactions;
         DELETE FROM transfers;
         DELETE FROM budgets;
+        DELETE FROM goals;
         DELETE FROM accounts;
         DELETE FROM categories;
         INSERT INTO accounts (name, initial_balance, currency, color, icon)
@@ -236,6 +234,7 @@ export interface ExportData {
   transfers: Transfer[];
   recurring_transactions?: RecurringTransaction[];
   budgets?: Budget[];
+  goals?: Goal[];
   settings?: { currency?: string; accent_color?: string; number_format?: string; biometric_lock?: string; theme_id?: string; show_pct_change?: string; date_format?: string };
 }
 
@@ -245,11 +244,12 @@ export function useImportDb() {
   return {
     importAll: async (data: ExportData) => {
       await db.withTransactionAsync(async () => {
-        // 1. Wipe transactions, transfers, budgets, accounts (not categories)
+        // 1. Wipe transactions, transfers, budgets, goals, accounts (not categories)
         await db.runAsync('DELETE FROM recurring_transactions');
         await db.runAsync('DELETE FROM transfers');
         await db.runAsync('DELETE FROM transactions');
         await db.runAsync('DELETE FROM budgets');
+        await db.runAsync('DELETE FROM goals');
         await db.runAsync('DELETE FROM accounts');
 
         // 2. Categories: merge by name — reuse existing, insert only new ones.
@@ -333,7 +333,18 @@ export function useImportDb() {
           }
         }
 
-        // 8. Settings
+        // 8. Goals (remap category_id to actual DB id)
+        if (data.goals) {
+          for (const g of data.goals) {
+            const actualCategoryId = categoryIdMap.get(g.category_id) ?? g.category_id;
+            await db.runAsync(
+              'INSERT INTO goals (category_id, target_amount, currency, start_date, target_date, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+              actualCategoryId, g.target_amount, g.currency, g.start_date, g.target_date ?? null, g.created_at
+            );
+          }
+        }
+
+        // 9. Settings
         if (data.settings) {
           for (const [key, value] of Object.entries(data.settings)) {
             if (value != null) {
@@ -351,7 +362,9 @@ export function useImportDb() {
 const TRANSFER_SELECT = `
   SELECT t.*,
     fa.name as from_account_name, fa.color as from_account_color, fa.icon as from_account_icon,
-    ta.name as to_account_name, ta.color as to_account_color, ta.icon as to_account_icon
+    fa.currency as from_account_currency,
+    ta.name as to_account_name, ta.color as to_account_color, ta.icon as to_account_icon,
+    ta.currency as to_account_currency
   FROM transfers t
   LEFT JOIN accounts fa ON fa.id = t.from_account_id
   LEFT JOIN accounts ta ON ta.id = t.to_account_id
@@ -509,6 +522,40 @@ export function useRecurringDb() {
 
     removeByCategory: (categoryId: number) =>
       db.runAsync('DELETE FROM recurring_transactions WHERE category_id=?', categoryId),
+  };
+}
+
+// --- Goals ---
+
+const GOAL_SELECT = `
+  SELECT g.*, c.name as category_name, c.color as category_color, c.icon as category_icon
+  FROM goals g
+  JOIN categories c ON c.id = g.category_id
+`;
+
+export function useGoalsDb() {
+  const db = useSQLiteContext();
+
+  return {
+    getAll: () =>
+      db.getAllAsync<GoalWithDetails>(`${GOAL_SELECT} ORDER BY c.name ASC`),
+
+    insert: (goal: Omit<Goal, 'id' | 'created_at'>) =>
+      db.runAsync(
+        'INSERT INTO goals (category_id, target_amount, currency, start_date, target_date) VALUES (?, ?, ?, ?, ?)',
+        goal.category_id, goal.target_amount, goal.currency, goal.start_date, goal.target_date
+      ),
+
+    update: (id: number, goal: Partial<Omit<Goal, 'id' | 'created_at'>>) =>
+      db.runAsync(
+        'UPDATE goals SET category_id=?, target_amount=?, currency=?, start_date=?, target_date=? WHERE id=?',
+        goal.category_id!, goal.target_amount!, goal.currency!, goal.start_date!, goal.target_date ?? null, id
+      ),
+
+    remove: (id: number) => db.runAsync('DELETE FROM goals WHERE id=?', id),
+
+    removeByCategory: (categoryId: number) =>
+      db.runAsync('DELETE FROM goals WHERE category_id=?', categoryId),
   };
 }
 

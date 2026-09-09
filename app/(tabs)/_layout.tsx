@@ -13,6 +13,8 @@ import TransferSheet from '@/features/transfers/TransferSheet';
 import SettingsScreen from '@/features/settings/SettingsScreen';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { useCategoriesStore } from '@/features/transactions/useCategoriesStore';
+import { useCategoriesDb } from '@/db';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HEADER_HEIGHT = 52;
@@ -167,6 +169,15 @@ export default function TabLayout() {
   const periodDate = useUIStore((s) => s.periodDate);
   const setPeriod = useUIStore((s) => s.setPeriod);
   const accounts = useAccountsStore((s) => s.accounts);
+  const setCategories = useCategoriesStore((s) => s.setCategories);
+  const categoriesDb = useCategoriesDb();
+
+  // Categories are shared by every sheet and the settings list, so the store is filled once
+  // here for the whole tab shell; writes keep it current from then on.
+  useEffect(() => {
+    categoriesDb.getAll().then(setCategories);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const segments = useSegments();
@@ -416,7 +427,7 @@ export default function TabLayout() {
           <Text style={[styles.headerTitleLogo, { color: textColor, marginLeft: 8 }]}>Settings</Text>
           <View style={{ width: 24 }} />
         </View>
-        <SettingsScreen />
+        <SettingsScreen isVisible={settingsOpen} />
       </Animated.View>
     </View>
   );

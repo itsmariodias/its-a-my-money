@@ -3,37 +3,28 @@ import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
 import { useAppTheme } from '@/shared/components/useAppTheme';
-import { useBudgetsStore } from './useBudgetsStore';
+import { useGoalsStore } from './useGoalsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { buildAccountCurrencyMap } from '@/features/accounts/currencyUtils';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
-import { currentPeriodRange, spentInRange, periodLabel } from './periodUtils';
-import type { BudgetWithDetails } from '@/types';
-
-const STATUS_GREEN = '#4CAF50';
-const STATUS_AMBER = '#FFC107';
-const STATUS_RED = '#F44336';
-
-function statusColor(pct: number): string {
-  if (pct >= 100) return STATUS_RED;
-  if (pct >= 80) return STATUS_AMBER;
-  return STATUS_GREEN;
-}
+import { todayString } from '@/features/recurring/dateUtils';
+import { goalProgress, goalStatusColor, targetDateLabel } from './goalUtils';
+import type { GoalWithDetails } from '@/types';
 
 interface Props {
   onPress: () => void;
 }
 
-interface BudgetRowData {
-  budget: BudgetWithDetails;
-  spent: number;
+interface GoalRowData {
+  goal: GoalWithDetails;
+  saved: number;
   pct: number;
 }
 
-export default function BudgetsDashboardCard({ onPress }: Props) {
-  const budgets = useBudgetsStore((s) => s.budgets);
+export default function GoalsDashboardCard({ onPress }: Props) {
+  const goals = useGoalsStore((s) => s.goals);
   const transactions = useTransactionsStore((s) => s.transactions);
   const accounts = useAccountsStore((s) => s.accounts);
   const globalCurrency = useSettingsStore((s) => s.currency);
@@ -45,19 +36,19 @@ export default function BudgetsDashboardCard({ onPress }: Props) {
     [accounts, globalCurrency],
   );
 
-  const rows: BudgetRowData[] = useMemo(() => {
-    return budgets.map((b) => {
-      const { start, end } = currentPeriodRange(b.period);
-      const spent = spentInRange(transactions, b.category_id, start, end, {
-        currency: b.currency || globalCurrency,
+  const today = todayString();
+
+  const rows: GoalRowData[] = useMemo(() => {
+    return goals.map((g) => {
+      const { saved, pct } = goalProgress(g, transactions, {
+        currency: g.currency || globalCurrency,
         accountCurrencyById,
       });
-      const pct = b.amount > 0 ? (spent / b.amount) * 100 : 0;
-      return { budget: b, spent, pct };
+      return { goal: g, saved, pct };
     });
-  }, [budgets, transactions, accountCurrencyById, globalCurrency]);
+  }, [goals, transactions, accountCurrencyById, globalCurrency]);
 
-  if (budgets.length === 0) return null;
+  if (goals.length === 0) return null;
 
   return (
     <TouchableOpacity
@@ -65,31 +56,33 @@ export default function BudgetsDashboardCard({ onPress }: Props) {
       onPress={onPress}
       activeOpacity={0.8}
       accessibilityRole="button"
-      accessibilityLabel="Open budgets"
+      accessibilityLabel="Open goals"
     >
       <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: textColor }]}>Budgets</Text>
+        <Text style={[styles.title, { color: textColor }]}>Goals</Text>
         <MaterialIcons name="chevron-right" size={20} color={subColor} />
       </View>
 
-      {rows.map(({ budget, spent, pct }) => {
-        const color = statusColor(pct);
+      {rows.map(({ goal, saved, pct }) => {
+        const color = goalStatusColor(pct, goal.target_date, accentColor, today);
         const barPct = Math.min(100, pct);
+        const dateLabel = targetDateLabel(goal.target_date, today);
+        const currency = goal.currency || globalCurrency;
         return (
-          <View key={budget.id} style={styles.row}>
+          <View key={goal.id} style={styles.row}>
             <View style={styles.rowHeader}>
               <View style={styles.rowLeft}>
-                <View style={[styles.iconCircle, { backgroundColor: budget.category_color }]}>
-                  <MaterialIcons name={(budget.category_icon as any) || 'label'} size={14} color="#fff" />
+                <View style={[styles.iconCircle, { backgroundColor: goal.category_color }]}>
+                  <MaterialIcons name={(goal.category_icon as any) || 'label'} size={14} color="#fff" />
                 </View>
                 <Text style={[styles.rowName, { color: textColor }]} numberOfLines={1}>
-                  {budget.category_name}
+                  {goal.category_name}
                 </Text>
-                <View style={[styles.periodBadge, { backgroundColor: accentColor + '22' }]}>
-                  <Text style={[styles.periodBadgeText, { color: accentColor }]}>
-                    {periodLabel(budget.period)}
-                  </Text>
-                </View>
+                {dateLabel && (
+                  <View style={[styles.dateBadge, { backgroundColor: color + '22' }]}>
+                    <Text style={[styles.dateBadgeText, { color }]}>{dateLabel}</Text>
+                  </View>
+                )}
               </View>
               <Text style={[styles.rowPct, { color }]}>{Math.round(pct)}%</Text>
             </View>
@@ -97,7 +90,7 @@ export default function BudgetsDashboardCard({ onPress }: Props) {
               <View style={[styles.progressFill, { width: `${barPct}%`, backgroundColor: color }]} />
             </View>
             <Text style={[styles.rowAmount, { color: subColor }]}>
-              {formatAmount(spent, budget.currency || globalCurrency, undefined, numberFormat)} / {formatAmount(budget.amount, budget.currency || globalCurrency, undefined, numberFormat)}
+              {formatAmount(saved, currency, undefined, numberFormat)} / {formatAmount(goal.target_amount, currency, undefined, numberFormat)}
             </Text>
           </View>
         );
@@ -129,6 +122,6 @@ const styles = StyleSheet.create({
   progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 3 },
 
-  periodBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 },
-  periodBadgeText: { fontSize: 10, fontWeight: '600' },
+  dateBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 },
+  dateBadgeText: { fontSize: 10, fontWeight: '600' },
 });

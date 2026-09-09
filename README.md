@@ -21,10 +21,11 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 **Transactions**
 - Full transaction history grouped by date
 - Tap a row to edit; delete from inside the edit sheet
+- Amount field follows the selected account — pick a rupee account and the field switches to ₹, whatever your default currency is
 - Filter by account and time period
-- Section totals per day
+- Section totals per day — one subtotal per currency when a day mixes accounts in different currencies, never a blended number
 - Category filter chips — tap one or more to narrow the list; Transfers chip appears when an account is selected
-- Group by category view — see per-category totals sorted by amount, expand each row to drill into individual entries
+- Group by category view — see per-category totals sorted by amount, expand each row to drill into individual entries. Categories holding more than one currency show a subtotal per currency
 
 **Transfers**
 - Move money between accounts with a dedicated transfer sheet
@@ -32,7 +33,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Cross-currency transfers — pick accounts in different currencies and the sheet reveals a second "Amount received" field. No FX rate ever invented; you type both sides
 
 **Accounts**
-- Manage multiple wallets (Cash, Bank, Credit Card, etc.) across any of 50+ currencies
+- Manage multiple wallets (Cash, Bank, Credit Card, etc.) across any of 44 currencies
 - Each account has a name, icon, color, currency, and initial balance — currency is set per-account at creation
 - Tap to edit; delete from inside the edit sheet. Linked transactions cascade-delete; transfers are kept and the deleted side renders as "Unknown"
 - Running balance calculated from initial balance + net transactions
@@ -49,6 +50,16 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Local notification when a transaction pushes a budget over its limit
 - Manage from Settings — add, edit, delete; deleting a category removes its budget too
 
+**Goals**
+- The opposite of a budget — set a target you're spending *toward* rather than a limit to stay under. School fees, a trip, a new laptop
+- Progress fills as you spend in the chosen category, so reaching 100% is the win
+- Optional target date — shows a countdown badge ("4 months left"), turns red if the deadline passes with the goal unmet
+- Counts only from the day the goal is created, so existing spend in the category doesn't retroactively fill it
+- Currency-scoped like budgets — a rupee goal only counts spend on rupee accounts
+- Dashboard card with one row per goal: progress bar, percent reached, saved vs. target
+- Local notification the first time a transaction takes a goal to its target
+- Manage from Settings — add, edit, delete; deleting a category removes its goal too
+
 **Cloud Backup**
 - Automatic Google Drive backup — daily, weekly, or monthly
 - Uses the same JSON format as manual export
@@ -58,14 +69,14 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 
 **Recurring Transactions & Transfers**
 - Define repeating income, expenses, or transfers between accounts — subscriptions, rent, salary, bills, monthly savings sweeps
-- Frequencies: daily, weekly, monthly, yearly
+- Frequencies: daily, weekly, monthly, quarterly, yearly
 - Transactions and transfers are auto-generated on app open for any missed due dates
 - Set an optional end date; entries gray out when expired
 - Manage from Settings — add, edit, delete with optional cleanup of past entries
 - Auto-generated entries appear in the transaction list with a recurring indicator
 
 **Settings**
-- Currency picker (50+ currencies) — sets the default for new accounts and budgets
+- Currency picker (44 currencies) — sets the default for new accounts, budgets, and goals
 - Theme — 4 presets (Sky Blue, Starry Blue, White, OLED Black) plus Auto modes that follow the system light/dark setting
 - Accent color — 19 color presets
 - Number format — US, European, French, Indian, or no-grouping
@@ -75,6 +86,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Manage income and expense categories (add, edit, delete)
 - Manage recurring transactions and transfers
 - Manage budgets
+- Manage goals
 - Export all data as JSON (includes theme preference)
 - Import from JSON backup or Monefy CSV
 - Full data reset

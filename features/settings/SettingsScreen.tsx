@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Snackbar } from 'react-native-snackbar';
 import {
   Modal,
@@ -21,8 +21,10 @@ import { Text } from '@/shared/components/Themed';
 import DeleteModal from '@/shared/components/DeleteModal';
 import InfoModal from '@/shared/components/InfoModal';
 import OperationLockModal from '@/shared/components/OperationLockModal';
-import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb, useRecurringDb, useBudgetsDb } from '@/db';
+import { useCategoriesDb, useSettingsDb, useTransactionsDb, useAccountsDb, useResetDb, useTransfersDb, useImportDb, useRecurringDb, useBudgetsDb, useGoalsDb } from '@/db';
 import { useBudgetsStore } from '@/features/budgets/useBudgetsStore';
+import { useGoalsStore } from '@/features/goals/useGoalsStore';
+import { categoriesOfType, useCategoriesStore } from '@/features/transactions/useCategoriesStore';
 import type { ExportData } from '@/db';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
@@ -44,6 +46,7 @@ import { generateExportJson } from './exportData';
 import GoogleDriveSection from '@/features/backup/GoogleDriveSection';
 import RecurringListScreen from '@/features/recurring/RecurringListScreen';
 import BudgetsListScreen from '@/features/budgets/BudgetsListScreen';
+import GoalsListScreen from '@/features/goals/GoalsListScreen';
 import { useUIStore } from '@/shared/store/useUIStore';
 import AppIcon from '@/assets/images/icon.svg';
 
@@ -107,7 +110,12 @@ function DeleteCategoryModal({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function SettingsScreen() {
+interface SettingsScreenProps {
+  /** True while the settings overlay is on screen. */
+  isVisible?: boolean;
+}
+
+export default function SettingsScreen({ isVisible = true }: SettingsScreenProps) {
   const { isDark, bg, cardBg, inputBg, textColor, subColor, borderColor, accentColor, onAccentColor } = useAppTheme();
   const insets = useSafeAreaInsets();
 
@@ -121,7 +129,11 @@ export default function SettingsScreen() {
   const importDb = useImportDb();
   const recurringDb = useRecurringDb();
   const budgetsDb = useBudgetsDb();
+  const goalsDb = useGoalsDb();
   const setBudgets = useBudgetsStore((s) => s.setBudgets);
+  const setGoals = useGoalsStore((s) => s.setGoals);
+  const setCategories = useCategoriesStore((s) => s.setCategories);
+  const removeCategory = useCategoriesStore((s) => s.removeCategory);
 
   const currency = useSettingsStore((s) => s.currency);
   const setCurrency = useSettingsStore((s) => s.setCurrency);
@@ -148,9 +160,8 @@ export default function SettingsScreen() {
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [budgetsOpen, setBudgetsOpen] = useState(false);
+  const [goalsOpen, setGoalsOpen] = useState(false);
   const [activeType, setActiveType] = useState<'expense' | 'income'>('expense');
-  const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
-  const [incomeCategories, setIncomeCategories] = useState<Category[]>([]);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [catFormOpen, setCatFormOpen] = useState(false);
   const [deletingCat, setDeletingCat] = useState<Category | null>(null);
@@ -162,17 +173,15 @@ export default function SettingsScreen() {
   const [dateFormatOpen, setDateFormatOpen] = useState(false);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
 
+  const allCategories = useCategoriesStore((s) => s.categories);
+  const expenseCategories = useMemo(() => categoriesOfType(allCategories, 'expense'), [allCategories]);
+  const incomeCategories = useMemo(() => categoriesOfType(allCategories, 'income'), [allCategories]);
+
+  // Re-read after an import or reset replaces the table wholesale.
   const loadCategories = useCallback(async () => {
-    const [expense, income] = await Promise.all([
-      categoriesDb.getByType('expense'),
-      categoriesDb.getByType('income'),
-    ]);
-    setExpenseCategories(expense);
-    setIncomeCategories(income);
+    setCategories(await categoriesDb.getAll());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => { loadCategories(); }, []);
 
   const openCurrencyPicker = () => { setCurrencyPickerOpen(true); };
   const selectCurrency = async (code: string) => {
@@ -243,11 +252,13 @@ export default function SettingsScreen() {
       await recurringDb.removeByCategory(deletingCat.id);
       await transactionsDb.removeByCategory(deletingCat.id);
       await budgetsDb.removeByCategory(deletingCat.id);
+      await goalsDb.removeByCategory(deletingCat.id);
       await categoriesDb.remove(deletingCat.id);
       setBudgets(await budgetsDb.getAll());
+      setGoals(await goalsDb.getAll());
     } catch { /* ignore */ }
     setDeletingCat(null);
-    loadCategories();
+    removeCategory(deletingCat.id);
     Snackbar.show({ text: 'Category deleted', duration: Snackbar.LENGTH_SHORT });
   };
 
@@ -383,16 +394,18 @@ export default function SettingsScreen() {
     setOperationMessage('Importing…');
     try {
       await importDb.importAll(data);
-      const [accs, txns, trfs, bdgs] = await Promise.all([
+      const [accs, txns, trfs, bdgs, gls] = await Promise.all([
         accountsDb.getAll(),
         transactionsDb.getAll(),
         transfersDb.getAll(),
         budgetsDb.getAll(),
+        goalsDb.getAll(),
       ]);
       setAccounts(accs);
       setTransactions(txns);
       setTransfers(trfs);
       setBudgets(bdgs);
+      setGoals(gls);
       if (importRestoreSettings && data.settings) {
         if (data.settings.currency) { await settingsDb.set('currency', data.settings.currency); setCurrency(data.settings.currency); }
         if (data.settings.accent_color) { await settingsDb.set('accent_color', data.settings.accent_color); setAccentColor(data.settings.accent_color); }
@@ -422,6 +435,7 @@ export default function SettingsScreen() {
       setTransactions(txns);
       setTransfers(trfs);
       setBudgets([]);
+      setGoals([]);
       setCurrency('USD');
       setAccentColor('#FFB300');
       setNumberFormat('en-US');
@@ -671,6 +685,14 @@ export default function SettingsScreen() {
             <MaterialIcons name="chevron-right" size={20} color={subColor} />
           </TouchableOpacity>
           <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
+          <TouchableOpacity style={styles.row} onPress={() => setGoalsOpen(true)} activeOpacity={0.7}>
+            <View style={[styles.rowIcon, { backgroundColor: '#f59e0b20' }]}>
+              <MaterialIcons name="flag" size={20} color="#f59e0b" />
+            </View>
+            <Text style={[styles.rowLabel, { color: textColor }]}>Goals</Text>
+            <MaterialIcons name="chevron-right" size={20} color={subColor} />
+          </TouchableOpacity>
+          <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
           <TouchableOpacity style={styles.row} onPress={handleExport} activeOpacity={0.7}>
             <View style={[styles.rowIcon, { backgroundColor: '#4CAF5020' }]}>
               <MaterialIcons name="file-download" size={20} color="#4CAF50" />
@@ -825,6 +847,9 @@ export default function SettingsScreen() {
       {/* Budgets screen */}
       <BudgetsListScreen isOpen={budgetsOpen} onClose={() => setBudgetsOpen(false)} />
 
+      {/* Goals screen */}
+      <GoalsListScreen isOpen={goalsOpen} onClose={() => setGoalsOpen(false)} />
+
       {/* Currency picker */}
       <CurrencyPicker
         visible={currencyPickerOpen}
@@ -879,7 +904,6 @@ export default function SettingsScreen() {
           category={editingCat}
           defaultType={activeType}
           onClose={() => { setCatFormOpen(false); setEditingCat(null); }}
-          onSaved={loadCategories}
           onDelete={() => {
             const cat = editingCat;
             setCatFormOpen(false);
