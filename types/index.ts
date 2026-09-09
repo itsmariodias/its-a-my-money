@@ -1,6 +1,14 @@
 export type TransactionType = 'income' | 'expense';
-export type BudgetPeriod = 'monthly' | 'weekly' | 'yearly';
-export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+
+// These unions are derived from runtime arrays so backup validation can check against the same
+// list the app writes. Adding a value here is enough — a value that exists only in the type is
+// invisible to `validation.ts`, which is how 'quarterly' made older backups unimportable.
+export const BUDGET_PERIODS = ['monthly', 'weekly', 'yearly'] as const;
+export type BudgetPeriod = (typeof BUDGET_PERIODS)[number];
+
+export const RECURRING_FREQUENCIES = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'] as const;
+export type RecurringFrequency = (typeof RECURRING_FREQUENCIES)[number];
+
 export type AccountType = 'cash' | 'investment';
 
 export interface Account {
