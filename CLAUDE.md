@@ -480,10 +480,15 @@ Output APK is named `its-a-my-money-{tag}.apk` and attached to a GitHub release.
 The workflow job requires `permissions: contents: write` to create releases.
 
 **Release flow:**
-1. (Optional) Create a **draft** release on GitHub with the tag name and changelog
-2. Push the tag: `git tag v1.x.x && git push origin v1.x.x`
-3. Workflow builds the APK and creates/updates the release with the APK attached
-4. If a draft release exists for the tag, the APK is uploaded to it
+1. Bump `version` in `package.json` to match the release
+2. (Optional) Create a **draft** release on GitHub with the tag name and changelog
+3. Push the tag: `git tag v1.x.x && git push origin v1.x.x`
+4. Workflow builds the APK and creates/updates the release with the APK attached
+5. If a draft release exists for the tag, the APK is uploaded to it
+
+The `package.json` bump is cosmetic — `app.config.ts` reads `APP_VERSION`, which CI sets from the
+tag, and never reads `package.json`. Keep it in step anyway so the repo does not claim a version it
+is seven releases past, as it did through v1.7.0.
 
 **The tag push is the publish.** `softprops/action-gh-release` is called with only `files:`, and its
 default is `draft: false`, so uploading the APK flips an existing draft live — there is no separate
