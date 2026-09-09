@@ -485,6 +485,34 @@ The workflow job requires `permissions: contents: write` to create releases.
 3. Workflow builds the APK and creates/updates the release with the APK attached
 4. If a draft release exists for the tag, the APK is uploaded to it — then publish when ready
 
+**Release notes convention:** leave the release **name empty** so GitHub shows the tag as the
+heading. `It's a My Money! — vX.Y.Z` is the **first line of the body**, not the title — putting it
+in the name renders it as a subtitle under the tag, which does not match previous releases. Copy
+the shape from the last release (`gh release view v1.7.0`) before writing new notes:
+
+```
+It's a My Money! — v1.8.0
+
+## What's New in v1.8.0
+
+### <Feature area>
+- ...
+
+---
+Notes
+
+- All data is stored locally on your device. Cloud backup is opt-in and only stores data in your own Google Drive.
+
+---
+Built with Expo + SQLite. Vibe coded with Claude Code.
+```
+
+Set this at creation time (`gh release create <tag> --draft --notes-file <file>` with no meaningful
+`--title`). Two gotchas when correcting a draft after the fact: `gh release view <tag>` cannot find
+a draft (GitHub's by-tag endpoint skips drafts), so address it by id via
+`gh api repos/<owner>/<repo>/releases`; and confirm `tag_name` is still the real tag afterwards, or
+the build's upload step will create a second release instead of attaching the APK to the draft.
+
 ### EAS Build
 Used for development builds (replacing Expo Go, which cannot handle native modules like Google Sign-In). Configured in `eas.json` with `development` and `production` profiles. `expo-dev-client` is a dev dependency only.
 
