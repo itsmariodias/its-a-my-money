@@ -1,11 +1,14 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
+import packageJson from './package.json';
 
 function semverToVersionCode(version: string): number {
   const [major = 0, minor = 0, patch = 0] = version.split('.').map(Number);
   return major * 10000 + minor * 100 + patch;
 }
 
-const appVersion = (process.env.APP_VERSION ?? '0.0.1').replace(/^v\.?/, '');
+// CI sets APP_VERSION from the release tag. Locally there is no tag, so fall back to the version
+// in package.json rather than a placeholder, and dev builds report something meaningful.
+const appVersion = (process.env.APP_VERSION ?? packageJson.version).replace(/^v\.?/, '');
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
