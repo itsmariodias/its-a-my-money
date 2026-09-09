@@ -30,10 +30,11 @@ updates:
       # Expo pins these to exact versions alongside the SDK.
       - dependency-name: react
       - dependency-name: react-dom
-      # expo-router is built on React Navigation, so a major bump breaks routing.
-      # Patch and minor updates still come through.
+      # Expo pins React Navigation as part of the SDK, down to the minor — SDK 54 expects
+      # @react-navigation/native ^7.1.8, and expo-router is built on that stack. Allowing minors
+      # through was wrong: PR #39 bumped it to ^7.3.18 and `expo install --check` failed, so the
+      # whole family moves with the SDK, not on Dependabot's schedule.
       - dependency-name: "@react-navigation/*"
-        update-types: [version-update:semver-major]
     groups:
       app-dependencies:
         patterns: ["*"]
