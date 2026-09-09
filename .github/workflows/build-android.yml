@@ -16,20 +16,20 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10
 
       - name: Cache node modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.local/share/pnpm/store
           key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
@@ -39,13 +39,13 @@ jobs:
         run: pnpm install
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
 
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.gradle/caches
@@ -75,6 +75,6 @@ jobs:
         run: mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/its-a-my-money-${{ github.ref_name }}.apk
 
       - name: Upload APK to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: android/app/build/outputs/apk/release/its-a-my-money-${{ github.ref_name }}.apk
