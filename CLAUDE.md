@@ -483,12 +483,17 @@ The workflow job requires `permissions: contents: write` to create releases.
 1. (Optional) Create a **draft** release on GitHub with the tag name and changelog
 2. Push the tag: `git tag v1.x.x && git push origin v1.x.x`
 3. Workflow builds the APK and creates/updates the release with the APK attached
-4. If a draft release exists for the tag, the APK is uploaded to it — then publish when ready
+4. If a draft release exists for the tag, the APK is uploaded to it
 
-**Release notes convention:** leave the release **name empty** so GitHub shows the tag as the
-heading. `It's a My Money! — vX.Y.Z` is the **first line of the body**, not the title — putting it
-in the name renders it as a subtitle under the tag, which does not match previous releases. Copy
-the shape from the last release (`gh release view v1.7.0`) before writing new notes:
+**The tag push is the publish.** `softprops/action-gh-release` is called with only `files:`, and its
+default is `draft: false`, so uploading the APK flips an existing draft live — there is no separate
+publish step to gate on. Have the notes final before pushing the tag. To get a real gate instead,
+add `draft: true` to that step in `build-android.yml` and publish by hand afterwards.
+
+**Release notes convention:** the release **name** is the tag (`v1.8.0`) or left empty — never a
+descriptive title. `It's a My Money! — vX.Y.Z` is the **first line of the body**; putting it in the
+name renders it as a subtitle under the tag, which does not match previous releases. Copy the shape
+from the last release before writing new notes:
 
 ```
 It's a My Money! — v1.8.0
