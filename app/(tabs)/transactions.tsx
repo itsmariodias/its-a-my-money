@@ -3,6 +3,7 @@ import { formatDate, type DateFormatId } from '@/constants/dateFormats';
 import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { getAccountCurrency } from '@/features/accounts/currencyUtils';
+import { previousDay, todayString } from '@/features/recurring/dateUtils';
 import { getTransferSide } from '@/features/transfers/transferSide';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
@@ -31,10 +32,9 @@ import { Snackbar } from 'react-native-snackbar';
 
 
 function formatDateHeader(d: string, dateFormat: DateFormatId): string {
-  const todayStr = new Date().toISOString().split('T')[0];
-  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const todayStr = todayString();
   if (d === todayStr) return 'Today';
-  if (d === yesterdayStr) return 'Yesterday';
+  if (d === previousDay(todayStr)) return 'Yesterday';
   return formatDate(d, dateFormat);
 }
 

@@ -52,3 +52,12 @@ function formatDate(d: Date): string {
 export function todayString(): string {
   return formatDate(new Date());
 }
+
+/**
+ * The local calendar day before a YYYY-MM-DD date string.
+ * Uses date components rather than subtracting 24h, so DST transitions don't skip or repeat a day.
+ */
+export function previousDay(date: string): string {
+  const [year, month, day] = date.split('-').map(Number);
+  return formatDate(new Date(year, month - 1, day - 1));
+}

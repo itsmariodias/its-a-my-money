@@ -23,6 +23,7 @@ import { useAccountsDb, useTransactionsDb, useTransfersDb, useRecurringDb } from
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import { todayString } from '@/features/recurring/dateUtils';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
@@ -191,7 +192,7 @@ export default function AccountsScreen() {
   );
 
   const dateRange = useMemo(() => getDateRange(periodMode, periodDate), [periodMode, periodDate]);
-  const isPastPeriod = useMemo(() => dateRange.end < new Date().toISOString().slice(0, 10), [dateRange]);
+  const isPastPeriod = useMemo(() => dateRange.end < todayString(), [dateRange]);
 
   const balanceMap = useMemo<Record<number, number>>(() => {
     const map: Record<number, number> = {};

@@ -27,21 +27,11 @@ import { Snackbar } from 'react-native-snackbar';
 import { getCurrencySymbol } from '@/constants/currencies';
 import type { Account } from '@/types';
 import { useAppTheme } from '@/shared/components/useAppTheme';
+import { todayString } from '@/features/recurring/dateUtils';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { TransferWithDetails } from '@/types';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-
-function toLocalDateString(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-const today = () => toLocalDateString(new Date());
-
-
 
 interface Props {
   isOpen: boolean;
@@ -64,7 +54,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   const [fromAccountId, setFromAccountId] = useState<number | null>(null);
   const [toAccountId, setToAccountId] = useState<number | null>(null);
   const [note, setNote] = useState('');
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(todayString());
   const [attempted, setAttempted] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
 
@@ -95,7 +85,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
       setFromAccountId(defaultFromId);
       setToAccountId(accounts.find((a) => a.id !== defaultFromId)?.id ?? null);
       setNote('');
-      setDate(today());
+      setDate(todayString());
     }
     setAttempted(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps

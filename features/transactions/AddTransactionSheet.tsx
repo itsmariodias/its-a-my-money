@@ -27,6 +27,7 @@ import { useTransactionsStore } from '@/features/transactions/useTransactionsSto
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { Snackbar } from 'react-native-snackbar';
+import { todayString } from '@/features/recurring/dateUtils';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
@@ -36,15 +37,6 @@ import type { Category, TransactionWithDetails } from '@/types';
 const CATEGORY_GRID_3_ROWS = 230;
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-
-function toLocalDateString(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-const today = () => toLocalDateString(new Date());
 
 interface Props {
   isOpen: boolean;
@@ -72,7 +64,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   // The amount is entered in the selected account's own currency, never the global default.
   const currencySymbol = getCurrencySymbol(getAccountCurrency(accounts, selectedAccountId, globalCurrency));
   const [note, setNote] = useState('');
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(todayString());
   const [attempted, setAttempted] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
   const [catFormOpen, setCatFormOpen] = useState(false);
@@ -111,7 +103,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       setType('expense');
       setAmount('');
       setNote('');
-      setDate(today());
+      setDate(todayString());
       setSelectedCategory(null);
       const filteredAccountId = useUIStore.getState().selectedAccountId;
       setSelectedAccountId(filteredAccountId ?? accounts[0]?.id ?? null);

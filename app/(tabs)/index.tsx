@@ -35,6 +35,7 @@ import GoalsDashboardCard from '@/features/goals/GoalsDashboardCard';
 import GoalsListScreen from '@/features/goals/GoalsListScreen';
 import { useGoalsStore } from '@/features/goals/useGoalsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import { todayString } from '@/features/recurring/dateUtils';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
@@ -150,7 +151,7 @@ export default function DashboardScreen() {
   );
 
   const dateRange = useMemo(() => getDateRange(periodMode, periodDate), [periodMode, periodDate]);
-  const isPastPeriod = useMemo(() => dateRange.end < new Date().toISOString().slice(0, 10), [dateRange]);
+  const isPastPeriod = useMemo(() => dateRange.end < todayString(), [dateRange]);
 
   // The dashboard does not convert across currencies. With an account filter, the row-set
   // is already single-currency; without one, scope every aggregation to accounts of the

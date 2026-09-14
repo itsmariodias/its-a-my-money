@@ -1,4 +1,4 @@
-import { advanceDate } from './dateUtils';
+import { advanceDate, previousDay } from './dateUtils';
 
 describe('advanceDate', () => {
   describe('daily', () => {
@@ -86,5 +86,23 @@ describe('advanceDate', () => {
       // 2024 -> 2025 is not leap, but let's check normal date
       expect(advanceDate('2025-02-28', 'yearly')).toBe('2026-02-28');
     });
+  });
+});
+
+describe('previousDay', () => {
+  it('given a mid-month date, when stepping back, then returns the day before', () => {
+    expect(previousDay('2025-03-15')).toBe('2025-03-14');
+  });
+
+  it('given the first of a month, when stepping back, then returns the last day of the previous month', () => {
+    expect(previousDay('2025-03-01')).toBe('2025-02-28');
+  });
+
+  it('given Jan 1, when stepping back, then rolls back to Dec 31 of the previous year', () => {
+    expect(previousDay('2025-01-01')).toBe('2024-12-31');
+  });
+
+  it('given Mar 1 of a leap year, when stepping back, then returns Feb 29', () => {
+    expect(previousDay('2024-03-01')).toBe('2024-02-29');
   });
 });
