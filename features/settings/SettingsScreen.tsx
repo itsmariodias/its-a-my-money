@@ -252,9 +252,9 @@ export default function SettingsScreen({ isVisible = true }: SettingsScreenProps
       await recurringDb.removeByCategory(deletingCat.id);
       await transactionsDb.removeByCategory(deletingCat.id);
       await budgetsDb.removeByCategory(deletingCat.id);
-      await goalsDb.removeByCategory(deletingCat.id);
       await categoriesDb.remove(deletingCat.id);
       setBudgets(await budgetsDb.getAll());
+      // Goals are not tied to categories, but their splits from the deleted transactions are gone.
       setGoals(await goalsDb.getAll());
     } catch { /* ignore */ }
     setDeletingCat(null);

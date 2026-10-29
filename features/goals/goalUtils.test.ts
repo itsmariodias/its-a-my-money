@@ -1,92 +1,260 @@
-import type { Transaction } from '@/types';
-import { goalProgress, goalStatusColor, targetDateLabel } from './goalUtils';
+import type { Account } from '@/types';
+import {
+  availableAsOf,
+  goalProgress,
+  goalStatusColor,
+  hasSplitErrors,
+  isActiveGoal,
+  monthlyNeeded,
+  moveError,
+  overReservedAfterSave,
+  reservedAcross,
+  reservedByAccount,
+  savedExcluding,
+  targetDateLabel,
+  validateSplits,
+} from './goalUtils';
 
 const ACCENT = '#2f95dc';
 
-const goal = { category_id: 1, target_amount: 10000, start_date: '2026-01-01' };
-
-type Tx = Pick<Transaction, 'type' | 'category_id' | 'amount' | 'date' | 'account_id'>;
-const tx = (overrides: Partial<Tx> = {}): Tx => ({
-  type: 'expense', category_id: 1, amount: 1000, date: '2026-02-01', account_id: 1, ...overrides,
-});
-
 describe('goalProgress', () => {
-  it('adds up expenses in the category since the start date', () => {
-    // Given two fee payments after the goal was created
-    const transactions = [tx({ amount: 4000 }), tx({ amount: 2000, date: '2026-03-01' })];
-
+  it('reads progress from what the bucket holds', () => {
+    // Given a goal holding 6,000 of a 10,000 target
     // When measuring progress
-    const progress = goalProgress(goal, transactions);
+    const progress = goalProgress({ saved: 6000, target_amount: 10000 });
 
-    // Then both count toward the target
+    // Then it is 60% full
     expect(progress).toEqual({ saved: 6000, pct: 60 });
   });
 
-  it('ignores spend from before the goal existed', () => {
-    // Given a payment made the day before the goal started
-    const transactions = [tx({ amount: 5000, date: '2025-12-31' }), tx({ amount: 1000 })];
-
+  it('can run past 100%', () => {
+    // Given a goal that was over-filled
     // When measuring progress
-    const progress = goalProgress(goal, transactions);
-
-    // Then a new goal is not retroactively filled by history
-    expect(progress.saved).toBe(1000);
+    // Then the percentage is not capped — the bar caps, the number does not
+    expect(goalProgress({ saved: 1500, target_amount: 1000 }).pct).toBe(150);
   });
 
-  it('counts a future-dated payment', () => {
-    // Given a fee scheduled for next year — money already committed
-    const transactions = [tx({ amount: 3000, date: '2027-06-01' })];
-
+  it('treats a zero target as no progress rather than dividing by zero', () => {
+    // Given a goal with a zero target
     // When measuring progress
-    // Then it counts: a goal has no period end
-    expect(goalProgress(goal, transactions).saved).toBe(3000);
+    // Then pct is 0
+    expect(goalProgress({ saved: 100, target_amount: 0 }).pct).toBe(0);
   });
+});
 
-  it('ignores income and other categories', () => {
-    // Given a refund and spend on an unrelated category
-    const transactions = [
-      tx({ amount: 5000, type: 'income' }),
-      tx({ amount: 5000, category_id: 2 }),
-      tx({ amount: 1000 }),
+describe('reservedByAccount', () => {
+  it('sums what every goal in an account holds', () => {
+    // Given two goals in account 1 and one in account 2
+    const goals = [
+      { account_id: 1, saved: 300 },
+      { account_id: 1, saved: 200 },
+      { account_id: 2, saved: 50 },
     ];
 
-    // When measuring progress
-    // Then only expenses in the goal's own category count
-    expect(goalProgress(goal, transactions).saved).toBe(1000);
+    // When totalling per account
+    // Then each account's reserved amount is the sum of its goals
+    expect(reservedByAccount(goals)).toEqual({ 1: 500, 2: 50 });
   });
 
-  it('only counts accounts in the goal currency', () => {
-    // Given the same category paid from a rupee account and an Australian one
-    const transactions = [tx({ amount: 4000, account_id: 1 }), tx({ amount: 9000, account_id: 2 })];
+  it('leaves out completed goals — their money is freed', () => {
+    // Given one active and one archived goal in account 1
+    const goals = [
+      { account_id: 1, saved: 300 },
+      { account_id: 1, saved: 900, archived_at: '2026-10-01T00:00:00.000Z' },
+    ];
+    // Then only the active goal holds money
+    expect(reservedByAccount(goals)).toEqual({ 1: 300 });
+    expect(isActiveGoal(goals[1])).toBe(false);
+  });
+});
 
-    // When measuring an INR goal
-    const progress = goalProgress(goal, transactions, {
-      currency: 'INR',
-      accountCurrencyById: { 1: 'INR', 2: 'AUD' },
-    });
+describe('monthlyNeeded', () => {
+  const TODAY = '2026-10-29';
 
-    // Then the AUD spend is excluded — the app never converts
-    expect(progress.saved).toBe(4000);
+  it('spreads what is left over the months to the target date', () => {
+    // Given 1,000 of a 4,000 target with the date about six months out
+    const perMonth = monthlyNeeded({ saved: 1000, target_amount: 4000, target_date: '2027-04-29' }, TODAY);
+    // Then roughly 500 a month gets there
+    expect(perMonth).toBeCloseTo(3000 / (182 / (365.25 / 12)), 5);
+    expect(perMonth).toBeGreaterThan(495);
+    expect(perMonth).toBeLessThan(505);
   });
 
-  it('reports zero percent for a goal with no target', () => {
-    // Given a zero target, which would divide by zero
-    const transactions = [tx({ amount: 1000 })];
-
-    // When measuring progress
-    const progress = goalProgress({ ...goal, target_amount: 0 }, transactions);
-
-    // Then the spend is still reported but the percentage is safe
-    expect(progress).toEqual({ saved: 1000, pct: 0 });
+  it('asks for the whole remainder inside the last month', () => {
+    // Given the target date ten days away
+    // Then it never asks for more than what is left
+    expect(monthlyNeeded({ saved: 100, target_amount: 400, target_date: '2026-11-08' }, TODAY)).toBe(300);
   });
 
-  it('reports over 100 percent once the target is passed', () => {
-    // Given more spend than the target
-    const transactions = [tx({ amount: 12500 })];
+  it('has nothing to suggest without a date, once reached, or after the date', () => {
+    expect(monthlyNeeded({ saved: 0, target_amount: 400, target_date: null }, TODAY)).toBeNull();
+    expect(monthlyNeeded({ saved: 400, target_amount: 400, target_date: '2027-01-01' }, TODAY)).toBeNull();
+    expect(monthlyNeeded({ saved: 0, target_amount: 400, target_date: '2026-10-28' }, TODAY)).toBeNull();
+  });
+});
 
-    // When measuring progress
-    // Then the percentage is not clamped — callers clamp the bar, not the number
-    expect(goalProgress(goal, transactions).pct).toBe(125);
+describe('reservedAcross', () => {
+  it('sums what goals hold across the given accounts', () => {
+    // Given goals holding money in accounts 1 and 2, but not 3
+    const reserved = { 1: 500, 2: 50 };
+
+    // When totalling accounts 1, 2 and 3
+    // Then only the accounts with goals contribute
+    expect(reservedAcross(reserved, [1, 2, 3])).toBe(550);
+  });
+
+  it('is undefined when none of the accounts has a goal', () => {
+    // Given goals only in account 1
+    // When totalling accounts 2 and 3
+    // Then there is nothing to show, rather than "Reserved 0"
+    expect(reservedAcross({ 1: 500 }, [2, 3])).toBeUndefined();
+  });
+});
+
+describe('availableAsOf', () => {
+  const account: Account = {
+    id: 1, name: 'Savings', initial_balance: 1000, currency: 'EUR', color: null, icon: null,
+    account_type: 'cash', current_value: null, created_at: '2026-01-01',
+  };
+  const goals = [{ account_id: 1, saved: 300 }, { account_id: 2, saved: 999 }];
+
+  it('is the balance minus what this account\'s goals hold', () => {
+    // Given 1,000 in the account and 300 in its goals
+    // When measuring Available
+    // Then only this account's goals count
+    expect(availableAsOf(account, [], [], goals, '2026-10-29')).toBe(700);
+  });
+
+  it('ignores money dated after the day it is measured on', () => {
+    // Given a 500 income dated next month
+    const transactions = [{ account_id: 1, type: 'income' as const, amount: 500, date: '2026-11-15' }];
+
+    // When measuring Available today
+    // Then that income cannot be reserved yet
+    expect(availableAsOf(account, transactions, [], goals, '2026-10-29')).toBe(700);
+    expect(availableAsOf(account, transactions, [], goals, '2026-11-15')).toBe(1200);
+  });
+
+  it('counts transfers out of the account', () => {
+    // Given 800 transferred out today
+    const transfers = [{ from_account_id: 1, to_account_id: 2, amount: 800, to_amount: null, date: '2026-10-29' }];
+
+    // When measuring Available
+    // Then it drops below zero — the goals' 300 is no longer all there
+    expect(availableAsOf(account, [], transfers, goals, '2026-10-29')).toBe(-100);
+  });
+
+  it('subtracts money a pending save would set aside', () => {
+    // Given a save that reserves 200 more
+    // Then Available falls by 200
+    expect(availableAsOf(account, [], [], goals, '2026-10-29', 200)).toBe(500);
+  });
+});
+
+describe('overReservedAfterSave', () => {
+  it('warns when a save takes Available below zero', () => {
+    // Given Available goes from 100 to -50
+    // Then the projected figure is returned for the warning
+    expect(overReservedAfterSave(100, -50)).toBe(-50);
+  });
+
+  it('stays quiet when Available stays at or above zero', () => {
+    expect(overReservedAfterSave(100, 0)).toBeNull();
+  });
+
+  it('stays quiet when a save does not lower an already-negative Available', () => {
+    // Given an account already at -50, and an edit that changes only the note
+    // Then there is nothing new to warn about
+    expect(overReservedAfterSave(-50, -50)).toBeNull();
+    // But a save that makes it worse still warns
+    expect(overReservedAfterSave(-50, -80)).toBe(-80);
+  });
+});
+
+describe('savedExcluding', () => {
+  it('takes a transaction\'s own splits back out of each goal', () => {
+    // Given goal 1 holds 500, 200 of which came from the income being edited
+    const goals = [{ id: 1, saved: 500 }, { id: 2, saved: 80 }];
+    const allocations = [{ goal_id: 1, amount: 200 }];
+
+    // When computing what each goal holds without that transaction
+    // Then only goal 1 is reduced
+    expect(savedExcluding(goals, allocations)).toEqual({ 1: 300, 2: 80 });
+  });
+
+  it('adds back what an edited expense took out', () => {
+    // Given goal 1 holds 100 after an expense took 50 from it
+    // When excluding that expense
+    // Then the goal is back to 150 — the edit can spend up to that
+    expect(savedExcluding([{ id: 1, saved: 100 }], [{ goal_id: 1, amount: -50 }])).toEqual({ 1: 150 });
+  });
+});
+
+describe('validateSplits', () => {
+  it('accepts an income split that fits the income', () => {
+    // Given 1,000 income split 300 / 200
+    const errors = validateSplits('reserve', [{ goal_id: 1, amount: 300 }, { goal_id: 2, amount: 200 }], 1000, {});
+
+    // Then nothing is flagged
+    expect(hasSplitErrors(errors)).toBe(false);
+  });
+
+  it('rejects putting more into goals than the income brings in', () => {
+    // Given 100 income with 120 sent to goals
+    const errors = validateSplits('reserve', [{ goal_id: 1, amount: 70 }, { goal_id: 2, amount: 50 }], 100, {});
+
+    // Then the total is flagged
+    expect(errors.total).toBe('Goals get more than this income');
+    expect(errors.byGoal).toEqual({});
+  });
+
+  it('does not cap an income split by what the goal already holds', () => {
+    // Given an empty goal receiving 500
+    // Then that is fine — reserving fills an empty bucket
+    expect(hasSplitErrors(validateSplits('reserve', [{ goal_id: 1, amount: 500 }], 500, { 1: 0 }))).toBe(false);
+  });
+
+  it('rejects paying more from a goal than it holds', () => {
+    // Given a goal holding 40 asked to pay 50
+    const errors = validateSplits('spend', [{ goal_id: 1, amount: 50 }], 80, { 1: 40 });
+
+    // Then that goal is flagged, but the total is within the expense
+    expect(errors.byGoal).toEqual({ 1: 'More than this goal holds' });
+    expect(errors.total).toBeNull();
+  });
+
+  it('rejects goals paying more than the expense', () => {
+    // Given a 50 expense with 60 taken from goals
+    const errors = validateSplits('spend', [{ goal_id: 1, amount: 60 }], 50, { 1: 100 });
+
+    // Then the total is flagged
+    expect(errors.total).toBe('Goals pay more than this expense');
+  });
+
+  it('ignores sub-cent rounding drift', () => {
+    // Given three thirds of 100 typed by hand
+    const splits = [33.33, 33.33, 33.34].map((amount, i) => ({ goal_id: i, amount }));
+
+    // Then the float sum does not trip the limit
+    expect(hasSplitErrors(validateSplits('reserve', splits, 100, {}))).toBe(false);
+  });
+});
+
+describe('moveError', () => {
+  it('caps a manual add at what the account has available', () => {
+    // Given 200 available in the account
+    // When adding 250 to a goal
+    // Then it is refused — money already in another goal cannot be reserved twice
+    expect(moveError('add', 250, 0, 200)).toBe('More than the account has available');
+    expect(moveError('add', 200, 0, 200)).toBeNull();
+  });
+
+  it('caps a release at what the goal holds', () => {
+    // Given a goal holding 100
+    // When releasing 150
+    // Then it is refused; releasing 100 is fine
+    expect(moveError('release', 150, 100, 0)).toBe('More than this goal holds');
+    expect(moveError('release', 100, 100, 0)).toBeNull();
   });
 });
 

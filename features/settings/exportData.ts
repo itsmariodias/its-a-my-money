@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Account, Category, Transaction, Transfer, RecurringTransaction, Budget, Goal } from '@/types';
+import type { Account, Category, Transaction, Transfer, RecurringTransaction, Budget, Goal, GoalAllocation } from '@/types';
 
 export interface ExportJson {
   version: number;
@@ -11,6 +11,7 @@ export interface ExportJson {
   recurring_transactions: RecurringTransaction[];
   budgets: Budget[];
   goals: Goal[];
+  goal_allocations: GoalAllocation[];
   settings: {
     currency: string;
     accent_color: string | null;
@@ -23,14 +24,15 @@ export interface ExportJson {
 }
 
 export async function generateExportData(db: SQLiteDatabase): Promise<ExportJson> {
-  const [accounts, categories, rawTxns, rawTransfers, rawRecurring, rawBudgets, rawGoals] = await Promise.all([
+  const [accounts, categories, rawTxns, rawTransfers, rawRecurring, rawBudgets, rawGoals, rawGoalAllocations] = await Promise.all([
     db.getAllAsync<Account>('SELECT * FROM accounts ORDER BY name ASC'),
     db.getAllAsync<Category>('SELECT * FROM categories ORDER BY type, name ASC'),
     db.getAllAsync<Transaction>('SELECT id, amount, type, category_id, account_id, note, date, recurring_transaction_id, created_at FROM transactions ORDER BY date DESC, created_at DESC'),
     db.getAllAsync<Transfer>('SELECT id, from_account_id, to_account_id, amount, to_amount, note, date, recurring_transaction_id, created_at FROM transfers ORDER BY date DESC, created_at DESC'),
     db.getAllAsync<RecurringTransaction>('SELECT * FROM recurring_transactions ORDER BY created_at ASC'),
     db.getAllAsync<Budget>('SELECT id, category_id, amount, period, currency, created_at FROM budgets ORDER BY created_at ASC'),
-    db.getAllAsync<Goal>('SELECT id, category_id, target_amount, currency, start_date, target_date, created_at FROM goals ORDER BY created_at ASC'),
+    db.getAllAsync<Goal>('SELECT id, name, icon, color, account_id, target_amount, target_date, archived_at, created_at FROM goals ORDER BY created_at ASC'),
+    db.getAllAsync<GoalAllocation>('SELECT id, goal_id, amount, date, transaction_id, note, created_at FROM goal_allocations ORDER BY id ASC'),
   ]);
 
   const [currencyRow, accentRow, formatRow, biometricRow, themeRow, pctRow, dateFmtRow] = await Promise.all([
@@ -53,6 +55,7 @@ export async function generateExportData(db: SQLiteDatabase): Promise<ExportJson
     recurring_transactions: rawRecurring,
     budgets: rawBudgets,
     goals: rawGoals,
+    goal_allocations: rawGoalAllocations,
     settings: {
       currency: currencyRow?.value ?? 'USD',
       accent_color: accentRow?.value ?? null,

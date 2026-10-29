@@ -15,7 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import DatePickerField from '@/shared/components/DatePickerField';
 import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
-import AccountIcon from '@/shared/components/AccountIcon';
+import AccountCardPicker from '@/shared/components/AccountCardPicker';
 import { useRecurringDb } from '@/db';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
@@ -291,34 +291,12 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
   })).current;
 
   const renderAccountList = (selectedId: number | null, onSelect: (id: number) => void, scrollRef: React.RefObject<ScrollView | null>, excludeId?: number | null) => (
-    <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
-      {accounts.filter((a) => a.id !== excludeId).map((acc) => {
-        const isSelected = selectedId === acc.id;
-        const accentBg = acc.color ?? '#55A3FF';
-        return (
-          <TouchableOpacity
-            key={acc.id}
-            style={[styles.accountCard, { backgroundColor: isSelected ? accentBg + '18' : inputBg, borderColor: isSelected ? accentBg : borderColor, borderWidth: isSelected ? 2 : 1 }]}
-            onPress={() => onSelect(acc.id)}
-            activeOpacity={0.7}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: isSelected }}
-          >
-            <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
-              <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
-            </View>
-            <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
-              {acc.name}
-            </Text>
-            {isSelected && (
-              <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
-                <MaterialIcons name="check" size={10} color="#fff" />
-              </View>
-            )}
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
+    <AccountCardPicker
+      accounts={accounts.filter((a) => a.id !== excludeId)}
+      selectedId={selectedId}
+      onSelect={onSelect}
+      scrollRef={scrollRef}
+    />
   );
 
   return (

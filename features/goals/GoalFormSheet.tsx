@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -15,21 +15,29 @@ import { MaterialIcons } from '@expo/vector-icons';
 import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
 import DatePickerField from '@/shared/components/DatePickerField';
+import AccountCardPicker from '@/shared/components/AccountCardPicker';
+import ColorIconPicker, { CATEGORY_ICONS } from '@/shared/components/ColorIconPicker';
 import { useGoalsDb } from '@/db';
-import { categoriesOfType, useCategoriesStore } from '@/features/transactions/useCategoriesStore';
 import { useGoalsStore } from './useGoalsStore';
+import { useAccountsStore } from '@/features/accounts/useAccountsStore';
+import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
-import { getCurrencyByCode, getCurrencySymbol } from '@/constants/currencies';
-import CurrencyPicker from '@/shared/components/CurrencyPicker';
+import { useUIStore } from '@/shared/store/useUIStore';
+import { formatAmount, getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import { Snackbar } from 'react-native-snackbar';
 import { requestNotificationPermission } from '@/features/backup/notifications';
 import { todayString } from '@/features/recurring/dateUtils';
-import type { Category, GoalWithDetails } from '@/types';
+import GoalMoveSheet from './GoalMoveSheet';
+import GoalPaceHint from './GoalPaceHint';
+import { goalProgress, isActiveGoal, type GoalMoveDirection } from './goalUtils';
+import { notifyGoalsReached } from '@/features/transactions/postSaveAlerts';
+import type { GoalWithDetails } from '@/types';
 
-const CATEGORY_GRID_3_ROWS = 230;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+const DEFAULT_COLOR = '#009688';
+const DEFAULT_ICON = 'savings';
 
 interface Props {
   isOpen: boolean;
@@ -40,100 +48,80 @@ interface Props {
 
 export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }: Props) {
   const goalsDb = useGoalsDb();
-  // Progress is measured from expense transactions, so only expense categories can hold a goal.
-  const allCategories = useCategoriesStore((s) => s.categories);
-  const categories = useMemo(() => categoriesOfType(allCategories, 'expense'), [allCategories]);
-  const addGoal = useGoalsStore((s) => s.addGoal);
-  const updateGoal = useGoalsStore((s) => s.updateGoal);
+  const setGoals = useGoalsStore((s) => s.setGoals);
   const allGoals = useGoalsStore((s) => s.goals);
+  const accounts = useAccountsStore((s) => s.accounts);
   const globalCurrency = useSettingsStore((s) => s.currency);
+  const numberFormat = useSettingsStore((s) => s.numberFormat);
 
+  const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [targetDate, setTargetDate] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState(todayString());
-  const [currency, setCurrency] = useState<string>(globalCurrency);
-  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [accountId, setAccountId] = useState<number | null>(null);
+  const [color, setColor] = useState(DEFAULT_COLOR);
+  const [icon, setIcon] = useState(DEFAULT_ICON);
   const [attempted, setAttempted] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
+  const [moveDirection, setMoveDirection] = useState<GoalMoveDirection | null>(null);
 
+  // The store copy, so saved figures stay current after an Add or Release from this sheet.
+  const liveGoal = goal ? allGoals.find((g) => g.id === goal.id) ?? goal : null;
+  const currency = getAccountCurrency(accounts, accountId, globalCurrency);
   const currencySymbol = getCurrencySymbol(currency);
+  // Money in the bucket belongs to its account; moving the goal elsewhere would strand it.
+  const accountLocked = liveGoal != null && liveGoal.saved !== 0;
 
   useEffect(() => {
     if (!isOpen) return;
-    setSelectedCategory(goal ? categories.find((c) => c.id === goal.category_id) ?? null : null);
     if (goal) {
+      setName(goal.name);
       setAmount(String(goal.target_amount));
       setTargetDate(goal.target_date);
-      setStartDate(goal.start_date);
-      setCurrency(goal.currency || globalCurrency);
-      setEditingId(goal.id);
+      setAccountId(goal.account_id);
+      setColor(goal.color);
+      setIcon(goal.icon);
     } else {
+      setName('');
       setAmount('');
       setTargetDate(null);
-      setStartDate(todayString());
-      setCurrency(globalCurrency);
-      setEditingId(null);
+      setAccountId(useUIStore.getState().selectedAccountId ?? accounts[0]?.id ?? null);
+      setColor(DEFAULT_COLOR);
+      setIcon(DEFAULT_ICON);
     }
     setAttempted(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, goal]);
 
-  // Picking a category that already has a goal in this currency switches into edit mode for it.
-  // Same category in a different currency is a distinct goal.
-  const handleSelectCategory = (cat: Category) => {
-    setSelectedCategory(cat);
-    if (editingId == null) {
-      const existing = allGoals.find((g) => g.category_id === cat.id && g.currency === currency);
-      if (existing) {
-        setEditingId(existing.id);
-        setAmount(String(existing.target_amount));
-        setTargetDate(existing.target_date);
-        setStartDate(existing.start_date);
-      }
-    }
-  };
-
   const validate = (): boolean => {
     const parsed = parseFloat(amount);
-    if (!parsed || parsed <= 0) return false;
-    if (!selectedCategory) return false;
-    return true;
+    return !!name.trim() && !!parsed && parsed > 0 && accountId != null;
   };
 
   const handleSave = useCallback(async () => {
     setAttempted(true);
     if (!validate()) return;
-    const parsed = parseFloat(amount);
+    const fields = {
+      name: name.trim(),
+      icon,
+      color,
+      account_id: accountId!,
+      target_amount: parseFloat(amount),
+      target_date: targetDate,
+    };
 
     try {
-      if (editingId != null) {
-        await goalsDb.update(editingId, {
-          category_id: selectedCategory!.id,
-          target_amount: parsed,
-          currency,
-          start_date: startDate,
-          target_date: targetDate,
-        });
-        const refreshed = await goalsDb.getAll();
-        const updated = refreshed.find((g) => g.id === editingId);
-        if (updated) updateGoal(updated);
+      if (goal) {
+        await goalsDb.update(goal.id, fields);
         Snackbar.show({ text: 'Goal updated', duration: Snackbar.LENGTH_SHORT });
       } else {
-        const result = await goalsDb.insert({
-          category_id: selectedCategory!.id,
-          target_amount: parsed,
-          currency,
-          // Spend before today does not count, so a new goal always starts empty.
-          start_date: todayString(),
-          target_date: targetDate,
-        });
-        const refreshed = await goalsDb.getAll();
-        const added = refreshed.find((g) => g.id === result.lastInsertRowId);
-        if (added) addGoal(added);
+        await goalsDb.insert(fields);
         Snackbar.show({ text: 'Goal saved', duration: Snackbar.LENGTH_SHORT });
       }
+      const prevGoals = useGoalsStore.getState().goals;
+      const currGoals = await goalsDb.getAll();
+      setGoals(currGoals);
+      // Lowering a target to what is already saved completes the goal, so check here too.
+      notifyGoalsReached(prevGoals, currGoals);
       // Best-effort: ask for notification permission so we can alert when this goal is
       // reached later. Silently ignored if denied.
       requestNotificationPermission().catch(() => {});
@@ -142,7 +130,23 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
       setErrorModal('Failed to save goal.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, targetDate, startDate, selectedCategory, currency, editingId]);
+  }, [name, icon, color, accountId, amount, targetDate, goal]);
+
+  // Completing a goal frees its money (archived goals stop counting as reserved) but keeps the
+  // goal and its history; Restore makes it count again.
+  const handleToggleArchived = useCallback(async () => {
+    if (!liveGoal) return;
+    const archiving = isActiveGoal(liveGoal);
+    try {
+      await goalsDb.setArchived(liveGoal.id, archiving ? new Date().toISOString() : null);
+      setGoals(await goalsDb.getAll());
+      Snackbar.show({ text: archiving ? 'Goal completed' : 'Goal restored', duration: Snackbar.LENGTH_SHORT });
+      triggerCloseRef.current();
+    } catch {
+      setErrorModal(archiving ? 'Failed to complete goal.' : 'Failed to restore goal.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveGoal]);
 
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
@@ -204,7 +208,7 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
 
             <View style={styles.header}>
               <Text style={[styles.headerTitle, { color: textColor }]}>
-                {editingId != null ? 'Edit Goal' : 'Add Goal'}
+                {goal ? 'Edit Goal' : 'Add Goal'}
               </Text>
               <TouchableOpacity onPress={() => triggerCloseRef.current()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                 <MaterialIcons name="close" size={24} color={subTextColor} />
@@ -212,7 +216,56 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
+              {/* Saved so far, with manual moves (edit mode) */}
+              {liveGoal && (
+                <View style={[localStyles.savedCard, { backgroundColor: inputBg, borderColor }]}>
+                  <Text style={[localStyles.savedLabel, { color: subTextColor }]}>Saved</Text>
+                  <Text style={[localStyles.savedAmount, { color: textColor }]}>
+                    {formatAmount(liveGoal.saved, liveGoal.account_currency, undefined, numberFormat)}
+                    <Text style={{ color: subTextColor }}> of {formatAmount(liveGoal.target_amount, liveGoal.account_currency, undefined, numberFormat)} · {Math.round(goalProgress(liveGoal).pct)}%</Text>
+                  </Text>
+                  <GoalPaceHint goal={liveGoal} />
+                  {isActiveGoal(liveGoal) ? (
+                  <View style={localStyles.moveRow}>
+                    <TouchableOpacity style={[localStyles.moveBtn, { backgroundColor: accentColor }]} onPress={() => setMoveDirection('add')} accessibilityRole="button">
+                      <MaterialIcons name="add" size={18} color={onAccentColor} />
+                      <Text style={[localStyles.moveBtnText, { color: onAccentColor }]}>Add money</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[localStyles.moveBtn, { borderColor: accentColor, borderWidth: 1.5 }, liveGoal.saved <= 0 && { opacity: 0.4 }]}
+                      onPress={() => setMoveDirection('release')}
+                      disabled={liveGoal.saved <= 0}
+                      accessibilityRole="button"
+                    >
+                      <MaterialIcons name="remove" size={18} color={accentColor} />
+                      <Text style={[localStyles.moveBtnText, { color: accentColor }]}>Release</Text>
+                    </TouchableOpacity>
+                  </View>
+                  ) : (
+                    <Text style={[localStyles.completedHint, { color: subTextColor }]}>
+                      Completed — this money no longer counts as set aside. Restore the goal to keep saving.
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {/* Name */}
+              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Name</Text>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: inputBg, borderColor: attempted && !name.trim() ? '#F44336' : borderColor, color: textColor }]}
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g. Japan trip"
+                placeholderTextColor={subTextColor}
+                returnKeyType="done"
+                autoFocus={!goal}
+              />
+              {attempted && !name.trim() && (
+                <Text style={styles.errorText}>Goal name is required</Text>
+              )}
+
               {/* Target amount */}
+              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Target</Text>
               <View style={[styles.amountContainer, { backgroundColor: inputBg, borderColor: amountInvalid ? '#F44336' : borderColor }]}>
                 <Text style={[styles.currencySymbol, { color: subTextColor }]}>{currencySymbol}</Text>
                 <TextInput
@@ -223,11 +276,20 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
                   placeholderTextColor={subTextColor}
                   keyboardType="decimal-pad"
                   returnKeyType="done"
-                  autoFocus={editingId == null}
                 />
               </View>
               {amountInvalid && (
                 <Text style={styles.errorText}>Enter a valid amount greater than 0</Text>
+              )}
+
+              {/* Account */}
+              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Account</Text>
+              {accountLocked ? (
+                <Text style={[localStyles.lockedHint, { color: subTextColor }]}>
+                  Kept in {liveGoal!.account_name}. Release the money first to move this goal to another account.
+                </Text>
+              ) : (
+                <AccountCardPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
               )}
 
               {/* Target date (optional) */}
@@ -244,66 +306,31 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
                   {targetDate && <MaterialIcons name="check" size={14} color={onAccentColor} />}
                 </View>
               </TouchableOpacity>
-              {targetDate && <DatePickerField date={targetDate} onChange={setTargetDate} minDate={startDate} />}
+              {targetDate && <DatePickerField date={targetDate} onChange={setTargetDate} />}
 
-              {/* Currency */}
-              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Currency</Text>
-              <TouchableOpacity
-                style={[localStyles.currencyRow, { backgroundColor: inputBg, borderColor }]}
-                onPress={() => setCurrencyPickerOpen(true)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={`Currency: ${getCurrencyByCode(currency).name}`}
-              >
-                <Text style={[localStyles.currencyRowSymbol, { color: textColor }]}>{currencySymbol}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={[localStyles.currencyRowCode, { color: textColor }]}>{currency}</Text>
-                  <Text style={[localStyles.currencyRowName, { color: subTextColor }]}>{getCurrencyByCode(currency).name}</Text>
-                </View>
-                <MaterialIcons name="chevron-right" size={20} color={subTextColor} />
-              </TouchableOpacity>
-
-              {/* Category (expense only) */}
-              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Category</Text>
-              <ScrollView
-                scrollEnabled={categories.length > 9}
-                style={categories.length > 9 ? localStyles.categoryGridScroll : undefined}
-                nestedScrollEnabled
-                showsVerticalScrollIndicator={false}
-              >
-                <View style={localStyles.categoryGrid}>
-                  {categories.map((cat) => {
-                    const isSelected = selectedCategory?.id === cat.id;
-                    return (
-                      <TouchableOpacity
-                        key={cat.id}
-                        style={localStyles.categoryItem}
-                        onPress={() => handleSelectCategory(cat)}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: isSelected }}
-                      >
-                        <View style={[localStyles.categoryCircle, { backgroundColor: cat.color }, isSelected && localStyles.categoryCircleSelected]}>
-                          <MaterialIcons name={(cat.icon as any) || 'label'} size={20} color="#fff" />
-                        </View>
-                        <Text style={[localStyles.categoryLabel, { color: isSelected ? textColor : subTextColor }]} numberOfLines={1}>
-                          {cat.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-              {attempted && !selectedCategory && (
-                <Text style={styles.errorText}>Please select a category</Text>
-              )}
+              <ColorIconPicker
+                color={color}
+                icon={icon}
+                onColorChange={setColor}
+                onIconChange={setIcon}
+                icons={CATEGORY_ICONS}
+              />
 
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
                 <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                  {editingId != null ? 'Save Changes' : 'Save Goal'}
+                  {goal ? 'Save Changes' : 'Save Goal'}
                 </Text>
               </TouchableOpacity>
 
-              {editingId != null && onDelete && (
+              {liveGoal && (
+                <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleToggleArchived} accessibilityRole="button">
+                  <Text style={[styles.saveAndContinueBtnText, { color: accentColor }]}>
+                    {isActiveGoal(liveGoal) ? 'Mark as Complete' : 'Restore Goal'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {goal && onDelete && (
                 <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button">
                   <Text style={styles.deleteBtnText}>Delete Goal</Text>
                 </TouchableOpacity>
@@ -313,11 +340,11 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
         </View>
       </Modal>
 
-      <CurrencyPicker
-        visible={currencyPickerOpen}
-        selectedCode={currency}
-        onSelect={(code) => { setCurrency(code); setCurrencyPickerOpen(false); }}
-        onClose={() => setCurrencyPickerOpen(false)}
+      <GoalMoveSheet
+        isOpen={moveDirection != null}
+        onClose={() => setMoveDirection(null)}
+        goal={liveGoal}
+        initialDirection={moveDirection ?? 'add'}
       />
 
       <InfoModal
@@ -333,19 +360,17 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
 }
 
 const localStyles = StyleSheet.create({
-  categoryGridScroll: { maxHeight: CATEGORY_GRID_3_ROWS, marginBottom: 0 },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  categoryItem: { width: '30%', alignItems: 'center', gap: 4, paddingVertical: 4 },
-  categoryCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  categoryCircleSelected: { borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
-  categoryLabel: { fontSize: 11, textAlign: 'center' },
+  savedCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 20 },
+  savedLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  savedAmount: { fontSize: 18, fontWeight: '700', marginTop: 4, marginBottom: 4 },
+  moveRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  moveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 10, paddingVertical: 10 },
+  moveBtnText: { fontSize: 14, fontWeight: '600' },
+  lockedHint: { fontSize: 13, lineHeight: 18, marginBottom: 20 },
+  completedHint: { fontSize: 13, lineHeight: 18 },
   targetDateToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   targetDateToggleLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 20 },
-  currencyRowSymbol: { fontSize: 20, fontWeight: '700', width: 28, textAlign: 'center' },
-  currencyRowCode: { fontSize: 15, fontWeight: '600' },
-  currencyRowName: { fontSize: 12, marginTop: 1 },
 });
 
 const styles = { ...sheetStyles, ...localStyles };

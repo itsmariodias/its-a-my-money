@@ -2,8 +2,9 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { BudgetWithDetails } from '@/types';
 import { periodLabel } from './periodUtils';
+import type { NearingBudget } from './budgetCrossings';
 
-export { findCrossings } from './budgetCrossings';
+export { findCrossings, findNearingLimit } from './budgetCrossings';
 
 let channelCreated = false;
 
@@ -34,5 +35,22 @@ export async function notifyBudgetExceeded(budget: BudgetWithDetails): Promise<v
 export async function notifyCrossedBudgets(crossed: BudgetWithDetails[]): Promise<void> {
   for (const b of crossed) {
     await notifyBudgetExceeded(b);
+  }
+}
+
+/** "Budget almost used" — the heads-up before the limit. */
+export async function notifyNearingBudgets(nearing: NearingBudget[]): Promise<void> {
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') return;
+  await ensureChannel();
+  for (const { budget, pct } of nearing) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Budget almost used',
+        body: `You've used ${Math.floor(pct)}% of your ${periodLabel(budget.period).toLowerCase()} ${budget.category_name} budget.`,
+        ...(Platform.OS === 'android' && { channelId: 'budgets' }),
+      },
+      trigger: null,
+    });
   }
 }

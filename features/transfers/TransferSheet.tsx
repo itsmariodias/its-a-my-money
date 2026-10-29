@@ -16,11 +16,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import DatePickerField from '@/shared/components/DatePickerField';
 import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
-import AccountIcon from '@/shared/components/AccountIcon';
+import AccountCardPicker from '@/shared/components/AccountCardPicker';
 import { useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import { notifyThresholdsCrossed, takeSaveSnapshot } from '@/features/transactions/postSaveAlerts';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { Snackbar } from 'react-native-snackbar';
@@ -134,21 +135,25 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     const parsed = parseAmounts();
     if (!parsed || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
+      const before = takeSaveSnapshot();
       await saveTransfer(parsed[0], parsed[1]);
+      notifyThresholdsCrossed(before, takeSaveSnapshot(), accounts);
       Snackbar.show({ text: transfer ? 'Transfer updated' : 'Transfer saved', duration: Snackbar.LENGTH_SHORT });
       triggerCloseRef.current();
     } catch {
       setErrorModal('Failed to save transfer.');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer]);
+  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer, accounts]);
 
   const handleSaveAndContinue = useCallback(async () => {
     setAttempted(true);
     const parsed = parseAmounts();
     if (!parsed || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
+      const before = takeSaveSnapshot();
       await saveTransfer(parsed[0], parsed[1]);
+      notifyThresholdsCrossed(before, takeSaveSnapshot(), accounts);
       Snackbar.show({ text: transfer ? 'Transfer updated' : 'Transfer saved', duration: Snackbar.LENGTH_SHORT });
       setAmount('');
       setToAmount('');
@@ -158,7 +163,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
       setErrorModal('Failed to save transfer.');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer]);
+  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer, accounts]);
 
   const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
@@ -289,93 +294,33 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
 
             {/* From account */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>From</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
-              {accounts.map((acc) => {
-                const isSelected = fromAccountId === acc.id;
-                const accentBg = acc.color ?? '#55A3FF';
-                return (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={[
-                      styles.accountCard,
-                      {
-                        backgroundColor: isSelected ? accentBg + '18' : inputBg,
-                        borderColor: isSelected ? accentBg : borderColor,
-                        borderWidth: isSelected ? 2 : 1,
-                      },
-                    ]}
-                    onPress={() => {
-                      if (acc.id === toAccountId) {
-                        setToAccountId(fromAccountId);
-                        setFromAccountId(acc.id);
-                      } else {
-                        setFromAccountId(acc.id);
-                      }
-                    }}
-                    activeOpacity={0.7}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: isSelected }}
-                  >
-                    <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
-                      <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
-                    </View>
-                    <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
-                      {acc.name}
-                    </Text>
-                    {isSelected && (
-                      <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
-                        <MaterialIcons name="check" size={10} color="#fff" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <AccountCardPicker
+              accounts={accounts}
+              selectedId={fromAccountId}
+              onSelect={(id) => {
+                if (id === toAccountId) {
+                  setToAccountId(fromAccountId);
+                  setFromAccountId(id);
+                } else {
+                  setFromAccountId(id);
+                }
+              }}
+            />
 
             {/* To account */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>To</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
-              {accounts.map((acc) => {
-                const isSelected = toAccountId === acc.id;
-                const accentBg = acc.color ?? '#55A3FF';
-                return (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={[
-                      styles.accountCard,
-                      {
-                        backgroundColor: isSelected ? accentBg + '18' : inputBg,
-                        borderColor: isSelected ? accentBg : borderColor,
-                        borderWidth: isSelected ? 2 : 1,
-                      },
-                    ]}
-                    onPress={() => {
-                      if (acc.id === fromAccountId) {
-                        setFromAccountId(toAccountId);
-                        setToAccountId(acc.id);
-                      } else {
-                        setToAccountId(acc.id);
-                      }
-                    }}
-                    activeOpacity={0.7}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: isSelected }}
-                  >
-                    <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
-                      <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
-                    </View>
-                    <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
-                      {acc.name}
-                    </Text>
-                    {isSelected && (
-                      <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
-                        <MaterialIcons name="check" size={10} color="#fff" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <AccountCardPicker
+              accounts={accounts}
+              selectedId={toAccountId}
+              onSelect={(id) => {
+                if (id === fromAccountId) {
+                  setFromAccountId(toAccountId);
+                  setToAccountId(id);
+                } else {
+                  setToAccountId(id);
+                }
+              }}
+            />
             {attempted && fromAccountId === toAccountId && (
               <Text style={styles.errorText}>From and To accounts must be different</Text>
             )}

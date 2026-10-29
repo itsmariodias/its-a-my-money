@@ -34,6 +34,9 @@ import BudgetsListScreen from '@/features/budgets/BudgetsListScreen';
 import GoalsDashboardCard from '@/features/goals/GoalsDashboardCard';
 import GoalsListScreen from '@/features/goals/GoalsListScreen';
 import { useGoalsStore } from '@/features/goals/useGoalsStore';
+import { reservedAcross, reservedByAccount } from '@/features/goals/goalUtils';
+import ReservedSummaryLine from '@/features/goals/ReservedSummaryLine';
+import { useAvailableBalances } from '@/features/goals/useAvailableBalances';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { todayString } from '@/features/recurring/dateUtils';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
@@ -189,6 +192,18 @@ export default function DashboardScreen() {
   // Balance at end of the selected period (cumulative).
   // For current/future periods, investments contribute their market value.
   // For past periods we have no historical valuation, so fall back to invested (flow).
+  // What goals hold across the same accounts the balance covers. Current period only — goals
+  // have no history, so a past balance cannot be split.
+  const goals = useGoalsStore((s) => s.goals);
+  const availableByAccount = useAvailableBalances();
+  const { totalReserved, totalAvailable } = useMemo(() => {
+    const ids = selectedId !== null ? [selectedId] : scopedAccounts.map((a) => a.id);
+    return {
+      totalReserved: isPastPeriod ? undefined : reservedAcross(reservedByAccount(goals), ids),
+      totalAvailable: ids.reduce((sum, id) => sum + (availableByAccount[id] ?? 0), 0),
+    };
+  }, [goals, isPastPeriod, selectedId, scopedAccounts, availableByAccount]);
+
   const totalBalance = useMemo(() => {
     const scope = selectedId !== null
       ? scopedAccounts.filter((a) => a.id === selectedId)
@@ -395,6 +410,7 @@ export default function DashboardScreen() {
             {selectedAccount ? `${selectedAccount.name} Balance` : 'Total Balance'}
           </Text>
           <Text style={[styles.balanceAmount, { color: onAccentColor }]}>{formatAmount(totalBalance, scopeCurrency, undefined, numberFormat)}</Text>
+          <ReservedSummaryLine reserved={totalReserved} available={totalAvailable} currency={scopeCurrency} color={onAccentColor + 'CC'} />
           <Text style={[styles.balanceSub, { color: onAccentColor + 'A6' }]}>as of {periodNavLabel(periodMode, periodDate)}</Text>
         </View>
 

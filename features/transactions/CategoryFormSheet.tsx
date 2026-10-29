@@ -20,36 +20,10 @@ import { useCategoriesStore } from '@/features/transactions/useCategoriesStore';
 import { Snackbar } from 'react-native-snackbar';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
+import ColorIconPicker, { CATEGORY_ICONS, PRESET_COLORS } from '@/shared/components/ColorIconPicker';
 import type { Category } from '@/types';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-
-const PRESET_COLORS = [
-  '#F44336', '#E91E63', '#9C27B0', '#673AB7',
-  '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4',
-  '#009688', '#4CAF50', '#8BC34A', '#CDDC39',
-  '#FFEB3B', '#FFC107', '#FF9800', '#FF5722',
-  '#795548', '#9E9E9E', '#607D8B',
-];
-
-const COLOR_NAMES: Record<string, string> = {
-  '#F44336': 'Red',         '#E91E63': 'Pink',        '#9C27B0': 'Purple',      '#673AB7': 'Deep purple',
-  '#3F51B5': 'Indigo',      '#2196F3': 'Blue',         '#03A9F4': 'Light blue',  '#00BCD4': 'Cyan',
-  '#009688': 'Teal',        '#4CAF50': 'Green',        '#8BC34A': 'Light green', '#CDDC39': 'Lime',
-  '#FFEB3B': 'Yellow',      '#FFC107': 'Amber',        '#FF9800': 'Orange',      '#FF5722': 'Deep orange',
-  '#795548': 'Brown',       '#9E9E9E': 'Grey',         '#607D8B': 'Blue grey',
-};
-
-const PRESET_ICONS: (keyof typeof MaterialIcons.glyphMap)[] = [
-  'restaurant', 'directions-car', 'shopping-cart', 'movie',
-  'local-hospital', 'receipt', 'home', 'flight',
-  'fitness-center', 'local-cafe', 'school', 'pets',
-  'phone-android', 'local-gas-station', 'sports-esports', 'work',
-  'laptop', 'trending-up', 'card-giftcard', 'savings',
-  'attach-money', 'business-center', 'more-horiz', 'label',
-  'local-grocery-store', 'directions-bus', 'checkroom', 'account-balance', 'redeem',
-  'local-taxi', 'soap', 'phone', 'sports-soccer',
-];
 
 interface Props {
   isOpen: boolean;
@@ -70,7 +44,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
   const [name, setName] = useState('');
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [color, setColor] = useState(PRESET_COLORS[0]);
-  const [icon, setIcon] = useState<string>(PRESET_ICONS[0]);
+  const [icon, setIcon] = useState<string>(CATEGORY_ICONS[0]);
   const [attempted, setAttempted] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
 
@@ -85,7 +59,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
       setName('');
       setType(defaultType);
       setColor(PRESET_COLORS[0]);
-      setIcon(PRESET_ICONS[0]);
+      setIcon(CATEGORY_ICONS[0]);
     }
     setAttempted(false);
   }, [isOpen, category]);
@@ -223,42 +197,13 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               <Text style={styles.errorText}>Category name is required</Text>
             )}
 
-            {/* Color */}
-            <Text style={[styles.sectionLabel, { color: subColor }]}>Color</Text>
-            <View style={styles.colorGrid}>
-              {PRESET_COLORS.map((c) => (
-                <TouchableOpacity
-                  key={c}
-                  onPress={() => setColor(c)}
-                  style={[styles.colorSwatch, { backgroundColor: c }, color === c && styles.colorSwatchSelected]}
-                  hitSlop={6}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: color === c }}
-                  accessibilityLabel={COLOR_NAMES[c] ?? c}
-                >
-                  {color === c && <MaterialIcons name="check" size={16} color="#fff" />}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Icon */}
-            <Text style={[styles.sectionLabel, { color: subColor }]}>Icon</Text>
-            <View style={styles.iconGrid}>
-              {PRESET_ICONS.map((ic) => (
-                <TouchableOpacity
-                  key={ic}
-                  style={[styles.iconItem, { backgroundColor: icon === ic ? color : inputBg }]}
-                  onPress={() => setIcon(ic)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: icon === ic }}
-                  accessibilityLabel={ic.replace(/-/g, ' ')}
-                >
-                  <View style={styles.iconItemInner}>
-                    <MaterialIcons name={ic as any} size={22} color={icon === ic ? '#fff' : subColor} />
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <ColorIconPicker
+              color={color}
+              icon={icon}
+              onColorChange={setColor}
+              onIconChange={setIcon}
+              icons={CATEGORY_ICONS}
+            />
 
             {/* Preview */}
             <Text style={[styles.sectionLabel, { color: subColor }]}>Preview</Text>
@@ -305,8 +250,6 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
 }
 
 const localStyles = StyleSheet.create({
-  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  iconItem: { width: '11%', minWidth: 44, minHeight: 44, borderRadius: 10 },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 20 },
   previewCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   previewName: { flex: 1, fontSize: 15, fontWeight: '500' },

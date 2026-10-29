@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  FlatList,
   Modal,
+  SectionList,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -14,15 +14,15 @@ import DeleteModal from '@/shared/components/DeleteModal';
 import InfoModal from '@/shared/components/InfoModal';
 import { useGoalsDb } from '@/db';
 import { useGoalsStore } from './useGoalsStore';
-import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
-import { useAccountsStore } from '@/features/accounts/useAccountsStore';
-import { buildAccountCurrencyMap } from '@/features/accounts/currencyUtils';
+import AccountIcon from '@/shared/components/AccountIcon';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
 import { todayString } from '@/features/recurring/dateUtils';
 import GoalFormSheet from './GoalFormSheet';
-import { goalProgress, goalStatusColor, targetDateLabel } from './goalUtils';
+import { goalProgress, goalStatusColor, isActiveGoal, reservedByAccount, targetDateLabel } from './goalUtils';
+import GoalPaceHint from './GoalPaceHint';
+import { useAvailableBalances } from './useAvailableBalances';
 import type { GoalWithDetails } from '@/types';
 
 interface Props {
@@ -30,20 +30,53 @@ interface Props {
   onClose: () => void;
 }
 
+interface GoalSection {
+  /** The account the section groups; null for the Completed section at the bottom. */
+  accountId: number | null;
+  title: string;
+  currency: string;
+  reserved: number;
+  data: GoalWithDetails[];
+}
+
 export default function GoalsListScreen({ isOpen, onClose }: Props) {
   const { bg, cardBg, textColor, subColor, borderColor, accentColor } = useAppTheme();
   const insets = useSafeAreaInsets();
   const goalsDb = useGoalsDb();
   const { goals, setGoals, removeGoal } = useGoalsStore();
-  const transactions = useTransactionsStore((s) => s.transactions);
-  const accounts = useAccountsStore((s) => s.accounts);
-  const globalCurrency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const availableByAccount = useAvailableBalances();
 
-  const accountCurrencyById = useMemo(
-    () => buildAccountCurrencyMap(accounts, globalCurrency),
-    [accounts, globalCurrency],
-  );
+  // One section per account for active goals, then completed ones together at the bottom.
+  // Goals arrive sorted by account name, then goal name.
+  const sections = useMemo(() => {
+    const reserved = reservedByAccount(goals);
+    const byAccount = new Map<number, GoalSection>();
+    const completed: GoalWithDetails[] = [];
+    for (const g of goals) {
+      if (!isActiveGoal(g)) {
+        completed.push(g);
+        continue;
+      }
+      let section = byAccount.get(g.account_id);
+      if (!section) {
+        section = {
+          accountId: g.account_id,
+          title: g.account_name,
+          currency: g.account_currency,
+          reserved: reserved[g.account_id] ?? 0,
+          data: [],
+        };
+        byAccount.set(g.account_id, section);
+      }
+      section.data.push(g);
+    }
+    const result = [...byAccount.values()];
+    if (completed.length > 0) {
+      result.push({ accountId: null, title: 'Completed', currency: '', reserved: 0, data: completed });
+    }
+    return result;
+  }, [goals]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<GoalWithDetails | null>(null);
@@ -95,17 +128,38 @@ export default function GoalsListScreen({ isOpen, onClose }: Props) {
 
   const today = todayString();
 
-  const renderItem = ({ item, index }: { item: GoalWithDetails; index: number }) => {
-    const goalCurrency = item.currency || globalCurrency;
-    const { saved, pct } = goalProgress(item, transactions, {
-      currency: goalCurrency,
-      accountCurrencyById,
-    });
-    const color = goalStatusColor(pct, item.target_date, accentColor, today);
+  const renderSectionHeader = ({ section }: { section: GoalSection }) => {
+    if (section.accountId === null) {
+      return (
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: textColor }]}>{section.title}</Text>
+        </View>
+      );
+    }
+    const available = availableByAccount[section.accountId] ?? 0;
+    return (
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: textColor }]} numberOfLines={1}>{section.title}</Text>
+        <Text style={[styles.sectionSub, { color: subColor }]} numberOfLines={1}>
+          Reserved {formatAmount(section.reserved, section.currency, undefined, numberFormat)} · Available{' '}
+          <Text style={{ color: available < 0 ? '#F44336' : subColor }}>
+            {formatAmount(available, section.currency, undefined, numberFormat)}
+          </Text>
+        </Text>
+      </View>
+    );
+  };
+
+  const renderItem = ({ item, index, section }: { item: GoalWithDetails; index: number; section: GoalSection }) => {
+    const goalCurrency = item.account_currency;
+    const { saved, pct } = goalProgress(item);
+    const isCompleted = !isActiveGoal(item);
+    // A completed goal is done whatever its date said, so it never reads as overdue.
+    const color = goalStatusColor(pct, isCompleted ? null : item.target_date, accentColor, today);
     const barPct = Math.min(100, pct);
-    const dateLabel = targetDateLabel(item.target_date, today);
+    const dateLabel = isCompleted ? item.account_name : targetDateLabel(item.target_date, today);
     const isFirst = index === 0;
-    const isLast = index === goals.length - 1;
+    const isLast = index === section.data.length - 1;
     const br = {
       borderTopLeftRadius: isFirst ? 12 : 0, borderTopRightRadius: isFirst ? 12 : 0,
       borderBottomLeftRadius: isLast ? 12 : 0, borderBottomRightRadius: isLast ? 12 : 0,
@@ -117,13 +171,13 @@ export default function GoalsListScreen({ isOpen, onClose }: Props) {
         onPress={() => handleEdit(item)}
         activeOpacity={0.7}
       >
-        <View style={[styles.itemIcon, { backgroundColor: item.category_color }]}>
-          <MaterialIcons name={(item.category_icon as any) || 'label'} size={20} color="#fff" />
+        <View style={[styles.itemIcon, { backgroundColor: item.color }]}>
+          <AccountIcon name={item.icon} size={20} color="#fff" />
         </View>
         <View style={styles.itemBody}>
           <View style={styles.itemRow}>
             <Text style={[styles.itemTitle, { color: textColor }]} numberOfLines={1}>
-              {item.category_name}
+              {item.name}
             </Text>
             <Text style={[styles.itemAmount, { color: textColor }]}>
               {formatAmount(saved, goalCurrency, undefined, numberFormat)} / {formatAmount(item.target_amount, goalCurrency, undefined, numberFormat)}
@@ -142,6 +196,7 @@ export default function GoalsListScreen({ isOpen, onClose }: Props) {
             )}
             <Text style={[styles.itemPct, { color }]}>{Math.round(pct)}%</Text>
           </View>
+          <GoalPaceHint goal={item} />
         </View>
       </TouchableOpacity>
     );
@@ -160,10 +215,12 @@ export default function GoalsListScreen({ isOpen, onClose }: Props) {
           </TouchableOpacity>
         </View>
 
-        <FlatList
-          data={goals}
+        <SectionList
+          sections={sections}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
+          renderSectionHeader={renderSectionHeader}
+          stickySectionHeadersEnabled={false}
           contentContainerStyle={[styles.list, goals.length === 0 && styles.listEmpty]}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={[styles.itemSeparator, { backgroundColor: borderColor }]} />}
@@ -172,7 +229,7 @@ export default function GoalsListScreen({ isOpen, onClose }: Props) {
               <MaterialIcons name="flag" size={48} color={subColor} style={{ marginBottom: 12 }} />
               <Text style={[styles.emptyTitle, { color: textColor }]}>No goals yet</Text>
               <Text style={[styles.emptySub, { color: subColor }]}>
-                Tap + to start working toward something. Spend in the category fills the bar.
+                Tap + to set money aside for something. Put part of an income toward it, or add money by hand.
               </Text>
             </View>
           }
@@ -189,7 +246,7 @@ export default function GoalsListScreen({ isOpen, onClose }: Props) {
       <DeleteModal
         visible={!!deletingItem}
         title="Delete Goal?"
-        message="This removes the goal. Past transactions are kept."
+        message="This removes the goal and frees the money it holds. Transactions are kept."
         showWarning={false}
         onCancel={() => setDeletingItem(null)}
         onConfirm={handleDelete}
@@ -212,6 +269,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
   headerTitle: { fontSize: 17, fontWeight: '700' },
   list: { padding: 16 },
+  sectionHeader: { paddingHorizontal: 4, paddingTop: 12, paddingBottom: 8 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionSub: { fontSize: 12, marginTop: 2 },
   listEmpty: { flex: 1 },
 
   item: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, gap: 12 },

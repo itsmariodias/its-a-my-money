@@ -1,6 +1,7 @@
 import { formatAmount } from '@/constants/currencies';
 import { formatDate, type DateFormatId } from '@/constants/dateFormats';
 import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
+import { useReloadGoals } from '@/features/goals/useReloadGoals';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { previousDay, todayString } from '@/features/recurring/dateUtils';
@@ -707,6 +708,7 @@ export default function TransactionsScreen() {
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
 
   const transactionsDb = useTransactionsDb();
+  const reloadGoals = useReloadGoals();
   const accountsDb = useAccountsDb();
   const transfersDb = useTransfersDb();
   const transactions = useTransactionsStore((s) => s.transactions);
@@ -931,6 +933,7 @@ export default function TransactionsScreen() {
     await transactionsDb.remove(id);
     const txns = await transactionsDb.getAll();
     setTransactions(txns);
+    await reloadGoals();
     Snackbar.show({ text: 'Transaction deleted', duration: Snackbar.LENGTH_SHORT });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deletingTx]);

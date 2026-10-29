@@ -4,13 +4,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useGoalsStore } from './useGoalsStore';
-import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
-import { useAccountsStore } from '@/features/accounts/useAccountsStore';
-import { buildAccountCurrencyMap } from '@/features/accounts/currencyUtils';
+import AccountIcon from '@/shared/components/AccountIcon';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
 import { todayString } from '@/features/recurring/dateUtils';
-import { goalProgress, goalStatusColor, targetDateLabel } from './goalUtils';
+import { goalProgress, goalStatusColor, isActiveGoal, targetDateLabel } from './goalUtils';
 import type { GoalWithDetails } from '@/types';
 
 interface Props {
@@ -24,29 +23,22 @@ interface GoalRowData {
 }
 
 export default function GoalsDashboardCard({ onPress }: Props) {
-  const goals = useGoalsStore((s) => s.goals);
-  const transactions = useTransactionsStore((s) => s.transactions);
-  const accounts = useAccountsStore((s) => s.accounts);
-  const globalCurrency = useSettingsStore((s) => s.currency);
+  const allGoals = useGoalsStore((s) => s.goals);
+  // Follows the header's account filter, like the rest of the dashboard.
+  const selectedAccountId = useUIStore((s) => s.selectedAccountId);
+  // Completed goals live only in the goals list.
+  const goals = useMemo(
+    () => allGoals.filter((g) => isActiveGoal(g) && (selectedAccountId == null || g.account_id === selectedAccountId)),
+    [allGoals, selectedAccountId],
+  );
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const { cardBg, textColor, subColor, borderColor, accentColor } = useAppTheme();
-
-  const accountCurrencyById = useMemo(
-    () => buildAccountCurrencyMap(accounts, globalCurrency),
-    [accounts, globalCurrency],
-  );
 
   const today = todayString();
 
   const rows: GoalRowData[] = useMemo(() => {
-    return goals.map((g) => {
-      const { saved, pct } = goalProgress(g, transactions, {
-        currency: g.currency || globalCurrency,
-        accountCurrencyById,
-      });
-      return { goal: g, saved, pct };
-    });
-  }, [goals, transactions, accountCurrencyById, globalCurrency]);
+    return goals.map((g) => ({ goal: g, ...goalProgress(g) }));
+  }, [goals]);
 
   if (goals.length === 0) return null;
 
@@ -67,16 +59,16 @@ export default function GoalsDashboardCard({ onPress }: Props) {
         const color = goalStatusColor(pct, goal.target_date, accentColor, today);
         const barPct = Math.min(100, pct);
         const dateLabel = targetDateLabel(goal.target_date, today);
-        const currency = goal.currency || globalCurrency;
+        const currency = goal.account_currency;
         return (
           <View key={goal.id} style={styles.row}>
             <View style={styles.rowHeader}>
               <View style={styles.rowLeft}>
-                <View style={[styles.iconCircle, { backgroundColor: goal.category_color }]}>
-                  <MaterialIcons name={(goal.category_icon as any) || 'label'} size={14} color="#fff" />
+                <View style={[styles.iconCircle, { backgroundColor: goal.color }]}>
+                  <AccountIcon name={goal.icon} size={14} color="#fff" />
                 </View>
                 <Text style={[styles.rowName, { color: textColor }]} numberOfLines={1}>
-                  {goal.category_name}
+                  {goal.name}
                 </Text>
                 {dateLabel && (
                   <View style={[styles.dateBadge, { backgroundColor: color + '22' }]}>
@@ -90,7 +82,7 @@ export default function GoalsDashboardCard({ onPress }: Props) {
               <View style={[styles.progressFill, { width: `${barPct}%`, backgroundColor: color }]} />
             </View>
             <Text style={[styles.rowAmount, { color: subColor }]}>
-              {formatAmount(saved, currency, undefined, numberFormat)} / {formatAmount(goal.target_amount, currency, undefined, numberFormat)}
+              {formatAmount(saved, currency, undefined, numberFormat)} / {formatAmount(goal.target_amount, currency, undefined, numberFormat)} · {goal.account_name}
             </Text>
           </View>
         );
