@@ -158,7 +158,7 @@ features/                             # Feature modules (screens + logic co-loca
     useCategoriesStore.test.ts
     sectionUtils.ts                   # rollUpByCurrency, netInCurrency, per-day section summaries
     sectionUtils.test.ts
-    postSaveAlerts.ts                 # Runs the budget + goal threshold detectors after a manual save
+    postSaveAlerts.ts                 # Runs the budget + goal detectors after a manual transaction or transfer save
   transfers/
     TransferSheet.tsx                 # Create/edit transfer bottom sheet
     useTransfersStore.ts
@@ -197,13 +197,13 @@ features/                             # Feature modules (screens + logic co-loca
     useGoalsStore.test.ts
     useAvailableBalances.ts           # Per-account balance minus what its goals hold
     useReloadGoals.ts                 # Re-reads goals after deletes that can change what they hold
-    goalUtils.ts                      # goalProgress, reservedByAccount, reservedAcross, savedExcluding, validateSplits, moveError, goalStatusColor, targetDateLabel
+    goalUtils.ts                      # goalProgress, reservedByAccount, reservedAcross, availableAsOf, overReservedAfterSave, savedExcluding, validateSplits, moveError, goalStatusColor, targetDateLabel
     goalUtils.test.ts
     legacyGoals.ts                    # Converts pre-016 category-based goals from old backups
     legacyGoals.test.ts
-    goalCrossings.ts                  # findReachedGoals() — pure detector for goals hitting their target
+    goalCrossings.ts                  # findReachedGoals(), findOverspentAccounts() — pure detectors for goal alerts
     goalCrossings.test.ts
-    goalAlerts.ts                     # expo-notifications wrapper that fires "Goal reached" alerts
+    goalAlerts.ts                     # expo-notifications wrapper for "Goal reached" and "Goal money spent" alerts
   settings/
     SettingsScreen.tsx                # Settings overlay
     useSettingsStore.ts
@@ -373,11 +373,12 @@ Money set aside inside an account. An account's balance is split into buckets �
 
 - **Schema** (migration 016, which rebuilt the 015 table): `goals (id, name, icon, color, account_id, target_amount, target_date, created_at)` and `goal_allocations (id, goal_id, amount, date, transaction_id, note, created_at)`. A goal has no currency column — it uses its account's (`account_currency` on `GoalWithDetails`).
 - **Saved is derived, never stored** — `GOAL_SELECT` in `db/index.ts` sums the goal's allocations into `saved`. Positive rows reserve (income split, manual add); negative rows take out (release, expense paid from the goal). After any allocation write, reload with `setGoals(await goalsDb.getAll())` or `useReloadGoals()` — the store has no per-allocation reducers.
-- **Reserved / Available** — `reservedByAccount(goals)` sums saved per account; available is the account balance minus that. `useAvailableBalances()` gives the all-time figure (what can be reserved now). The Accounts tab shows Reserved and Available under the balance on cards for accounts with goals, and `ReservedSummaryLine` adds a per-currency "Reserved · Available" line to the Accounts total card and the Dashboard balance card (`reservedAcross` sums the accounts in scope). Current period only — goals have no history, so a past balance cannot be split.
+- **Reserved / Available** — `reservedByAccount(goals)` sums saved per account. Available is `availableAsOf()`: the account balance **as of today** minus that, so future-dated income cannot be reserved before its day. Every Available figure uses it through `useAvailableBalances()` — the Add money cap, the goals list, the account cards, both total cards — so they never disagree. On a current period whose end is later than today, Reserved + Available can therefore differ from the card's balance by future-dated rows. The Accounts tab shows Reserved and Available under the balance on cards for accounts with goals, and `ReservedSummaryLine` adds a per-currency "Reserved · Available" line to the Accounts total card and the Dashboard balance card (`reservedAcross` sums the accounts in scope). Current period only — goals have no history, so a past balance cannot be split.
 - **Three ways money moves:**
   - **Income split** — `GoalSplitField` in `AddTransactionSheet` lists the selected account's goals; amounts typed there are written by `transactionsDb.insert/update(tx, goalSplits)` as allocations linked by `transaction_id`, inside the transaction's own `withTransactionAsync`. Update replaces the transaction's splits wholesale.
   - **Spend from a goal** — the same field on an expense ("Paid from goals") writes negative allocations.
   - **Manual Add / Release** — `GoalMoveSheet`, opened from `GoalFormSheet` in edit mode, calls `goalsDb.allocate()` with no transaction. Nothing changes in the account balance, only how much of it is set aside.
+- **Overspend alert** — Available is allowed to go negative (an expense not paid from a goal, a transfer out, a falling market value); the sheets never block or warn. After a manual save, `findOverspentAccounts()` in `goalCrossings.ts` compares before/after snapshots and `notifyOverspentAccounts()` sends a "Goal money spent" notification (Android channel `'goals'`) for each account with goals whose Available the save pushed below zero (`overReservedAfterSave`). Measured as of today, so future-dated spend does not alert until its day; a save that leaves an overspent account no worse stays quiet. `AddTransactionSheet` and `TransferSheet` both go through `notifyThresholdsCrossed(takeSaveSnapshot() before, takeSaveSnapshot() after, accounts)`.
 - **Validation** (`goalUtils.ts`) — `validateSplits`: splits together ≤ the transaction amount; on spend each ≤ what the goal holds. In edit mode the goal's saved figure first has the transaction's own old splits taken back out (`savedExcluding`). `moveError`: Add ≤ the account's available; Release ≤ the goal's saved. Switching the account or the type in the transaction sheet clears the split.
 - **Cascades** — FK enforcement is off at runtime, so every cascade is an explicit DELETE: `transactionsDb.remove`, `removeByAccount`, `removeByCategory` and `removeByRecurring` delete the removed rows' allocations first; `goalsDb.remove` and `removeByAccount` delete the goals' allocations. Account delete in `accounts.tsx` calls `goalsDb.removeByAccount`. Callers reload goals afterwards. An account holding goal money cannot be changed on the goal (`GoalFormSheet` locks it until the money is released).
 - **`target_date` is optional and display-only.** It drives the countdown badge (`targetDateLabel`) and the overdue colour.

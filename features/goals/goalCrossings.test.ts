@@ -1,5 +1,5 @@
-import type { GoalWithDetails } from '@/types';
-import { findReachedGoals } from './goalCrossings';
+import type { Account, GoalWithDetails } from '@/types';
+import { findOverspentAccounts, findReachedGoals, type BalanceSnapshot } from './goalCrossings';
 
 const goal = (overrides: Partial<GoalWithDetails> = {}): GoalWithDetails => ({
   id: 1,
@@ -56,5 +56,71 @@ describe('findReachedGoals', () => {
     // When money arrives
     // Then it is skipped
     expect(findReachedGoals([goal({ target_amount: 0 })], [goal({ target_amount: 0, saved: 10 })])).toEqual([]);
+  });
+});
+
+describe('findOverspentAccounts', () => {
+  const account = (id: number, initial_balance: number): Account => ({
+    id, name: `Account ${id}`, initial_balance, currency: 'EUR', color: null, icon: null,
+    account_type: 'cash', current_value: null, created_at: '2026-01-01',
+  });
+  const savings = account(1, 1000);
+  const TODAY = '2026-10-29';
+  // 800 of Savings' 1,000 is set aside in a goal.
+  const base: BalanceSnapshot = { transactions: [], transfers: [], goals: [{ account_id: 1, saved: 800 }] };
+  const expense = (amount: number, date = TODAY) => ({ account_id: 1, type: 'expense' as const, amount, date });
+
+  it('flags an expense that spends money set aside for goals', () => {
+    // Given 200 unreserved, and a 300 expense not paid from the goal
+    const curr = { ...base, transactions: [expense(300)] };
+
+    // When checking after the save
+    const overspent = findOverspentAccounts([savings], base, curr, TODAY);
+
+    // Then Savings is reported 100 short
+    expect(overspent).toEqual([{ account: savings, available: -100 }]);
+  });
+
+  it('flags a transfer out that does the same', () => {
+    // Given 300 transferred out of Savings
+    const curr = { ...base, transfers: [{ from_account_id: 1, to_account_id: 2, amount: 300, to_amount: null, date: TODAY }] };
+
+    // Then Savings is reported, the destination is not
+    expect(findOverspentAccounts([savings, account(2, 0)], base, curr, TODAY).map((o) => o.account.id)).toEqual([1]);
+  });
+
+  it('stays quiet when the unreserved money covers it', () => {
+    // Given a 200 expense against 200 unreserved
+    expect(findOverspentAccounts([savings], base, { ...base, transactions: [expense(200)] }, TODAY)).toEqual([]);
+  });
+
+  it('stays quiet when the expense is paid from the goal', () => {
+    // Given a 300 expense that also takes 300 out of the goal
+    const curr = { transactions: [expense(300)], transfers: [], goals: [{ account_id: 1, saved: 500 }] };
+    // Then balance and goal fall together — nothing set aside was spent elsewhere
+    expect(findOverspentAccounts([savings], base, curr, TODAY)).toEqual([]);
+  });
+
+  it('does not fire again for a save that leaves an overspent account no worse', () => {
+    // Given Savings already 100 short
+    const short = { ...base, transactions: [expense(300)] };
+    // When a later save leaves the figures unchanged (say, a note edit)
+    // Then nothing new is reported
+    expect(findOverspentAccounts([savings], short, short, TODAY)).toEqual([]);
+  });
+
+  it('ignores future-dated spend until its day', () => {
+    // Given the 300 expense is dated next month
+    const curr = { ...base, transactions: [expense(300, '2026-11-15')] };
+    // Then today's Available is untouched
+    expect(findOverspentAccounts([savings], base, curr, TODAY)).toEqual([]);
+  });
+
+  it('skips accounts without goals', () => {
+    // Given an account with no goals going negative
+    const current = account(2, 100);
+    const curr = { ...base, transactions: [{ account_id: 2, type: 'expense' as const, amount: 500, date: TODAY }] };
+    // Then it is not a goal overspend
+    expect(findOverspentAccounts([current], base, curr, TODAY)).toEqual([]);
   });
 });

@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Snackbar } from 'react-native-snackbar';
 import {
+  Animated,
   Dimensions,
+  LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
@@ -23,6 +25,7 @@ import { useAccountsDb, useTransactionsDb, useTransfersDb, useRecurringDb, useGo
 import { useGoalsStore } from '@/features/goals/useGoalsStore';
 import { reservedAcross, reservedByAccount } from '@/features/goals/goalUtils';
 import ReservedSummaryLine from '@/features/goals/ReservedSummaryLine';
+import { useAvailableBalances } from '@/features/goals/useAvailableBalances';
 import { useReloadGoals } from '@/features/goals/useReloadGoals';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
@@ -117,12 +120,14 @@ interface CardProps {
   account: Account;
   balance: number;
   stat: { amount: number; pct: number | null } | null;
-  /** Money held in this account's goals; null hides the line (no goals, or a past period). */
+  /** Money held in this account's goals; null hides the lines (no goals, or a past period). */
   reserved: number | null;
+  /** Balance today minus `reserved`. */
+  available: number;
   onPress: () => void;
 }
 
-function AccountCard({ account, balance, stat, reserved, onPress }: CardProps) {
+function AccountCard({ account, balance, stat, reserved, available, onPress }: CardProps) {
   const currency = account.currency || 'USD';
   const { cardBg, textColor, subColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
@@ -163,8 +168,8 @@ function AccountCard({ account, balance, stat, reserved, onPress }: CardProps) {
             </Text>
             <Text style={[styles.reservedLine, { color: subColor }]} numberOfLines={1}>
               Available{' '}
-              <Text style={{ color: balance - reserved < 0 ? '#F44336' : subColor }}>
-                {formatAmount(balance - reserved, currency, undefined, numberFormat)}
+              <Text style={{ color: available < 0 ? '#F44336' : subColor }}>
+                {formatAmount(available, currency, undefined, numberFormat)}
               </Text>
             </Text>
           </>
@@ -176,6 +181,8 @@ function AccountCard({ account, balance, stat, reserved, onPress }: CardProps) {
 }
 
 // ─── AccountsScreen ──────────────────────────────────────────────────────────
+
+const CAROUSEL_CARD_PADDING = 20;
 
 export default function AccountsScreen() {
   const { accentColor, onAccentColor, bg, subColor, borderColor } = useAppTheme();
@@ -203,6 +210,7 @@ export default function AccountsScreen() {
   const goalsDb = useGoalsDb();
   const reloadGoals = useReloadGoals();
   const goals = useGoalsStore((s) => s.goals);
+  const availableByAccount = useAvailableBalances();
   const currency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const showPctChange = useSettingsStore((s) => s.showPctChange);
@@ -271,16 +279,19 @@ export default function AccountsScreen() {
     [goals, isPastPeriod]
   );
 
-  // The same reserved money, summed per currency for the total card's pages.
+  // The same reserved money, and what is left available, summed per currency for the total
+  // card's pages.
   const reservedByCurrency = useMemo(() => {
-    const totals = new Map<string, number>();
+    const totals = new Map<string, { reserved: number; available: number }>();
     for (const code of new Set(accounts.map((a) => a.currency || 'USD'))) {
       const ids = accounts.filter((a) => (a.currency || 'USD') === code).map((a) => a.id);
-      const r = reservedAcross(reservedMap, ids);
-      if (r !== undefined) totals.set(code, r);
+      const reserved = reservedAcross(reservedMap, ids);
+      if (reserved === undefined) continue;
+      const available = ids.reduce((sum, id) => sum + (availableByAccount[id] ?? 0), 0);
+      totals.set(code, { reserved, available });
     }
     return totals;
-  }, [accounts, reservedMap]);
+  }, [accounts, reservedMap, availableByAccount]);
 
   const [carouselIndex, setCarouselIndex] = useState(0);
   const carouselRef = useRef<ScrollView>(null);
@@ -312,6 +323,30 @@ export default function AccountsScreen() {
     const map = totalsByCurrency(accounts, prevBalanceMap);
     return new Map(Object.entries(map));
   }, [showPctChange, accounts, prevBalanceMap]);
+
+  // Pages differ in height (only some currencies have a Reserved line), so the carousel follows
+  // the page in view: each page's content is measured, and the height is interpolated from the
+  // scroll position so it eases between pages mid-swipe instead of jumping.
+  const carouselScrollX = useRef(new Animated.Value(0)).current;
+  const [pageHeights, setPageHeights] = useState<number[]>([]);
+  const onPageLayout = (index: number, e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height + CAROUSEL_CARD_PADDING * 2;
+    setPageHeights((prev) => {
+      if (prev[index] === h) return prev;
+      const next = [...prev];
+      next[index] = h;
+      return next;
+    });
+  };
+  const allPagesMeasured = currencyTotals.length > 1
+    && currencyTotals.every((_, i) => pageHeights[i] !== undefined);
+  const carouselHeight = allPagesMeasured
+    ? carouselScrollX.interpolate({
+        inputRange: currencyTotals.map((_, i) => i * carouselWidth),
+        outputRange: currencyTotals.map((_, i) => pageHeights[i]),
+        extrapolate: 'clamp',
+      })
+    : undefined;
 
   const handleDeletePress = useCallback(
     (account: Account) => {
@@ -373,7 +408,7 @@ export default function AccountsScreen() {
                       {pct >= 0 ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
                     </Text>
                   )}
-                  <ReservedSummaryLine total={amount} reserved={reservedByCurrency.get(code)} currency={code} color={onAccentColor + 'CC'} />
+                  <ReservedSummaryLine reserved={reservedByCurrency.get(code)?.reserved} available={reservedByCurrency.get(code)?.available ?? 0} currency={code} color={onAccentColor + 'CC'} />
                 </>
               );
             })()}
@@ -383,22 +418,28 @@ export default function AccountsScreen() {
           </View>
         ) : (
           <View style={styles.carouselWrapper}>
-            <ScrollView
+            <Animated.ScrollView
               ref={carouselRef}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
-              onScroll={onCarouselScroll}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { x: carouselScrollX } } }],
+                // Height cannot run on the native driver.
+                { useNativeDriver: false, listener: onCarouselScroll }
+              )}
               scrollEventThrottle={16}
               decelerationRate="fast"
+              style={carouselHeight !== undefined && { height: carouselHeight }}
             >
-              {currencyTotals.map(([code, amount]) => {
+              {currencyTotals.map(([code, amount], pageIndex) => {
                 const prev = prevCurrencyTotals.get(code);
                 const pct = prev !== undefined && prev !== 0 && amount !== prev
                   ? ((amount - prev) / Math.abs(prev)) * 100
                   : null;
                 return (
                   <View key={code} style={[styles.carouselCard, { backgroundColor: accentColor, width: carouselWidth }]}>
+                    <View onLayout={(e) => onPageLayout(pageIndex, e)}>
                     <View style={styles.totalLabelRow}>
                       <Text style={[styles.totalLabel, { color: onAccentColor + 'CC' }]}>Total Balance</Text>
                       <View style={styles.totalHeaderRight}>
@@ -432,14 +473,15 @@ export default function AccountsScreen() {
                         {pct >= 0 ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
                       </Text>
                     )}
-                    <ReservedSummaryLine total={amount} reserved={reservedByCurrency.get(code)} currency={code} color={onAccentColor + 'CC'} />
+                    <ReservedSummaryLine reserved={reservedByCurrency.get(code)?.reserved} available={reservedByCurrency.get(code)?.available ?? 0} currency={code} color={onAccentColor + 'CC'} />
                     <Text style={[styles.totalSub, { color: onAccentColor + 'A6' }]}>
                       as of {periodNavLabel(periodMode, periodDate)} · {accounts.length} account{accounts.length !== 1 ? 's' : ''}
                     </Text>
+                    </View>
                   </View>
                 );
               })}
-            </ScrollView>
+            </Animated.ScrollView>
           </View>
         )}
 
@@ -462,6 +504,7 @@ export default function AccountsScreen() {
                     balance={balanceMap[acc.id] ?? acc.initial_balance}
                     stat={statMap[acc.id] ?? null}
                     reserved={reservedMap[acc.id] ?? null}
+                    available={availableByAccount[acc.id] ?? 0}
                     onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
                   />
                 ))}
@@ -477,6 +520,7 @@ export default function AccountsScreen() {
                     balance={balanceMap[acc.id] ?? acc.initial_balance}
                     stat={statMap[acc.id] ?? null}
                     reserved={reservedMap[acc.id] ?? null}
+                    available={availableByAccount[acc.id] ?? 0}
                     onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
                   />
                 ))}
@@ -559,7 +603,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   carouselCard: {
-    padding: 20,
+    padding: CAROUSEL_CARD_PADDING,
   },
   totalLabelRow: {
     flexDirection: 'row',

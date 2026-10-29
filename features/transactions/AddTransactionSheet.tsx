@@ -22,7 +22,7 @@ import { categoriesOfType, useCategoriesStore } from '@/features/transactions/us
 import { useGoalsDb, useTransactionsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { getAccountCurrency } from '@/features/accounts/currencyUtils';
-import { notifyThresholdsCrossed } from '@/features/transactions/postSaveAlerts';
+import { notifyThresholdsCrossed, takeSaveSnapshot } from '@/features/transactions/postSaveAlerts';
 import GoalSplitField from '@/features/goals/GoalSplitField';
 import { useGoalsStore } from '@/features/goals/useGoalsStore';
 import { hasSplitErrors, savedExcluding, validateSplits } from '@/features/goals/goalUtils';
@@ -199,11 +199,9 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId || hasSplitErrors(splitErrors)) return;
     try {
-      const prevTxs = useTransactionsStore.getState().transactions;
-      const prevGoals = useGoalsStore.getState().goals;
+      const before = takeSaveSnapshot();
       await saveTransaction(parsedAmount);
-      const currTxs = useTransactionsStore.getState().transactions;
-      notifyThresholdsCrossed(prevTxs, currTxs, accounts, prevGoals, useGoalsStore.getState().goals);
+      notifyThresholdsCrossed(before, takeSaveSnapshot(), accounts);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       triggerCloseRef.current();
     } catch {
@@ -216,11 +214,9 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId || hasSplitErrors(splitErrors)) return;
     try {
-      const prevTxs = useTransactionsStore.getState().transactions;
-      const prevGoals = useGoalsStore.getState().goals;
+      const before = takeSaveSnapshot();
       await saveTransaction(parsedAmount);
-      const currTxs = useTransactionsStore.getState().transactions;
-      notifyThresholdsCrossed(prevTxs, currTxs, accounts, prevGoals, useGoalsStore.getState().goals);
+      notifyThresholdsCrossed(before, takeSaveSnapshot(), accounts);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       setAmount('');
       setNote('');

@@ -1,4 +1,8 @@
-import type { GoalAllocation, GoalSplit, GoalWithDetails } from '@/types';
+import type { Account, GoalAllocation, GoalSplit, GoalWithDetails, Transaction, Transfer } from '@/types';
+import { accountBalanceAsOf } from '@/features/accounts/balanceUtils';
+
+type TxLike = Pick<Transaction, 'account_id' | 'type' | 'amount' | 'date'>;
+type TransferLike = Pick<Transfer, 'from_account_id' | 'to_account_id' | 'amount' | 'to_amount' | 'date'>;
 
 export const GOAL_REACHED_COLOR = '#4CAF50';
 export const GOAL_OVERDUE_COLOR = '#F44336';
@@ -30,6 +34,32 @@ export function reservedByAccount(
     reserved[g.account_id] = (reserved[g.account_id] ?? 0) + g.saved;
   }
   return reserved;
+}
+
+/**
+ * An account's balance on `asOf` minus what its goals hold — the money not set aside. Every
+ * Available figure in the app is measured this way, as of today, so the cap on Add money and the
+ * figures on screen agree. `reservedDelta` is extra money a pending save would set aside.
+ */
+export function availableAsOf(
+  account: Account,
+  transactions: readonly TxLike[],
+  transfers: readonly TransferLike[],
+  goals: readonly Pick<GoalWithDetails, 'account_id' | 'saved'>[],
+  asOf: string,
+  reservedDelta = 0,
+): number {
+  const balance = accountBalanceAsOf(account, transactions, transfers, { endInclusive: asOf });
+  return balance - (reservedByAccount(goals)[account.id] ?? 0) - reservedDelta;
+}
+
+/**
+ * The projected Available when a save would leave it below zero, or null. Only a save that
+ * lowers Available counts, so editing the note on a transaction in an already-negative account
+ * does not keep warning.
+ */
+export function overReservedAfterSave(availableBefore: number, availableAfter: number): number | null {
+  return availableAfter < -EPSILON && availableAfter < availableBefore - EPSILON ? availableAfter : null;
 }
 
 /**

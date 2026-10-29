@@ -1,35 +1,51 @@
-import type { Account, GoalWithDetails, TransactionWithDetails } from '@/types';
+import type { Account, GoalWithDetails, TransactionWithDetails, TransferWithDetails } from '@/types';
 import { buildAccountCurrencyMap } from '@/features/accounts/currencyUtils';
 import { useBudgetsStore } from '@/features/budgets/useBudgetsStore';
 import { findCrossings, notifyCrossedBudgets } from '@/features/budgets/budgetAlerts';
-import { findReachedGoals, notifyReachedGoals } from '@/features/goals/goalAlerts';
+import { findOverspentAccounts, findReachedGoals, notifyOverspentAccounts, notifyReachedGoals } from '@/features/goals/goalAlerts';
+import { useGoalsStore } from '@/features/goals/useGoalsStore';
+import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
+import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import { todayString } from '@/features/recurring/dateUtils';
+
+/** What the threshold checks compare: the stores as they stood before and after a save. */
+export interface SaveSnapshot {
+  transactions: TransactionWithDetails[];
+  transfers: TransferWithDetails[];
+  goals: GoalWithDetails[];
+}
+
+export function takeSaveSnapshot(): SaveSnapshot {
+  return {
+    transactions: useTransactionsStore.getState().transactions,
+    transfers: useTransfersStore.getState().transfers,
+    goals: useGoalsStore.getState().goals,
+  };
+}
 
 /**
- * Fires the threshold notifications a manual transaction save can trigger: budgets crossing their
- * limit and goals reaching their target. Both compare a before/after snapshot, so callers must
- * capture `prevTransactions` and `prevGoals` before saving.
+ * Fires the notifications a manual transaction or transfer save can trigger: budgets crossing
+ * their limit, goals reaching their target, and accounts left with less than their goals hold.
+ * Callers take a snapshot before saving and another after the stores are updated.
  *
  * Fire-and-forget — notification failures never block a save.
  */
-export function notifyThresholdsCrossed(
-  prevTransactions: TransactionWithDetails[],
-  currTransactions: TransactionWithDetails[],
-  accounts: Account[],
-  prevGoals: GoalWithDetails[],
-  currGoals: GoalWithDetails[],
-): void {
+export function notifyThresholdsCrossed(prev: SaveSnapshot, curr: SaveSnapshot, accounts: Account[]): void {
   const accountCurrencyById = buildAccountCurrencyMap(accounts, '');
 
   const crossed = findCrossings(
     useBudgetsStore.getState().budgets,
-    prevTransactions,
-    currTransactions,
+    prev.transactions,
+    curr.transactions,
     new Date(),
     accountCurrencyById
   );
   if (crossed.length > 0) notifyCrossedBudgets(crossed);
 
-  notifyGoalsReached(prevGoals, currGoals);
+  notifyGoalsReached(prev.goals, curr.goals);
+
+  const overspent = findOverspentAccounts(accounts, prev, curr, todayString());
+  if (overspent.length > 0) notifyOverspentAccounts(overspent);
 }
 
 /** The goal half on its own, for saves that move money without a transaction (a manual add). */

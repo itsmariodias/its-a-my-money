@@ -1,8 +1,11 @@
+import type { Account } from '@/types';
 import {
+  availableAsOf,
   goalProgress,
   goalStatusColor,
   hasSplitErrors,
   moveError,
+  overReservedAfterSave,
   reservedAcross,
   reservedByAccount,
   savedExcluding,
@@ -67,6 +70,66 @@ describe('reservedAcross', () => {
     // When totalling accounts 2 and 3
     // Then there is nothing to show, rather than "Reserved 0"
     expect(reservedAcross({ 1: 500 }, [2, 3])).toBeUndefined();
+  });
+});
+
+describe('availableAsOf', () => {
+  const account: Account = {
+    id: 1, name: 'Savings', initial_balance: 1000, currency: 'EUR', color: null, icon: null,
+    account_type: 'cash', current_value: null, created_at: '2026-01-01',
+  };
+  const goals = [{ account_id: 1, saved: 300 }, { account_id: 2, saved: 999 }];
+
+  it('is the balance minus what this account\'s goals hold', () => {
+    // Given 1,000 in the account and 300 in its goals
+    // When measuring Available
+    // Then only this account's goals count
+    expect(availableAsOf(account, [], [], goals, '2026-10-29')).toBe(700);
+  });
+
+  it('ignores money dated after the day it is measured on', () => {
+    // Given a 500 income dated next month
+    const transactions = [{ account_id: 1, type: 'income' as const, amount: 500, date: '2026-11-15' }];
+
+    // When measuring Available today
+    // Then that income cannot be reserved yet
+    expect(availableAsOf(account, transactions, [], goals, '2026-10-29')).toBe(700);
+    expect(availableAsOf(account, transactions, [], goals, '2026-11-15')).toBe(1200);
+  });
+
+  it('counts transfers out of the account', () => {
+    // Given 800 transferred out today
+    const transfers = [{ from_account_id: 1, to_account_id: 2, amount: 800, to_amount: null, date: '2026-10-29' }];
+
+    // When measuring Available
+    // Then it drops below zero — the goals' 300 is no longer all there
+    expect(availableAsOf(account, [], transfers, goals, '2026-10-29')).toBe(-100);
+  });
+
+  it('subtracts money a pending save would set aside', () => {
+    // Given a save that reserves 200 more
+    // Then Available falls by 200
+    expect(availableAsOf(account, [], [], goals, '2026-10-29', 200)).toBe(500);
+  });
+});
+
+describe('overReservedAfterSave', () => {
+  it('warns when a save takes Available below zero', () => {
+    // Given Available goes from 100 to -50
+    // Then the projected figure is returned for the warning
+    expect(overReservedAfterSave(100, -50)).toBe(-50);
+  });
+
+  it('stays quiet when Available stays at or above zero', () => {
+    expect(overReservedAfterSave(100, 0)).toBeNull();
+  });
+
+  it('stays quiet when a save does not lower an already-negative Available', () => {
+    // Given an account already at -50, and an edit that changes only the note
+    // Then there is nothing new to warn about
+    expect(overReservedAfterSave(-50, -50)).toBeNull();
+    // But a save that makes it worse still warns
+    expect(overReservedAfterSave(-50, -80)).toBe(-80);
   });
 });
 

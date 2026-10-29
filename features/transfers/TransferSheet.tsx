@@ -21,6 +21,7 @@ import { useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import { notifyThresholdsCrossed, takeSaveSnapshot } from '@/features/transactions/postSaveAlerts';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { Snackbar } from 'react-native-snackbar';
@@ -134,21 +135,25 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     const parsed = parseAmounts();
     if (!parsed || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
+      const before = takeSaveSnapshot();
       await saveTransfer(parsed[0], parsed[1]);
+      notifyThresholdsCrossed(before, takeSaveSnapshot(), accounts);
       Snackbar.show({ text: transfer ? 'Transfer updated' : 'Transfer saved', duration: Snackbar.LENGTH_SHORT });
       triggerCloseRef.current();
     } catch {
       setErrorModal('Failed to save transfer.');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer]);
+  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer, accounts]);
 
   const handleSaveAndContinue = useCallback(async () => {
     setAttempted(true);
     const parsed = parseAmounts();
     if (!parsed || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
+      const before = takeSaveSnapshot();
       await saveTransfer(parsed[0], parsed[1]);
+      notifyThresholdsCrossed(before, takeSaveSnapshot(), accounts);
       Snackbar.show({ text: transfer ? 'Transfer updated' : 'Transfer saved', duration: Snackbar.LENGTH_SHORT });
       setAmount('');
       setToAmount('');
@@ -158,7 +163,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
       setErrorModal('Failed to save transfer.');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer]);
+  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer, accounts]);
 
   const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 

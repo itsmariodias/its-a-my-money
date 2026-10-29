@@ -4,21 +4,21 @@ import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
 
 interface Props {
-  /** The balance the goals' money is set aside from, in `currency`. */
-  total: number;
   /** Money held in goals; undefined when no goal holds any, which hides the line. */
   reserved: number | undefined;
+  /** Balance today minus `reserved`, from `useAvailableBalances`. */
+  available: number;
   currency: string;
   color: string;
 }
 
 /** "Reserved X · Available Y" under a total balance — the Accounts tab total card and the Dashboard. */
-export default function ReservedSummaryLine({ total, reserved, currency, color }: Props) {
+export default function ReservedSummaryLine({ reserved, available, currency, color }: Props) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   if (reserved === undefined) return null;
   return (
     <Text style={[styles.line, { color }]} numberOfLines={1}>
-      Reserved {formatAmount(reserved, currency, undefined, numberFormat)} · Available {formatAmount(total - reserved, currency, undefined, numberFormat)}
+      Reserved {formatAmount(reserved, currency, undefined, numberFormat)} · Available {formatAmount(available, currency, undefined, numberFormat)}
     </Text>
   );
 }
