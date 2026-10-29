@@ -1,29 +1,18 @@
-import type { GoalWithDetails, Transaction } from '@/types';
-import { goalProgress } from './goalUtils';
-
-type TxLike = Pick<Transaction, 'type' | 'category_id' | 'amount' | 'date' | 'account_id'>;
+import type { GoalWithDetails } from '@/types';
 
 /**
- * Goals that a save just pushed to their target. The below-to-at-or-above edge is strict, so a
- * goal fires once when reached and stays quiet on every later payment.
+ * Goals that a save just pushed to their target, comparing each goal's `saved` before and after.
+ * The below-to-at-or-above edge is strict, so a goal fires once when reached and stays quiet on
+ * every later deposit.
  */
 export function findReachedGoals(
-  goals: GoalWithDetails[],
-  prevTransactions: TxLike[],
-  currTransactions: TxLike[],
-  accountCurrencyById?: Record<number, string>,
+  prevGoals: readonly Pick<GoalWithDetails, 'id' | 'saved'>[],
+  currGoals: GoalWithDetails[],
 ): GoalWithDetails[] {
-  const reached: GoalWithDetails[] = [];
-
-  for (const goal of goals) {
-    if (goal.target_amount <= 0) continue;
-    const filter = accountCurrencyById
-      ? { currency: goal.currency, accountCurrencyById }
-      : undefined;
-    const prev = goalProgress(goal, prevTransactions, filter).saved;
-    const curr = goalProgress(goal, currTransactions, filter).saved;
-    if (prev < goal.target_amount && curr >= goal.target_amount) reached.push(goal);
-  }
-
-  return reached;
+  const prevSaved = new Map(prevGoals.map((g) => [g.id, g.saved]));
+  return currGoals.filter((g) => {
+    if (g.target_amount <= 0) return false;
+    const prev = prevSaved.get(g.id) ?? 0;
+    return prev < g.target_amount && g.saved >= g.target_amount;
+  });
 }

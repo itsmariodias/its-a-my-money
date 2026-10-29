@@ -19,7 +19,10 @@ import {
   getDateRange,
   periodNavLabel,
 } from '@/shared/components/PeriodSelector';
-import { useAccountsDb, useTransactionsDb, useTransfersDb, useRecurringDb } from '@/db';
+import { useAccountsDb, useTransactionsDb, useTransfersDb, useRecurringDb, useGoalsDb } from '@/db';
+import { useGoalsStore } from '@/features/goals/useGoalsStore';
+import { reservedByAccount } from '@/features/goals/goalUtils';
+import { useReloadGoals } from '@/features/goals/useReloadGoals';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
@@ -42,26 +45,28 @@ interface DeleteModalProps {
   account: Account | null;
   txCount: number;
   txferCount: number;
+  goalCount: number;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-function buildDeleteMessage(txCount: number, txferCount: number): string {
+function buildDeleteMessage(txCount: number, txferCount: number, goalCount: number): string {
   const parts: string[] = [];
   if (txCount > 0) parts.push(`${txCount} transaction${txCount !== 1 ? 's' : ''} will be permanently deleted.`);
+  if (goalCount > 0) parts.push(`${goalCount} goal${goalCount !== 1 ? 's' : ''} in this account will be deleted.`);
   if (txferCount > 0) parts.push(`${txferCount} transfer${txferCount !== 1 ? 's' : ''} will be kept and show "Unknown" for this account.`);
-  if (parts.length === 0) return 'This account has no transactions or transfers and will be permanently removed.';
+  if (parts.length === 0) return 'This account has no transactions, transfers or goals and will be permanently removed.';
   return parts.join('\n');
 }
 
-function DeleteConfirmModal({ account, txCount, txferCount, onCancel, onConfirm }: DeleteModalProps) {
+function DeleteConfirmModal({ account, txCount, txferCount, goalCount, onCancel, onConfirm }: DeleteModalProps) {
   const { inputBg, textColor, borderColor } = useAppTheme();
 
   return (
     <DeleteModal
       visible={account !== null}
       title="Delete Account?"
-      message={buildDeleteMessage(txCount, txferCount)}
+      message={buildDeleteMessage(txCount, txferCount, goalCount)}
       onCancel={onCancel}
       onConfirm={onConfirm}
     >
@@ -111,10 +116,12 @@ interface CardProps {
   account: Account;
   balance: number;
   stat: { amount: number; pct: number | null } | null;
+  /** Money held in this account's goals; null hides the line (no goals, or a past period). */
+  reserved: number | null;
   onPress: () => void;
 }
 
-function AccountCard({ account, balance, stat, onPress }: CardProps) {
+function AccountCard({ account, balance, stat, reserved, onPress }: CardProps) {
   const currency = account.currency || 'USD';
   const { cardBg, textColor, subColor } = useAppTheme();
   const numberFormat = useSettingsStore((s) => s.numberFormat);
@@ -142,6 +149,14 @@ function AccountCard({ account, balance, stat, onPress }: CardProps) {
             {stat.pct !== null && ` (${Math.abs(stat.pct).toFixed(1)}%)`}
           </Text>
         )}
+        {reserved !== null && (
+          <Text style={[styles.reservedLine, { color: subColor }]} numberOfLines={1}>
+            Reserved {formatAmount(reserved, currency, undefined, numberFormat)} · Available{' '}
+            <Text style={{ color: balance - reserved < 0 ? '#F44336' : subColor }}>
+              {formatAmount(balance - reserved, currency, undefined, numberFormat)}
+            </Text>
+          </Text>
+        )}
       </View>
       <Text style={[styles.cardBalance, { color: balanceColor }]}>
         {formatAmount(balance, currency, undefined, numberFormat)}
@@ -163,6 +178,7 @@ export default function AccountsScreen() {
   const [deletingAccount, setDeletingAccount] = useState<Account | null>(null);
   const [deleteTxCount, setDeleteTxCount] = useState(0);
   const [deleteTxferCount, setDeleteTxferCount] = useState(0); // transfers are kept, not deleted
+  const [deleteGoalCount, setDeleteGoalCount] = useState(0);
 
   const accounts = useAccountsStore((s) => s.accounts);
   const setAccounts = useAccountsStore((s) => s.setAccounts);
@@ -175,6 +191,9 @@ export default function AccountsScreen() {
   const transactionsDb = useTransactionsDb();
   const transfersDb = useTransfersDb();
   const recurringDb = useRecurringDb();
+  const goalsDb = useGoalsDb();
+  const reloadGoals = useReloadGoals();
+  const goals = useGoalsStore((s) => s.goals);
   const currency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const showPctChange = useSettingsStore((s) => s.showPctChange);
@@ -236,6 +255,13 @@ export default function AccountsScreen() {
     return map;
   }, [showPctChange, isPastPeriod, accounts, transactions, transfers, dateRange, balanceMap, prevBalanceMap]);
 
+  // Only accounts that hold goals get the Reserved · Available line, and only on the current
+  // period — goals have no history, so a past period's balance cannot be split.
+  const reservedMap = useMemo<Record<number, number>>(
+    () => (isPastPeriod ? {} : reservedByAccount(goals)),
+    [goals, isPastPeriod]
+  );
+
   const [carouselIndex, setCarouselIndex] = useState(0);
   const carouselRef = useRef<ScrollView>(null);
   const carouselWidth = Dimensions.get('window').width - 32; // matches scrollContent horizontal padding
@@ -272,9 +298,10 @@ export default function AccountsScreen() {
       if (accounts.length <= 1) return;
       setDeleteTxCount(transactions.filter((t) => t.account_id === account.id).length);
       setDeleteTxferCount(transfers.filter((t) => t.from_account_id === account.id || t.to_account_id === account.id).length);
+      setDeleteGoalCount(goals.filter((g) => g.account_id === account.id).length);
       setDeletingAccount(account);
     },
-    [accounts, transactions, transfers]
+    [accounts, transactions, transfers, goals]
   );
 
   const handleDeleteCancel = useCallback(() => {
@@ -286,6 +313,7 @@ export default function AccountsScreen() {
     const account = deletingAccount;
     setDeletingAccount(null);
     await recurringDb.removeByAccount(account.id);
+    await goalsDb.removeByAccount(account.id);
     await transactionsDb.removeByAccount(account.id);
     // Transfers are intentionally kept — surviving accounts will show "Unknown" for the deleted side.
     await accountsDb.remove(account.id);
@@ -293,6 +321,7 @@ export default function AccountsScreen() {
     setAccounts(accs);
     setTransactions(txns);
     setTransfers(tfrs);
+    await reloadGoals();
     Snackbar.show({ text: 'Account deleted', duration: Snackbar.LENGTH_SHORT });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deletingAccount]);
@@ -410,6 +439,7 @@ export default function AccountsScreen() {
                     account={acc}
                     balance={balanceMap[acc.id] ?? acc.initial_balance}
                     stat={statMap[acc.id] ?? null}
+                    reserved={reservedMap[acc.id] ?? null}
                     onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
                   />
                 ))}
@@ -424,6 +454,7 @@ export default function AccountsScreen() {
                     account={acc}
                     balance={balanceMap[acc.id] ?? acc.initial_balance}
                     stat={statMap[acc.id] ?? null}
+                    reserved={reservedMap[acc.id] ?? null}
                     onPress={() => { setEditingAccount(acc); setFormOpen(true); }}
                   />
                 ))}
@@ -460,6 +491,7 @@ export default function AccountsScreen() {
         account={deletingAccount}
         txCount={deleteTxCount}
         txferCount={deleteTxferCount}
+        goalCount={deleteGoalCount}
         onCancel={handleDeleteCancel}
         onConfirm={handleDeleteConfirm}
       />
@@ -577,6 +609,10 @@ const styles = StyleSheet.create({
   pctChange: {
     fontSize: 12,
     fontWeight: '600',
+    marginTop: 2,
+  },
+  reservedLine: {
+    fontSize: 11,
     marginTop: 2,
   },
   cardName: {

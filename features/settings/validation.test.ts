@@ -251,23 +251,45 @@ describe('isValidExport', () => {
     }
   });
 
-  it('should accept valid goals array', () => {
+  const bucketGoal = { id: 1, name: 'Japan trip', icon: 'flight', color: '#2196F3', account_id: 1, target_amount: 10000, target_date: '2026-12-31', created_at: '2026-03-01' };
+
+  it('should accept savings-bucket goals with their allocations', () => {
     const data = {
       ...validData,
-      goals: [{ id: 1, category_id: 1, target_amount: 10000, currency: 'USD', start_date: '2026-03-01', target_date: '2026-12-31', created_at: '2026-03-01' }],
+      goals: [bucketGoal, { ...bucketGoal, id: 2, target_date: null }],
+      goal_allocations: [
+        { id: 1, goal_id: 1, amount: 300, date: '2026-03-01', transaction_id: 1, note: null, created_at: '2026-03-01' },
+        { id: 2, goal_id: 1, amount: -50, date: '2026-03-02', transaction_id: null, note: 'release', created_at: '2026-03-02' },
+      ],
     };
     expect(isValidExport(data)).toBe(true);
   });
 
-  it('should accept a goal with no target date', () => {
+  it('should reject a bucket goal without a name', () => {
+    const { name: _name, ...nameless } = bucketGoal;
+    expect(isValidExport({ ...validData, goals: [nameless] })).toBe(false);
+  });
+
+  it('should reject an allocation with a non-numeric amount', () => {
+    const data = {
+      ...validData,
+      goal_allocations: [{ id: 1, goal_id: 1, amount: '300', date: '2026-03-01', transaction_id: null, note: null, created_at: '2026-03-01' }],
+    };
+    expect(isValidExport(data)).toBe(false);
+  });
+
+  it('should still accept category-based goals from older backups', () => {
+    // Given a backup written before goals became savings buckets
     const data = {
       ...validData,
       goals: [{ id: 1, category_id: 1, target_amount: 10000, currency: 'USD', start_date: '2026-03-01', target_date: null, created_at: '2026-03-01' }],
     };
+    // When validating
+    // Then it passes — import converts these goals on the way in
     expect(isValidExport(data)).toBe(true);
   });
 
-  it('should reject goal missing start date', () => {
+  it('should reject an old-shape goal missing its start date', () => {
     const data = {
       ...validData,
       goals: [{ id: 1, category_id: 1, target_amount: 10000, currency: 'USD', target_date: null, created_at: '2026-03-01' }],

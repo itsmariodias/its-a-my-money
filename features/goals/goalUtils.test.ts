@@ -1,92 +1,140 @@
-import type { Transaction } from '@/types';
-import { goalProgress, goalStatusColor, targetDateLabel } from './goalUtils';
+import {
+  goalProgress,
+  goalStatusColor,
+  hasSplitErrors,
+  moveError,
+  reservedByAccount,
+  savedExcluding,
+  targetDateLabel,
+  validateSplits,
+} from './goalUtils';
 
 const ACCENT = '#2f95dc';
 
-const goal = { category_id: 1, target_amount: 10000, start_date: '2026-01-01' };
-
-type Tx = Pick<Transaction, 'type' | 'category_id' | 'amount' | 'date' | 'account_id'>;
-const tx = (overrides: Partial<Tx> = {}): Tx => ({
-  type: 'expense', category_id: 1, amount: 1000, date: '2026-02-01', account_id: 1, ...overrides,
-});
-
 describe('goalProgress', () => {
-  it('adds up expenses in the category since the start date', () => {
-    // Given two fee payments after the goal was created
-    const transactions = [tx({ amount: 4000 }), tx({ amount: 2000, date: '2026-03-01' })];
-
+  it('reads progress from what the bucket holds', () => {
+    // Given a goal holding 6,000 of a 10,000 target
     // When measuring progress
-    const progress = goalProgress(goal, transactions);
+    const progress = goalProgress({ saved: 6000, target_amount: 10000 });
 
-    // Then both count toward the target
+    // Then it is 60% full
     expect(progress).toEqual({ saved: 6000, pct: 60 });
   });
 
-  it('ignores spend from before the goal existed', () => {
-    // Given a payment made the day before the goal started
-    const transactions = [tx({ amount: 5000, date: '2025-12-31' }), tx({ amount: 1000 })];
-
+  it('can run past 100%', () => {
+    // Given a goal that was over-filled
     // When measuring progress
-    const progress = goalProgress(goal, transactions);
-
-    // Then a new goal is not retroactively filled by history
-    expect(progress.saved).toBe(1000);
+    // Then the percentage is not capped — the bar caps, the number does not
+    expect(goalProgress({ saved: 1500, target_amount: 1000 }).pct).toBe(150);
   });
 
-  it('counts a future-dated payment', () => {
-    // Given a fee scheduled for next year — money already committed
-    const transactions = [tx({ amount: 3000, date: '2027-06-01' })];
-
+  it('treats a zero target as no progress rather than dividing by zero', () => {
+    // Given a goal with a zero target
     // When measuring progress
-    // Then it counts: a goal has no period end
-    expect(goalProgress(goal, transactions).saved).toBe(3000);
+    // Then pct is 0
+    expect(goalProgress({ saved: 100, target_amount: 0 }).pct).toBe(0);
   });
+});
 
-  it('ignores income and other categories', () => {
-    // Given a refund and spend on an unrelated category
-    const transactions = [
-      tx({ amount: 5000, type: 'income' }),
-      tx({ amount: 5000, category_id: 2 }),
-      tx({ amount: 1000 }),
+describe('reservedByAccount', () => {
+  it('sums what every goal in an account holds', () => {
+    // Given two goals in account 1 and one in account 2
+    const goals = [
+      { account_id: 1, saved: 300 },
+      { account_id: 1, saved: 200 },
+      { account_id: 2, saved: 50 },
     ];
 
-    // When measuring progress
-    // Then only expenses in the goal's own category count
-    expect(goalProgress(goal, transactions).saved).toBe(1000);
+    // When totalling per account
+    // Then each account's reserved amount is the sum of its goals
+    expect(reservedByAccount(goals)).toEqual({ 1: 500, 2: 50 });
+  });
+});
+
+describe('savedExcluding', () => {
+  it('takes a transaction\'s own splits back out of each goal', () => {
+    // Given goal 1 holds 500, 200 of which came from the income being edited
+    const goals = [{ id: 1, saved: 500 }, { id: 2, saved: 80 }];
+    const allocations = [{ goal_id: 1, amount: 200 }];
+
+    // When computing what each goal holds without that transaction
+    // Then only goal 1 is reduced
+    expect(savedExcluding(goals, allocations)).toEqual({ 1: 300, 2: 80 });
   });
 
-  it('only counts accounts in the goal currency', () => {
-    // Given the same category paid from a rupee account and an Australian one
-    const transactions = [tx({ amount: 4000, account_id: 1 }), tx({ amount: 9000, account_id: 2 })];
+  it('adds back what an edited expense took out', () => {
+    // Given goal 1 holds 100 after an expense took 50 from it
+    // When excluding that expense
+    // Then the goal is back to 150 — the edit can spend up to that
+    expect(savedExcluding([{ id: 1, saved: 100 }], [{ goal_id: 1, amount: -50 }])).toEqual({ 1: 150 });
+  });
+});
 
-    // When measuring an INR goal
-    const progress = goalProgress(goal, transactions, {
-      currency: 'INR',
-      accountCurrencyById: { 1: 'INR', 2: 'AUD' },
-    });
+describe('validateSplits', () => {
+  it('accepts an income split that fits the income', () => {
+    // Given 1,000 income split 300 / 200
+    const errors = validateSplits('reserve', [{ goal_id: 1, amount: 300 }, { goal_id: 2, amount: 200 }], 1000, {});
 
-    // Then the AUD spend is excluded — the app never converts
-    expect(progress.saved).toBe(4000);
+    // Then nothing is flagged
+    expect(hasSplitErrors(errors)).toBe(false);
   });
 
-  it('reports zero percent for a goal with no target', () => {
-    // Given a zero target, which would divide by zero
-    const transactions = [tx({ amount: 1000 })];
+  it('rejects putting more into goals than the income brings in', () => {
+    // Given 100 income with 120 sent to goals
+    const errors = validateSplits('reserve', [{ goal_id: 1, amount: 70 }, { goal_id: 2, amount: 50 }], 100, {});
 
-    // When measuring progress
-    const progress = goalProgress({ ...goal, target_amount: 0 }, transactions);
-
-    // Then the spend is still reported but the percentage is safe
-    expect(progress).toEqual({ saved: 1000, pct: 0 });
+    // Then the total is flagged
+    expect(errors.total).toBe('Goals get more than this income');
+    expect(errors.byGoal).toEqual({});
   });
 
-  it('reports over 100 percent once the target is passed', () => {
-    // Given more spend than the target
-    const transactions = [tx({ amount: 12500 })];
+  it('does not cap an income split by what the goal already holds', () => {
+    // Given an empty goal receiving 500
+    // Then that is fine — reserving fills an empty bucket
+    expect(hasSplitErrors(validateSplits('reserve', [{ goal_id: 1, amount: 500 }], 500, { 1: 0 }))).toBe(false);
+  });
 
-    // When measuring progress
-    // Then the percentage is not clamped — callers clamp the bar, not the number
-    expect(goalProgress(goal, transactions).pct).toBe(125);
+  it('rejects paying more from a goal than it holds', () => {
+    // Given a goal holding 40 asked to pay 50
+    const errors = validateSplits('spend', [{ goal_id: 1, amount: 50 }], 80, { 1: 40 });
+
+    // Then that goal is flagged, but the total is within the expense
+    expect(errors.byGoal).toEqual({ 1: 'More than this goal holds' });
+    expect(errors.total).toBeNull();
+  });
+
+  it('rejects goals paying more than the expense', () => {
+    // Given a 50 expense with 60 taken from goals
+    const errors = validateSplits('spend', [{ goal_id: 1, amount: 60 }], 50, { 1: 100 });
+
+    // Then the total is flagged
+    expect(errors.total).toBe('Goals pay more than this expense');
+  });
+
+  it('ignores sub-cent rounding drift', () => {
+    // Given three thirds of 100 typed by hand
+    const splits = [33.33, 33.33, 33.34].map((amount, i) => ({ goal_id: i, amount }));
+
+    // Then the float sum does not trip the limit
+    expect(hasSplitErrors(validateSplits('reserve', splits, 100, {}))).toBe(false);
+  });
+});
+
+describe('moveError', () => {
+  it('caps a manual add at what the account has available', () => {
+    // Given 200 available in the account
+    // When adding 250 to a goal
+    // Then it is refused — money already in another goal cannot be reserved twice
+    expect(moveError('add', 250, 0, 200)).toBe('More than the account has available');
+    expect(moveError('add', 200, 0, 200)).toBeNull();
+  });
+
+  it('caps a release at what the goal holds', () => {
+    // Given a goal holding 100
+    // When releasing 150
+    // Then it is refused; releasing 100 is fine
+    expect(moveError('release', 150, 100, 0)).toBe('More than this goal holds');
+    expect(moveError('release', 100, 100, 0)).toBeNull();
   });
 });
 

@@ -23,7 +23,7 @@ export async function notifyGoalReached(goal: GoalWithDetails): Promise<void> {
   await Notifications.scheduleNotificationAsync({
     content: {
       title: 'Goal reached',
-      body: `You have reached your ${goal.category_name} goal.`,
+      body: `You have saved enough for ${goal.name}.`,
       ...(Platform.OS === 'android' && { channelId: 'goals' }),
     },
     trigger: null,

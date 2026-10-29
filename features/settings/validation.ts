@@ -92,13 +92,33 @@ function isValidBudget(item: unknown): boolean {
 function isValidGoal(item: unknown): boolean {
   if (!item || typeof item !== 'object') return false;
   const g = item as Record<string, unknown>;
-  return (
+  const common =
     typeof g.id === 'number' &&
-    typeof g.category_id === 'number' &&
     typeof g.target_amount === 'number' &&
+    (g.target_date == null || typeof g.target_date === 'string');
+  if (!common) return false;
+  // Savings-bucket goals (migration 016 onward).
+  if (typeof g.account_id === 'number') {
+    return typeof g.name === 'string' && typeof g.icon === 'string' && typeof g.color === 'string';
+  }
+  // Category-based goals from older backups — still importable, converted on the way in.
+  return (
+    typeof g.category_id === 'number' &&
     typeof g.currency === 'string' &&
-    typeof g.start_date === 'string' &&
-    (g.target_date == null || typeof g.target_date === 'string')
+    typeof g.start_date === 'string'
+  );
+}
+
+function isValidGoalAllocation(item: unknown): boolean {
+  if (!item || typeof item !== 'object') return false;
+  const a = item as Record<string, unknown>;
+  return (
+    typeof a.id === 'number' &&
+    typeof a.goal_id === 'number' &&
+    typeof a.amount === 'number' &&
+    typeof a.date === 'string' &&
+    (a.transaction_id == null || typeof a.transaction_id === 'number') &&
+    (a.note == null || typeof a.note === 'string')
   );
 }
 
@@ -117,6 +137,7 @@ export function isValidExport(data: unknown): data is ExportData {
     d.transfers.every(isValidTransfer) &&
     (d.recurring_transactions == null || (Array.isArray(d.recurring_transactions) && d.recurring_transactions.every(isValidRecurring))) &&
     (d.budgets == null || (Array.isArray(d.budgets) && d.budgets.every(isValidBudget))) &&
-    (d.goals == null || (Array.isArray(d.goals) && d.goals.every(isValidGoal)))
+    (d.goals == null || (Array.isArray(d.goals) && d.goals.every(isValidGoal))) &&
+    (d.goal_allocations == null || (Array.isArray(d.goal_allocations) && d.goal_allocations.every(isValidGoalAllocation)))
   );
 }

@@ -1,6 +1,7 @@
 import { formatAmount } from '@/constants/currencies';
 import { formatDate } from '@/constants/dateFormats';
 import { useRecurringDb, useTransactionsDb, useTransfersDb } from '@/db';
+import { useReloadGoals } from '@/features/goals/useReloadGoals';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import DeleteModal from '@/shared/components/DeleteModal';
 import InfoModal from '@/shared/components/InfoModal';
@@ -41,6 +42,7 @@ export default function RecurringListScreen({ isOpen, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const recurringDb = useRecurringDb();
   const transactionsDb = useTransactionsDb();
+  const reloadGoals = useReloadGoals();
   const transfersDb = useTransfersDb();
   const { recurringTransactions, setRecurringTransactions, removeRecurring } = useRecurringStore();
   const currency = useSettingsStore((s) => s.currency);
@@ -90,6 +92,7 @@ export default function RecurringListScreen({ isOpen, onClose }: Props) {
           await transfersDb.removeByRecurring(deletingItem.id);
         } else {
           await transactionsDb.removeByRecurring(deletingItem.id);
+          await reloadGoals();
         }
       }
       await recurringDb.remove(deletingItem.id);
@@ -101,7 +104,7 @@ export default function RecurringListScreen({ isOpen, onClose }: Props) {
       setDeletingItem(null);
       setDeleteLinked(false);
     }
-  }, [deletingItem, deleteLinked, recurringDb, transactionsDb, removeRecurring]);
+  }, [deletingItem, deleteLinked, recurringDb, transactionsDb, removeRecurring, reloadGoals]);
 
   const renderItem = ({ item, index }: { item: RecurringTransactionWithDetails; index: number }) => {
     const isTransfer = item.kind === 'transfer';

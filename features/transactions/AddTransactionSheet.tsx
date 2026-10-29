@@ -16,13 +16,16 @@ import { MaterialIcons } from '@expo/vector-icons';
 import DatePickerField from '@/shared/components/DatePickerField';
 import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
-import AccountIcon from '@/shared/components/AccountIcon';
+import AccountCardPicker, { ACCOUNT_CARD_STRIDE } from '@/shared/components/AccountCardPicker';
 import CategoryFormSheet from '@/features/transactions/CategoryFormSheet';
 import { categoriesOfType, useCategoriesStore } from '@/features/transactions/useCategoriesStore';
-import { useTransactionsDb } from '@/db';
+import { useGoalsDb, useTransactionsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { notifyThresholdsCrossed } from '@/features/transactions/postSaveAlerts';
+import GoalSplitField from '@/features/goals/GoalSplitField';
+import { useGoalsStore } from '@/features/goals/useGoalsStore';
+import { hasSplitErrors, savedExcluding, validateSplits } from '@/features/goals/goalUtils';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
@@ -31,7 +34,7 @@ import { todayString } from '@/features/recurring/dateUtils';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
-import type { Category, TransactionWithDetails } from '@/types';
+import type { Category, GoalAllocation, GoalSplit, TransactionWithDetails } from '@/types';
 
 // Height for 3 rows of category items: 3 × (paddingV 8 + circle 44 + gap 4 + label 14) + 2 × row-gap 8
 const CATEGORY_GRID_3_ROWS = 230;
@@ -54,6 +57,9 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   const globalCurrency = useSettingsStore((s) => s.currency);
 
   const transactionsDb = useTransactionsDb();
+  const goalsDb = useGoalsDb();
+  const allGoals = useGoalsStore((s) => s.goals);
+  const setGoals = useGoalsStore((s) => s.setGoals);
 
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [amount, setAmount] = useState('');
@@ -68,6 +74,34 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   const [attempted, setAttempted] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
   const [catFormOpen, setCatFormOpen] = useState(false);
+  // Goal split, as typed per goal id. Cleared whenever the account or type changes, since the
+  // goals belong to one account and the type decides whether money goes in or comes out.
+  const [splitInputs, setSplitInputs] = useState<Record<number, string>>({});
+  // In edit mode, the splits the transaction already has — counted in each goal's saved amount.
+  const [priorAllocations, setPriorAllocations] = useState<GoalAllocation[]>([]);
+
+  const accountGoals = useMemo(
+    () => allGoals.filter((g) => g.account_id === selectedAccountId),
+    [allGoals, selectedAccountId]
+  );
+  const savedByGoal = useMemo(() => savedExcluding(accountGoals, priorAllocations), [accountGoals, priorAllocations]);
+  const goalSplits = useMemo<GoalSplit[]>(
+    () => accountGoals
+      .map((g) => ({ goal_id: g.id, amount: parseFloat(splitInputs[g.id] ?? '') || 0 }))
+      .filter((sp) => sp.amount > 0),
+    [accountGoals, splitInputs]
+  );
+  const splitMode = type === 'income' ? 'reserve' : 'spend';
+  const splitErrors = validateSplits(splitMode, goalSplits, parseFloat(amount) || 0, savedByGoal);
+
+  const selectAccount = (id: number) => {
+    setSelectedAccountId(id);
+    setSplitInputs({});
+  };
+  const selectType = (t: 'expense' | 'income') => {
+    setType(t);
+    setSplitInputs({});
+  };
 
   const accountScrollRef = useRef<ScrollView>(null);
   const categoryScrollRef = useRef<ScrollView>(null);
@@ -75,7 +109,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   scrollToSelectedRef.current = () => {
     const accountIndex = accounts.findIndex((a) => a.id === selectedAccountId);
     if (accountIndex > 0) {
-      accountScrollRef.current?.scrollTo({ x: accountIndex * 110, animated: true });
+      accountScrollRef.current?.scrollTo({ x: accountIndex * ACCOUNT_CARD_STRIDE, animated: true });
     }
     if (categories.length > 9 && selectedCategory) {
       const catIndex = categories.findIndex((c) => c.id === selectedCategory.id);
@@ -99,6 +133,12 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
         categoriesOfType(useCategoriesStore.getState().categories, transaction.type)
           .find((c) => c.id === transaction.category_id) ?? null
       );
+      setSplitInputs({});
+      setPriorAllocations([]);
+      goalsDb.getAllocationsForTransaction(transaction.id).then((rows) => {
+        setPriorAllocations(rows);
+        setSplitInputs(Object.fromEntries(rows.map((r) => [r.goal_id, String(Math.abs(r.amount))])));
+      }).catch(() => {});
     } else {
       setType('expense');
       setAmount('');
@@ -107,6 +147,8 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
       setSelectedCategory(null);
       const filteredAccountId = useUIStore.getState().selectedAccountId;
       setSelectedAccountId(filteredAccountId ?? accounts[0]?.id ?? null);
+      setSplitInputs({});
+      setPriorAllocations([]);
     }
     setAttempted(false);
   }, [isOpen, transaction]);
@@ -133,7 +175,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
         account_id: selectedAccountId!,
         note: note.trim() || null,
         date,
-      });
+      }, goalSplits);
       const updated = await transactionsDb.getById(transaction.id);
       if (updated) updateTransaction(updated);
     } else {
@@ -145,45 +187,49 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
         note: note.trim() || null,
         date,
         recurring_transaction_id: null,
-      });
+      }, goalSplits);
       const tx = await transactionsDb.getById(result.lastInsertRowId);
       if (tx) addTransaction(tx);
     }
-  }, [transaction, type, selectedCategory, selectedAccountId, note, date]);
+    setGoals(await goalsDb.getAll());
+  }, [transaction, type, selectedCategory, selectedAccountId, note, date, goalSplits]);
 
   const handleSave = useCallback(async () => {
     setAttempted(true);
     const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
+    if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId || hasSplitErrors(splitErrors)) return;
     try {
       const prevTxs = useTransactionsStore.getState().transactions;
+      const prevGoals = useGoalsStore.getState().goals;
       await saveTransaction(parsedAmount);
       const currTxs = useTransactionsStore.getState().transactions;
-      notifyThresholdsCrossed(prevTxs, currTxs, accounts);
+      notifyThresholdsCrossed(prevTxs, currTxs, accounts, prevGoals, useGoalsStore.getState().goals);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       triggerCloseRef.current();
     } catch {
       setErrorModal('Failed to save transaction.');
     }
-  }, [amount, selectedCategory, selectedAccountId, saveTransaction, transaction]);
+  }, [amount, selectedCategory, selectedAccountId, saveTransaction, transaction, splitErrors]);
 
   const handleSaveAndContinue = useCallback(async () => {
     setAttempted(true);
     const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId) return;
+    if (!parsedAmount || parsedAmount <= 0 || !selectedCategory || !selectedAccountId || hasSplitErrors(splitErrors)) return;
     try {
       const prevTxs = useTransactionsStore.getState().transactions;
+      const prevGoals = useGoalsStore.getState().goals;
       await saveTransaction(parsedAmount);
       const currTxs = useTransactionsStore.getState().transactions;
-      notifyThresholdsCrossed(prevTxs, currTxs, accounts);
+      notifyThresholdsCrossed(prevTxs, currTxs, accounts, prevGoals, useGoalsStore.getState().goals);
       Snackbar.show({ text: transaction ? 'Transaction updated' : 'Transaction saved', duration: Snackbar.LENGTH_SHORT });
       setAmount('');
       setNote('');
+      setSplitInputs({});
       setAttempted(false);
     } catch {
       setErrorModal('Failed to save transaction.');
     }
-  }, [amount, selectedCategory, selectedAccountId, saveTransaction, transaction]);
+  }, [amount, selectedCategory, selectedAccountId, saveTransaction, transaction, splitErrors]);
 
   // The store already holds the saved category. Select it only when it belongs to the type
   // currently shown — the category sheet lets the user switch type while creating one.
@@ -301,7 +347,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
             <View style={[styles.typeToggle, { backgroundColor: inputBg }]}>
               <TouchableOpacity
                 style={[styles.typeBtn, type === 'expense' && { backgroundColor: '#F44336' }]}
-                onPress={() => setType('expense')}
+                onPress={() => selectType('expense')}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: type === 'expense' }}
               >
@@ -311,7 +357,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.typeBtn, type === 'income' && { backgroundColor: '#4CAF50' }]}
-                onPress={() => setType('income')}
+                onPress={() => selectType('income')}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: type === 'income' }}
               >
@@ -378,41 +424,23 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
 
             {/* Account */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Account</Text>
-            <ScrollView ref={accountScrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
-              {accounts.map((acc) => {
-                const isSelected = selectedAccountId === acc.id;
-                const accentBg = acc.color ?? '#55A3FF';
-                return (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={[
-                      styles.accountCard,
-                      {
-                        backgroundColor: isSelected ? accentBg + '18' : inputBg,
-                        borderColor: isSelected ? accentBg : borderColor,
-                        borderWidth: isSelected ? 2 : 1,
-                      },
-                    ]}
-                    onPress={() => setSelectedAccountId(acc.id)}
-                    activeOpacity={0.7}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: isSelected }}
-                  >
-                    <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
-                      <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
-                    </View>
-                    <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
-                      {acc.name}
-                    </Text>
-                    {isSelected && (
-                      <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
-                        <MaterialIcons name="check" size={10} color="#fff" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <AccountCardPicker
+              accounts={accounts}
+              selectedId={selectedAccountId}
+              onSelect={selectAccount}
+              scrollRef={accountScrollRef}
+            />
+
+            {/* Goals of the selected account */}
+            <GoalSplitField
+              mode={splitMode}
+              goals={accountGoals}
+              savedByGoal={savedByGoal}
+              values={splitInputs}
+              onChange={(goalId, text) => setSplitInputs((prev) => ({ ...prev, [goalId]: text }))}
+              errors={splitErrors}
+              currency={getAccountCurrency(accounts, selectedAccountId, globalCurrency)}
+            />
 
             {/* Date */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>Date</Text>

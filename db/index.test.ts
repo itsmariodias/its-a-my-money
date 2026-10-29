@@ -84,6 +84,81 @@ describe('useTransactionsDb', () => {
     expect(params).toHaveLength(7);
     expect(params[6]).toBe(5);
   });
+
+  const allocationCalls = () =>
+    mockDb.runAsync.mock.calls.filter(([sql]: [string]) => sql.includes('goal_allocations'));
+
+  it('writes nothing to goals when an income has no split', async () => {
+    // Given an income saved without goal splits
+    await db.insert({ amount: 1000, type: 'income', category_id: 2, account_id: 1, note: null, date: '2026-03-01', recurring_transaction_id: null });
+    // Then goal_allocations is not touched
+    expect(allocationCalls()).toHaveLength(0);
+  });
+
+  it('reserves an income split into each goal, linked to the transaction', async () => {
+    // Given the insert returns transaction id 42
+    mockDb.runAsync.mockResolvedValueOnce({ changes: 1, lastInsertRowId: 42 });
+    // When 1,000 income is saved with 300 to goal 1 and 200 to goal 2
+    await db.insert(
+      { amount: 1000, type: 'income', category_id: 2, account_id: 1, note: null, date: '2026-03-01', recurring_transaction_id: null },
+      [{ goal_id: 1, amount: 300 }, { goal_id: 2, amount: 200 }],
+    );
+    // Then old splits are cleared and two positive allocations point at transaction 42
+    const calls = allocationCalls();
+    expect(calls[0][0]).toContain('DELETE FROM goal_allocations WHERE transaction_id=?');
+    expect(calls[0][1]).toBe(42);
+    expect(calls.slice(1).map(([, ...p]: unknown[]) => p)).toEqual([
+      [1, 300, '2026-03-01', 42],
+      [2, 200, '2026-03-01', 42],
+    ]);
+    // And it all happens inside one DB transaction
+    expect(mockDb.withTransactionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores an expense paid from a goal as a negative allocation', async () => {
+    // Given an expense paying 50 from goal 3
+    // When it is updated
+    await db.update(8, { amount: 50, type: 'expense', category_id: 1, account_id: 1, note: null, date: '2026-04-02' }, [{ goal_id: 3, amount: 50 }]);
+    // Then the transaction's splits are replaced with one that takes 50 out
+    const calls = allocationCalls();
+    expect(calls[0][0]).toContain('DELETE FROM goal_allocations WHERE transaction_id=?');
+    const [, ...params] = calls[1];
+    expect(params).toEqual([3, -50, '2026-04-02', 8]);
+  });
+
+  it('clears the splits when an update removes them', async () => {
+    // Given a transaction whose split was taken off in the form
+    await db.update(8, { amount: 50, type: 'income', category_id: 1, account_id: 1, note: null, date: '2026-04-02' });
+    // Then its allocations are deleted and none are inserted
+    const calls = allocationCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toContain('DELETE FROM goal_allocations');
+  });
+
+  it('takes its goal splits with it on delete', async () => {
+    // When a transaction is removed
+    await db.remove(8);
+    // Then its allocations are deleted before the row itself
+    const sqls = mockDb.runAsync.mock.calls.map(([sql]: [string]) => sql);
+    expect(sqls.findIndex((q: string) => q.includes('DELETE FROM goal_allocations'))).toBeLessThan(
+      sqls.findIndex((q: string) => q.includes('DELETE FROM transactions')),
+    );
+  });
+
+  it.each([
+    ['removeByAccount', 'account_id=?'],
+    ['removeByCategory', 'category_id=?'],
+    ['removeByRecurring', 'recurring_transaction_id=?'],
+  ] as const)('%s also clears the removed rows\' goal splits', async (method, where) => {
+    // When transactions are bulk-deleted
+    await db[method](4);
+    // Then the matching allocations go first
+    const [sql, param] = mockDb.runAsync.mock.calls[0];
+    expect(sql).toContain('DELETE FROM goal_allocations WHERE transaction_id IN (SELECT id FROM transactions WHERE');
+    expect(sql).toContain(where);
+    expect(param).toBe(4);
+    expect(mockDb.runAsync.mock.calls[1][0]).toContain('DELETE FROM transactions');
+  });
 });
 
 describe('useTransfersDb', () => {
@@ -170,66 +245,69 @@ describe('useRecurringDb', () => {
 describe('useGoalsDb', () => {
   const db = useGoalsDb();
 
+  const goal = { name: 'Japan trip', icon: 'flight', color: '#2196F3', account_id: 2, target_amount: 3000, target_date: '2026-12-31' };
+
   it('passes every goal field for insert', async () => {
     // Given a goal with a deadline
     // When it is inserted
-    await db.insert({ category_id: 5, target_amount: 10000, currency: 'INR', start_date: '2026-03-01', target_date: '2026-12-31' });
-    // Then the row carries its own start date and target date
+    await db.insert(goal);
+    // Then the row carries its name, look, account, target and deadline
     const [sql, ...params] = mockDb.runAsync.mock.calls[0];
     expect(sql).toContain('INSERT INTO goals');
-    expect(sql).toContain('start_date');
-    expect(params).toEqual([5, 10000, 'INR', '2026-03-01', '2026-12-31']);
-  });
-
-  it('stores a null target date when the goal has no deadline', async () => {
-    // Given a goal with no target date
-    // When it is inserted
-    await db.insert({ category_id: 5, target_amount: 500, currency: 'USD', start_date: '2026-03-01', target_date: null });
-    // Then null is persisted rather than undefined
-    const [, ...params] = mockDb.runAsync.mock.calls[0];
-    expect(params).toEqual([5, 500, 'USD', '2026-03-01', null]);
+    expect(params).toEqual(['Japan trip', 'flight', '#2196F3', 2, 3000, '2026-12-31']);
   });
 
   it('passes id as the last parameter for update', async () => {
-    // Given an existing goal
+    // Given an existing goal with no deadline
     // When it is updated
-    await db.update(7, { category_id: 5, target_amount: 750, currency: 'JPY', start_date: '2026-01-01', target_date: null });
-    // Then the id binds last, after every column
+    await db.update(7, { ...goal, target_date: null });
+    // Then the id binds last, after every column, and the deadline is null
     const [sql, ...params] = mockDb.runAsync.mock.calls[0];
     expect(sql).toContain('UPDATE goals');
-    expect(params).toEqual([5, 750, 'JPY', '2026-01-01', null, 7]);
+    expect(params).toEqual(['Japan trip', 'flight', '#2196F3', 2, 3000, null, 7]);
   });
 
-  it('should pass the correct id for delete', async () => {
-    // Given a mocked SQLite context
-    // When remove is called with id 12
+  it('deletes the goal\'s allocations along with it', async () => {
+    // When goal 12 is removed
     await db.remove(12);
-    // Then runAsync should be called with DELETE and id 12
-    const [sql, ...params] = mockDb.runAsync.mock.calls[0];
-    expect(sql).toContain('DELETE FROM goals');
-    expect(params).toEqual([12]);
+    // Then its allocations go first, then the goal, both for id 12
+    const [allocSql, allocId] = mockDb.runAsync.mock.calls[0];
+    const [goalSql, goalId] = mockDb.runAsync.mock.calls[1];
+    expect(allocSql).toContain('DELETE FROM goal_allocations WHERE goal_id=?');
+    expect(goalSql).toContain('DELETE FROM goals WHERE id=?');
+    expect([allocId, goalId]).toEqual([12, 12]);
   });
 
-  it('should delete goals by category id', async () => {
-    // Given a category being deleted
-    // When removeByCategory is called with category 4
-    await db.removeByCategory(4);
-    // Then its goals go with it
-    const [sql, ...params] = mockDb.runAsync.mock.calls[0];
-    expect(sql).toContain('DELETE FROM goals');
-    expect(sql).toContain('category_id=?');
-    expect(params).toEqual([4]);
+  it('deletes an account\'s goals and their allocations', async () => {
+    // When account 4 is deleted
+    await db.removeByAccount(4);
+    // Then the allocations of its goals go, then the goals
+    const [allocSql, allocParam] = mockDb.runAsync.mock.calls[0];
+    const [goalSql, goalParam] = mockDb.runAsync.mock.calls[1];
+    expect(allocSql).toContain('goal_id IN (SELECT id FROM goals WHERE account_id=?)');
+    expect(goalSql).toContain('DELETE FROM goals WHERE account_id=?');
+    expect([allocParam, goalParam]).toEqual([4, 4]);
   });
 
-  it('should join categories for getAll', async () => {
-    // Given a mocked SQLite context
-    // When getAll is called
+  it('records a manual add as a positive allocation with no transaction', async () => {
+    // When 250 is added to goal 3 by hand
+    await db.allocate(3, 250, '2026-05-01', 'bonus');
+    // Then one unlinked allocation is written
+    const [sql, ...params] = mockDb.runAsync.mock.calls[0];
+    expect(sql).toContain('INSERT INTO goal_allocations (goal_id, amount, date, note)');
+    expect(params).toEqual([3, 250, '2026-05-01', 'bonus']);
+  });
+
+  it('sums allocations into saved and joins the account for getAll', async () => {
+    // When goals are loaded
     await db.getAll();
-    // Then getAllAsync should join goals with categories
+    // Then each row carries what it holds and its account's name and currency
     const [sql] = mockDb.getAllAsync.mock.calls[0];
     expect(sql).toContain('FROM goals');
-    expect(sql).toContain('JOIN categories');
-    expect(sql).toContain('category_name');
+    expect(sql).toContain('JOIN accounts');
+    expect(sql).toContain('SUM(ga.amount)');
+    expect(sql).toContain('as saved');
+    expect(sql).toContain('account_currency');
   });
 });
 
