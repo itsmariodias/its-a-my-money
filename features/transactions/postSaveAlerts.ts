@@ -1,7 +1,7 @@
 import type { Account, GoalWithDetails, TransactionWithDetails, TransferWithDetails } from '@/types';
 import { buildAccountCurrencyMap } from '@/features/accounts/currencyUtils';
 import { useBudgetsStore } from '@/features/budgets/useBudgetsStore';
-import { findCrossings, notifyCrossedBudgets } from '@/features/budgets/budgetAlerts';
+import { findCrossings, findNearingLimit, notifyCrossedBudgets, notifyNearingBudgets } from '@/features/budgets/budgetAlerts';
 import { findOverspentAccounts, findReachedGoals, notifyOverspentAccounts, notifyReachedGoals } from '@/features/goals/goalAlerts';
 import { useGoalsStore } from '@/features/goals/useGoalsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
@@ -24,8 +24,8 @@ export function takeSaveSnapshot(): SaveSnapshot {
 }
 
 /**
- * Fires the notifications a manual transaction or transfer save can trigger: budgets crossing
- * their limit, goals reaching their target, and accounts left with less than their goals hold.
+ * Fires the notifications a manual transaction or transfer save can trigger: budgets nearing or
+ * crossing their limit, goals reaching their target, and accounts left with less than their goals hold.
  * Callers take a snapshot before saving and another after the stores are updated.
  *
  * Fire-and-forget — notification failures never block a save.
@@ -33,14 +33,12 @@ export function takeSaveSnapshot(): SaveSnapshot {
 export function notifyThresholdsCrossed(prev: SaveSnapshot, curr: SaveSnapshot, accounts: Account[]): void {
   const accountCurrencyById = buildAccountCurrencyMap(accounts, '');
 
-  const crossed = findCrossings(
-    useBudgetsStore.getState().budgets,
-    prev.transactions,
-    curr.transactions,
-    new Date(),
-    accountCurrencyById
-  );
+  const budgets = useBudgetsStore.getState().budgets;
+  const now = new Date();
+  const crossed = findCrossings(budgets, prev.transactions, curr.transactions, now, accountCurrencyById);
   if (crossed.length > 0) notifyCrossedBudgets(crossed);
+  const nearing = findNearingLimit(budgets, prev.transactions, curr.transactions, now, accountCurrencyById);
+  if (nearing.length > 0) notifyNearingBudgets(nearing);
 
   notifyGoalsReached(prev.goals, curr.goals);
 

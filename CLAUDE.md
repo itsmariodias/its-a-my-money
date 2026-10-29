@@ -96,6 +96,7 @@ features/backup/googleDrive.test.ts
 features/backup/useAutoBackup.test.ts
 features/backup/useBackupStore.test.ts
 features/budgets/budgetCrossings.test.ts
+features/budgets/budgetStatus.test.ts
 features/budgets/periodUtils.test.ts
 features/budgets/useBudgetsStore.test.ts
 features/goals/goalCrossings.test.ts
@@ -183,9 +184,11 @@ features/                             # Feature modules (screens + logic co-loca
     useBudgetsStore.test.ts
     periodUtils.ts                    # currentPeriodRange (ISO Mon–Sun week, month, year), spentInRange, periodLabel
     periodUtils.test.ts
-    budgetCrossings.ts                # findCrossings() — pure detector for budgets crossing the limit
+    budgetCrossings.ts                # findCrossings(), findNearingLimit() — pure detectors for the 100% and 80% alerts
     budgetCrossings.test.ts
-    budgetAlerts.ts                   # expo-notifications wrapper that fires "Budget exceeded" alerts
+    budgetStatus.ts                   # budgetStatusColor(), BUDGET_WARNING_PCT
+    budgetStatus.test.ts
+    budgetAlerts.ts                   # expo-notifications wrapper for "Budget exceeded" and "Budget almost used" alerts
   goals/
     GoalsListScreen.tsx               # Full-screen modal listing goals grouped by account (opened from Settings and the Dashboard card)
     GoalFormSheet.tsx                 # Create/edit goal bottom sheet (name, icon/colour, account, target, optional target date) + Add/Release
@@ -365,8 +368,9 @@ Per-category spending limits with weekly, monthly, or yearly periods. Managed fr
 - **Uniqueness** — one budget per (category, currency) enforced UX-side: in the create form, picking a category that already has a budget *in the selected currency* switches the form into edit mode for that existing budget.
 - **Cascade delete** — deleting a category in Settings also calls `useBudgetsDb().removeByCategory(id)`.
 - **Dashboard card** (`BudgetsDashboardCard`) — hidden when no budgets exist; renders one row per budget with a progress bar. Tapping it opens `BudgetsListScreen`.
-- **Color thresholds** — `< 80%` green `#4CAF50`, `80–99%` amber `#FFC107`, `≥ 100%` red `#F44336`.
+- **Color thresholds** — `budgetStatusColor()` in `features/budgets/budgetStatus.ts`: `< 80%` green `#4CAF50`, `80–99%` amber `#FFC107`, `≥ 100%` red `#F44336`. Defined once (with `BUDGET_WARNING_PCT`) and used by both the list screen and the dashboard card.
 - **Alerts** — when a manual transaction save in `AddTransactionSheet` pushes a budget from `<limit` to `≥limit` for the current period, `findCrossings()` in `budgetCrossings.ts` flags it and `notifyCrossedBudgets()` fires a local notification via `expo-notifications` (Android channel `'budgets'`). `findCrossings` receives `accountCurrencyById` so only budgets matching the transaction's account currency are evaluated. Permission is requested best-effort when the user first saves a budget. Recurring auto-generated transactions don't fire alerts.
+- **Heads-up at 80%** — `findNearingLimit()` in `budgetCrossings.ts` flags a budget a save took from under `BUDGET_WARNING_PCT` to at-or-over it while still under 100%; `notifyNearingBudgets()` sends "Budget almost used" (same `'budgets'` channel). A save that jumps straight past 100% only sends "Budget exceeded", so one save never sends both. Both run from `notifyThresholdsCrossed()`.
 
 ### Goals
 Money set aside inside an account. An account's balance is split into buckets — one per goal — plus whatever is left unreserved. Managed from Settings and the Dashboard card; shown on the Dashboard, the goals list, and the Accounts tab.

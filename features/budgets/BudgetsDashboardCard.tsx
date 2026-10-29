@@ -11,16 +11,7 @@ import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
 import { currentPeriodRange, spentInRange, periodLabel } from './periodUtils';
 import type { BudgetWithDetails } from '@/types';
-
-const STATUS_GREEN = '#4CAF50';
-const STATUS_AMBER = '#FFC107';
-const STATUS_RED = '#F44336';
-
-function statusColor(pct: number): string {
-  if (pct >= 100) return STATUS_RED;
-  if (pct >= 80) return STATUS_AMBER;
-  return STATUS_GREEN;
-}
+import { budgetStatusColor } from './budgetStatus';
 
 interface Props {
   onPress: () => void;
@@ -73,7 +64,7 @@ export default function BudgetsDashboardCard({ onPress }: Props) {
       </View>
 
       {rows.map(({ budget, spent, pct }) => {
-        const color = statusColor(pct);
+        const color = budgetStatusColor(pct);
         const barPct = Math.min(100, pct);
         return (
           <View key={budget.id} style={styles.row}>

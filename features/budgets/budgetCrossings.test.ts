@@ -1,4 +1,4 @@
-import { findCrossings } from './budgetCrossings';
+import { findCrossings, findNearingLimit } from './budgetCrossings';
 import type { BudgetWithDetails } from '@/types';
 
 const makeBudget = (overrides: Partial<BudgetWithDetails> = {}): BudgetWithDetails => ({
@@ -107,5 +107,52 @@ describe('findCrossings — currency filter', () => {
       { type: 'expense' as const, category_id: 1, account_id: 1, amount: 20, date: '2026-06-10' },
     ];
     expect(findCrossings([usdBudget], prev, curr, today, accountCurrencyById)).toEqual([usdBudget]);
+  });
+});
+
+describe('findNearingLimit', () => {
+  const spend = (amount: number, date = '2026-06-05') =>
+    ({ type: 'expense' as const, category_id: 1, account_id: 1, amount, date });
+
+  it('flags a budget a save took past 80% but not over the limit', () => {
+    // Given a $100 monthly budget with $70 spent
+    const budget = makeBudget({ amount: 100 });
+    const prev = [spend(70)];
+    // When a $15 expense takes it to $85
+    const curr = [...prev, spend(15, '2026-06-10')];
+    // Then it is flagged at 85% — still room before the limit
+    expect(findNearingLimit([budget], prev, curr, today)).toEqual([{ budget, pct: 85 }]);
+  });
+
+  it('leaves a save that jumps straight over the limit to findCrossings', () => {
+    // Given $70 spent and a $40 expense taking it to $110
+    const budget = makeBudget({ amount: 100 });
+    const prev = [spend(70)];
+    const curr = [...prev, spend(40, '2026-06-10')];
+    // Then no heads-up — the exceeded alert covers it, so one save sends one alert
+    expect(findNearingLimit([budget], prev, curr, today)).toEqual([]);
+    expect(findCrossings([budget], prev, curr, today)).toEqual([budget]);
+  });
+
+  it('stays quiet once a budget is already past 80%', () => {
+    // Given $85 spent and another $5
+    const budget = makeBudget({ amount: 100 });
+    const prev = [spend(85)];
+    const curr = [...prev, spend(5, '2026-06-10')];
+    // Then it does not fire again
+    expect(findNearingLimit([budget], prev, curr, today)).toEqual([]);
+  });
+
+  it('fires at exactly 80%', () => {
+    const budget = makeBudget({ amount: 100 });
+    expect(findNearingLimit([budget], [spend(50)], [spend(50), spend(30)], today)).toEqual([{ budget, pct: 80 }]);
+  });
+
+  it('only counts spend in the budget\'s currency', () => {
+    // Given a USD budget and an expense on a EUR account
+    const budget = makeBudget({ amount: 100, currency: 'USD' });
+    const curr = [{ ...spend(90), account_id: 2 }];
+    // Then the EUR spend does not count toward it
+    expect(findNearingLimit([budget], [], curr, today, { 1: 'USD', 2: 'EUR' })).toEqual([]);
   });
 });
