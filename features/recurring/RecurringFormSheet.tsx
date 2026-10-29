@@ -29,6 +29,7 @@ import { sheetStyles } from '@/constants/sheetStyles';
 import { Snackbar } from 'react-native-snackbar';
 import type { Category, RecurringFrequency, RecurringKind, RecurringTransactionWithDetails } from '@/types';
 import { advanceDate, todayString } from './dateUtils';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const CATEGORY_GRID_3_ROWS = 230;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -250,6 +251,9 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(600)).current;
+  // Focused once the sheet has settled. autoFocus fires on mount, before an Android Modal's
+  // window has focus, and the keyboard request is dropped.
+  const focusOnOpenRef = useRef<TextInput>(null);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -258,7 +262,7 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
     if (isOpen) {
       sheetTranslateY.setValue(600);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start(({ finished }) => { if (finished && !recurring) focusOnOpenRef.current?.focus(); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -355,7 +359,7 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
                   placeholderTextColor={subTextColor}
                   keyboardType="decimal-pad"
                   returnKeyType="done"
-                  autoFocus={!recurring}
+                  ref={focusOnOpenRef}
                 />
               </View>
               {attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) && (
@@ -517,18 +521,15 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
                 returnKeyType="done"
               />
 
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-                <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                  {recurring ? 'Save Changes' : 'Save Recurring'}
-                </Text>
-              </TouchableOpacity>
-
               {recurring && onDelete && (
                 <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button">
                   <Text style={styles.deleteBtnText}>Delete Recurring</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
+            <SheetFooter
+              primary={{ label: recurring ? 'Save Changes' : 'Save Recurring', onPress: handleSave }}
+            />
           </Animated.View>
         </View>
       </Modal>

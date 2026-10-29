@@ -25,6 +25,7 @@ import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import ColorIconPicker, { ACCOUNT_ICONS, PRESET_COLORS } from '@/shared/components/ColorIconPicker';
 import type { Account, AccountType } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -124,6 +125,9 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  // Focused once the sheet has settled. autoFocus fires on mount, before an Android Modal's
+  // window has focus, and the keyboard request is dropped.
+  const focusOnOpenRef = useRef<TextInput>(null);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -132,7 +136,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
     if (isOpen) {
       sheetTranslateY.setValue(SCREEN_HEIGHT);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start(({ finished }) => { if (finished && !account) focusOnOpenRef.current?.focus(); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -230,7 +234,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                 placeholder="e.g. Cash, Bank Account"
                 placeholderTextColor={subTextColor}
                 returnKeyType="done"
-                autoFocus={!account}
+                ref={focusOnOpenRef}
               />
 
               {attempted && !name.trim() && (
@@ -299,9 +303,6 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                 layout="large"
               />
 
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-                <Text style={[styles.saveBtnText, { color: onAccentColor }]}>{account ? 'Save Changes' : 'Create Account'}</Text>
-              </TouchableOpacity>
               {account && onDelete && (
                 <TouchableOpacity
                   style={[styles.deleteBtn, deleteDisabled && { opacity: 0.4 }]}
@@ -314,6 +315,9 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                 </TouchableOpacity>
               )}
             </ScrollView>
+            <SheetFooter
+              primary={{ label: account ? 'Save Changes' : 'Create Account', onPress: handleSave }}
+            />
           </Animated.View>
         </View>
       </Modal>

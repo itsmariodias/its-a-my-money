@@ -31,6 +31,7 @@ import { useAppTheme } from '@/shared/components/useAppTheme';
 import { todayString } from '@/features/recurring/dateUtils';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { TransferWithDetails } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -91,7 +92,6 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     setAttempted(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, transfer]);
-
 
   const saveTransfer = useCallback(async (parsedAmount: number, parsedToAmount: number | null) => {
     if (transfer) {
@@ -165,9 +165,12 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer, accounts]);
 
-  const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
+  const { isDark, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(600)).current;
+  // Focused once the sheet has settled. autoFocus fires on mount, before an Android Modal's
+  // window has focus, and the keyboard request is dropped.
+  const focusOnOpenRef = useRef<TextInput>(null);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -176,7 +179,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     if (isOpen) {
       sheetTranslateY.setValue(600);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start(({ finished }) => { if (finished && !transfer) focusOnOpenRef.current?.focus(); });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -212,7 +215,6 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     },
     onPanResponderTerminate: () => snapBack(),
   })).current;
-
 
   return (
     <>
@@ -263,7 +265,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
                 placeholderTextColor={subTextColor}
                 keyboardType="decimal-pad"
                 returnKeyType="done"
-                autoFocus={!transfer}
+                ref={focusOnOpenRef}
               />
             </View>
             {attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) && (
@@ -340,22 +342,16 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
               returnKeyType="done"
             />
 
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-              <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                {transfer ? 'Save Changes' : 'Save Transfer'}
-              </Text>
-            </TouchableOpacity>
-            {!transfer && (
-              <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleSaveAndContinue} accessibilityRole="button">
-                <Text style={[styles.saveAndContinueBtnText, { color: accentColor }]}>Save & Add Another</Text>
-              </TouchableOpacity>
-            )}
             {transfer && onDelete && (
               <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button" accessibilityHint="Double tap to permanently delete. This cannot be undone.">
                 <Text style={styles.deleteBtnText}>Delete Transfer</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
+          <SheetFooter
+            primary={{ label: transfer ? 'Save Changes' : 'Save Transfer', onPress: handleSave }}
+            secondary={transfer ? null : { label: 'Save & Add Another', onPress: handleSaveAndContinue }}
+          />
         </Animated.View>
       </View>
     </Modal>

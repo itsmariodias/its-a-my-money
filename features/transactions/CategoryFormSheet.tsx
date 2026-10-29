@@ -22,6 +22,7 @@ import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import ColorIconPicker, { CATEGORY_ICONS, PRESET_COLORS } from '@/shared/components/ColorIconPicker';
 import type { Category } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -87,9 +88,12 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
     }
   };
 
-  const { accentColor, onAccentColor, cardBg: bg, textColor, subColor, inputBg, borderColor } = useAppTheme();
+  const { cardBg: bg, textColor, subColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  // Focused once the sheet has settled. autoFocus fires on mount, before an Android Modal's
+  // window has focus, and the keyboard request is dropped.
+  const focusOnOpenRef = useRef<TextInput>(null);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -98,7 +102,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
     if (isOpen) {
       sheetTranslateY.setValue(SCREEN_HEIGHT);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start(({ finished }) => { if (finished && !category) focusOnOpenRef.current?.focus(); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -190,7 +194,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               placeholder="e.g. Groceries"
               placeholderTextColor={subColor}
               returnKeyType="done"
-              autoFocus={!category}
+              ref={focusOnOpenRef}
             />
 
             {attempted && !name.trim() && (
@@ -219,9 +223,6 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               </View>
             </View>
 
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-              <Text style={[styles.saveBtnText, { color: onAccentColor }]}>{category ? 'Save Changes' : 'Create Category'}</Text>
-            </TouchableOpacity>
             {category && onDelete && (
               <TouchableOpacity
                 style={[styles.deleteBtn, deleteDisabled && { opacity: 0.4 }]}
@@ -234,6 +235,9 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               </TouchableOpacity>
             )}
           </ScrollView>
+          <SheetFooter
+            primary={{ label: category ? 'Save Changes' : 'Create Category', onPress: handleSave }}
+          />
         </Animated.View>
       </View>
     </Modal>
