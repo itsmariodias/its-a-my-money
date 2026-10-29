@@ -31,7 +31,7 @@ export async function generateExportData(db: SQLiteDatabase): Promise<ExportJson
     db.getAllAsync<Transfer>('SELECT id, from_account_id, to_account_id, amount, to_amount, note, date, recurring_transaction_id, created_at FROM transfers ORDER BY date DESC, created_at DESC'),
     db.getAllAsync<RecurringTransaction>('SELECT * FROM recurring_transactions ORDER BY created_at ASC'),
     db.getAllAsync<Budget>('SELECT id, category_id, amount, period, currency, created_at FROM budgets ORDER BY created_at ASC'),
-    db.getAllAsync<Goal>('SELECT id, name, icon, color, account_id, target_amount, target_date, created_at FROM goals ORDER BY created_at ASC'),
+    db.getAllAsync<Goal>('SELECT id, name, icon, color, account_id, target_amount, target_date, archived_at, created_at FROM goals ORDER BY created_at ASC'),
     db.getAllAsync<GoalAllocation>('SELECT id, goal_id, amount, date, transaction_id, note, created_at FROM goal_allocations ORDER BY id ASC'),
   ]);
 

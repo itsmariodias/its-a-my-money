@@ -20,7 +20,8 @@ import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
 import { todayString } from '@/features/recurring/dateUtils';
 import GoalFormSheet from './GoalFormSheet';
-import { goalProgress, goalStatusColor, reservedByAccount, targetDateLabel } from './goalUtils';
+import { goalProgress, goalStatusColor, isActiveGoal, reservedByAccount, targetDateLabel } from './goalUtils';
+import GoalPaceHint from './GoalPaceHint';
 import { useAvailableBalances } from './useAvailableBalances';
 import type { GoalWithDetails } from '@/types';
 
@@ -30,7 +31,8 @@ interface Props {
 }
 
 interface GoalSection {
-  accountId: number;
+  /** The account the section groups; null for the Completed section at the bottom. */
+  accountId: number | null;
   title: string;
   currency: string;
   reserved: number;
@@ -45,11 +47,17 @@ export default function GoalsListScreen({ isOpen, onClose }: Props) {
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const availableByAccount = useAvailableBalances();
 
-  // One section per account. Goals arrive sorted by account name, then goal name.
+  // One section per account for active goals, then completed ones together at the bottom.
+  // Goals arrive sorted by account name, then goal name.
   const sections = useMemo(() => {
     const reserved = reservedByAccount(goals);
     const byAccount = new Map<number, GoalSection>();
+    const completed: GoalWithDetails[] = [];
     for (const g of goals) {
+      if (!isActiveGoal(g)) {
+        completed.push(g);
+        continue;
+      }
       let section = byAccount.get(g.account_id);
       if (!section) {
         section = {
@@ -63,7 +71,11 @@ export default function GoalsListScreen({ isOpen, onClose }: Props) {
       }
       section.data.push(g);
     }
-    return [...byAccount.values()];
+    const result = [...byAccount.values()];
+    if (completed.length > 0) {
+      result.push({ accountId: null, title: 'Completed', currency: '', reserved: 0, data: completed });
+    }
+    return result;
   }, [goals]);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -117,6 +129,13 @@ export default function GoalsListScreen({ isOpen, onClose }: Props) {
   const today = todayString();
 
   const renderSectionHeader = ({ section }: { section: GoalSection }) => {
+    if (section.accountId === null) {
+      return (
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: textColor }]}>{section.title}</Text>
+        </View>
+      );
+    }
     const available = availableByAccount[section.accountId] ?? 0;
     return (
       <View style={styles.sectionHeader}>
@@ -134,9 +153,11 @@ export default function GoalsListScreen({ isOpen, onClose }: Props) {
   const renderItem = ({ item, index, section }: { item: GoalWithDetails; index: number; section: GoalSection }) => {
     const goalCurrency = item.account_currency;
     const { saved, pct } = goalProgress(item);
-    const color = goalStatusColor(pct, item.target_date, accentColor, today);
+    const isCompleted = !isActiveGoal(item);
+    // A completed goal is done whatever its date said, so it never reads as overdue.
+    const color = goalStatusColor(pct, isCompleted ? null : item.target_date, accentColor, today);
     const barPct = Math.min(100, pct);
-    const dateLabel = targetDateLabel(item.target_date, today);
+    const dateLabel = isCompleted ? item.account_name : targetDateLabel(item.target_date, today);
     const isFirst = index === 0;
     const isLast = index === section.data.length - 1;
     const br = {
@@ -175,6 +196,7 @@ export default function GoalsListScreen({ isOpen, onClose }: Props) {
             )}
             <Text style={[styles.itemPct, { color }]}>{Math.round(pct)}%</Text>
           </View>
+          <GoalPaceHint goal={item} />
         </View>
       </TouchableOpacity>
     );

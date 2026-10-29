@@ -1,4 +1,4 @@
-import { useAccountsDb, useBudgetsDb, useCategoriesDb, useGoalsDb, useRecurringDb, useSettingsDb, useTransactionsDb, useTransfersDb } from '@/db';
+import { useAccountsDb, useBudgetsDb, useCategoriesDb, useGoalsDb, useImportDb, useRecurringDb, useSettingsDb, useTransactionsDb, useTransfersDb, type ExportData } from '@/db';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { getMockDb } = require('../__mocks__/expo-sqlite');
@@ -124,6 +124,14 @@ describe('useTransactionsDb', () => {
     expect(calls[0][0]).toContain('DELETE FROM goal_allocations WHERE transaction_id=?');
     const [, ...params] = calls[1];
     expect(params).toEqual([3, -50, '2026-04-02', 8]);
+  });
+
+  it('leaves splits into completed goals alone when rewriting', async () => {
+    // Given an old income that once put money into a goal since marked complete
+    await db.update(8, { amount: 50, type: 'income', category_id: 1, account_id: 1, note: null, date: '2026-04-02' });
+    // Then only splits into active goals are cleared — the finished goal keeps its history
+    const [sql] = allocationCalls()[0];
+    expect(sql).toContain('goal_id IN (SELECT id FROM goals WHERE archived_at IS NULL)');
   });
 
   it('clears the splits when an update removes them', async () => {
@@ -289,6 +297,15 @@ describe('useGoalsDb', () => {
     expect([allocParam, goalParam]).toEqual([4, 4]);
   });
 
+  it('marks a goal complete, and restores it', async () => {
+    // When goal 3 is completed, then restored
+    await db.setArchived(3, '2026-10-29T10:00:00.000Z');
+    await db.setArchived(3, null);
+    // Then archived_at is set, then cleared
+    expect(mockDb.runAsync.mock.calls[0]).toEqual(['UPDATE goals SET archived_at=? WHERE id=?', '2026-10-29T10:00:00.000Z', 3]);
+    expect(mockDb.runAsync.mock.calls[1]).toEqual(['UPDATE goals SET archived_at=? WHERE id=?', null, 3]);
+  });
+
   it('records a manual add as a positive allocation with no transaction', async () => {
     // When 250 is added to goal 3 by hand
     await db.allocate(3, 250, '2026-05-01', 'bonus');
@@ -360,5 +377,85 @@ describe('useBudgetsDb', () => {
     expect(sql).toContain('FROM budgets');
     expect(sql).toContain('JOIN categories');
     expect(sql).toContain('category_name');
+  });
+});
+
+describe('useImportDb — goals', () => {
+  const db = useImportDb();
+
+  // Every INSERT gets a fresh id, so remapped ids are distinguishable from the backup's own.
+  let nextId: number;
+  beforeEach(() => {
+    nextId = 100;
+    mockDb.runAsync.mockImplementation(async (sql: string) => ({
+      changes: 1,
+      lastInsertRowId: sql.startsWith('INSERT INTO') ? nextId++ : 0,
+    }));
+  });
+  afterEach(() => {
+    mockDb.runAsync.mockImplementation(async () => ({ changes: 1, lastInsertRowId: 1 }));
+  });
+
+  const backup: ExportData = {
+    version: 1,
+    categories: [{ id: 7, name: 'Travel', type: 'expense', color: '#2196F3', icon: 'flight', is_default: 0 }],
+    accounts: [{ id: 2, name: 'Euro Bank', initial_balance: 0, currency: 'EUR', color: null, icon: null, account_type: 'cash', current_value: null, created_at: '2026-01-01' }],
+    transactions: [{ id: 40, amount: 1000, type: 'income', category_id: 7, account_id: 2, note: null, date: '2026-03-01', recurring_transaction_id: null, created_at: '2026-03-01' }],
+    transfers: [],
+    goals: [
+      // A savings-bucket goal, completed
+      { id: 5, name: 'Laptop', icon: 'laptop', color: '#000', account_id: 2, target_amount: 1500, target_date: null, archived_at: '2026-09-01T00:00:00.000Z', created_at: '2026-02-01' },
+      // A category goal from a backup written before migration 016
+      { id: 6, category_id: 7, target_amount: 5000, currency: 'EUR', start_date: '2026-03-01', target_date: '2026-12-31', created_at: '2026-03-01' },
+    ],
+    goal_allocations: [
+      { id: 1, goal_id: 5, amount: 300, date: '2026-03-01', transaction_id: 40, note: null, created_at: '2026-03-01' },
+      { id: 2, goal_id: 6, amount: -50, date: '2026-03-02', transaction_id: null, note: 'release', created_at: '2026-03-02' },
+      { id: 3, goal_id: 99, amount: 10, date: '2026-03-03', transaction_id: null, note: null, created_at: '2026-03-03' },
+    ],
+  };
+
+  const insertsInto = (table: string) =>
+    mockDb.runAsync.mock.calls.filter(([sql]: [string]) => sql.startsWith(`INSERT INTO ${table} `));
+
+  it('wipes goal allocations along with goals before restoring', async () => {
+    await db.importAll(backup);
+    const sqls = mockDb.runAsync.mock.calls.map(([sql]: [string]) => sql);
+    expect(sqls).toContain('DELETE FROM goal_allocations');
+    expect(sqls).toContain('DELETE FROM goals');
+  });
+
+  it('restores a bucket goal as it was, including its completed state', async () => {
+    // When the backup is imported
+    await db.importAll(backup);
+    // Then the first goal is written with every column
+    const [, ...params] = insertsInto('goals')[0];
+    expect(params).toEqual(['Laptop', 'laptop', '#000', 2, 1500, null, '2026-09-01T00:00:00.000Z', '2026-02-01']);
+  });
+
+  it('converts an old category goal on the way in', async () => {
+    // When the backup is imported
+    await db.importAll(backup);
+    // Then the legacy goal takes its category's look and lands in the EUR account, active
+    const [, ...params] = insertsInto('goals')[1];
+    expect(params).toEqual(['Travel', 'flight', '#2196F3', 2, 5000, '2026-12-31', null, '2026-03-01']);
+  });
+
+  it('points allocations at the remapped goal ids and keeps transaction links', async () => {
+    // Given ids are handed out in order: category 100, account 101, transaction 102, goals 103 and 104
+    await db.importAll(backup);
+    // Then each allocation follows its goal to the new id; the transaction keeps its own id
+    const allocations = insertsInto('goal_allocations').map(([, ...p]: unknown[]) => p);
+    expect(allocations).toEqual([
+      [103, 300, '2026-03-01', 40, null, '2026-03-01'],
+      [104, -50, '2026-03-02', null, 'release', '2026-03-02'],
+    ]);
+  });
+
+  it('drops an allocation whose goal is not in the backup', async () => {
+    // Given an allocation pointing at goal 99, which the backup does not hold
+    await db.importAll(backup);
+    // Then it is skipped rather than attached to some other goal
+    expect(insertsInto('goal_allocations')).toHaveLength(2);
   });
 });

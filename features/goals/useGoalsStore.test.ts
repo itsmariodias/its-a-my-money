@@ -9,6 +9,7 @@ const makeItem = (id: number, overrides: Partial<GoalWithDetails> = {}): GoalWit
   account_id: 1,
   target_amount: 10000,
   target_date: null,
+  archived_at: null,
   created_at: '2026-01-01T00:00:00.000Z',
   account_name: 'Savings',
   account_currency: 'USD',

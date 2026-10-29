@@ -4,6 +4,8 @@ import {
   goalProgress,
   goalStatusColor,
   hasSplitErrors,
+  isActiveGoal,
+  monthlyNeeded,
   moveError,
   overReservedAfterSave,
   reservedAcross,
@@ -52,6 +54,42 @@ describe('reservedByAccount', () => {
     // When totalling per account
     // Then each account's reserved amount is the sum of its goals
     expect(reservedByAccount(goals)).toEqual({ 1: 500, 2: 50 });
+  });
+
+  it('leaves out completed goals — their money is freed', () => {
+    // Given one active and one archived goal in account 1
+    const goals = [
+      { account_id: 1, saved: 300 },
+      { account_id: 1, saved: 900, archived_at: '2026-10-01T00:00:00.000Z' },
+    ];
+    // Then only the active goal holds money
+    expect(reservedByAccount(goals)).toEqual({ 1: 300 });
+    expect(isActiveGoal(goals[1])).toBe(false);
+  });
+});
+
+describe('monthlyNeeded', () => {
+  const TODAY = '2026-10-29';
+
+  it('spreads what is left over the months to the target date', () => {
+    // Given 1,000 of a 4,000 target with the date about six months out
+    const perMonth = monthlyNeeded({ saved: 1000, target_amount: 4000, target_date: '2027-04-29' }, TODAY);
+    // Then roughly 500 a month gets there
+    expect(perMonth).toBeCloseTo(3000 / (182 / (365.25 / 12)), 5);
+    expect(perMonth).toBeGreaterThan(495);
+    expect(perMonth).toBeLessThan(505);
+  });
+
+  it('asks for the whole remainder inside the last month', () => {
+    // Given the target date ten days away
+    // Then it never asks for more than what is left
+    expect(monthlyNeeded({ saved: 100, target_amount: 400, target_date: '2026-11-08' }, TODAY)).toBe(300);
+  });
+
+  it('has nothing to suggest without a date, once reached, or after the date', () => {
+    expect(monthlyNeeded({ saved: 0, target_amount: 400, target_date: null }, TODAY)).toBeNull();
+    expect(monthlyNeeded({ saved: 400, target_amount: 400, target_date: '2027-01-01' }, TODAY)).toBeNull();
+    expect(monthlyNeeded({ saved: 0, target_amount: 400, target_date: '2026-10-28' }, TODAY)).toBeNull();
   });
 });
 

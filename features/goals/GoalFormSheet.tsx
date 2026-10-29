@@ -30,7 +30,9 @@ import { Snackbar } from 'react-native-snackbar';
 import { requestNotificationPermission } from '@/features/backup/notifications';
 import { todayString } from '@/features/recurring/dateUtils';
 import GoalMoveSheet from './GoalMoveSheet';
-import { goalProgress, type GoalMoveDirection } from './goalUtils';
+import GoalPaceHint from './GoalPaceHint';
+import { goalProgress, isActiveGoal, type GoalMoveDirection } from './goalUtils';
+import { notifyGoalsReached } from '@/features/transactions/postSaveAlerts';
 import type { GoalWithDetails } from '@/types';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -115,7 +117,11 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
         await goalsDb.insert(fields);
         Snackbar.show({ text: 'Goal saved', duration: Snackbar.LENGTH_SHORT });
       }
-      setGoals(await goalsDb.getAll());
+      const prevGoals = useGoalsStore.getState().goals;
+      const currGoals = await goalsDb.getAll();
+      setGoals(currGoals);
+      // Lowering a target to what is already saved completes the goal, so check here too.
+      notifyGoalsReached(prevGoals, currGoals);
       // Best-effort: ask for notification permission so we can alert when this goal is
       // reached later. Silently ignored if denied.
       requestNotificationPermission().catch(() => {});
@@ -125,6 +131,22 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, icon, color, accountId, amount, targetDate, goal]);
+
+  // Completing a goal frees its money (archived goals stop counting as reserved) but keeps the
+  // goal and its history; Restore makes it count again.
+  const handleToggleArchived = useCallback(async () => {
+    if (!liveGoal) return;
+    const archiving = isActiveGoal(liveGoal);
+    try {
+      await goalsDb.setArchived(liveGoal.id, archiving ? new Date().toISOString() : null);
+      setGoals(await goalsDb.getAll());
+      Snackbar.show({ text: archiving ? 'Goal completed' : 'Goal restored', duration: Snackbar.LENGTH_SHORT });
+      triggerCloseRef.current();
+    } catch {
+      setErrorModal(archiving ? 'Failed to complete goal.' : 'Failed to restore goal.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveGoal]);
 
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
@@ -202,6 +224,8 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
                     {formatAmount(liveGoal.saved, liveGoal.account_currency, undefined, numberFormat)}
                     <Text style={{ color: subTextColor }}> of {formatAmount(liveGoal.target_amount, liveGoal.account_currency, undefined, numberFormat)} · {Math.round(goalProgress(liveGoal).pct)}%</Text>
                   </Text>
+                  <GoalPaceHint goal={liveGoal} />
+                  {isActiveGoal(liveGoal) ? (
                   <View style={localStyles.moveRow}>
                     <TouchableOpacity style={[localStyles.moveBtn, { backgroundColor: accentColor }]} onPress={() => setMoveDirection('add')} accessibilityRole="button">
                       <MaterialIcons name="add" size={18} color={onAccentColor} />
@@ -217,6 +241,11 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
                       <Text style={[localStyles.moveBtnText, { color: accentColor }]}>Release</Text>
                     </TouchableOpacity>
                   </View>
+                  ) : (
+                    <Text style={[localStyles.completedHint, { color: subTextColor }]}>
+                      Completed — this money no longer counts as set aside. Restore the goal to keep saving.
+                    </Text>
+                  )}
                 </View>
               )}
 
@@ -293,6 +322,14 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
                 </Text>
               </TouchableOpacity>
 
+              {liveGoal && (
+                <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleToggleArchived} accessibilityRole="button">
+                  <Text style={[styles.saveAndContinueBtnText, { color: accentColor }]}>
+                    {isActiveGoal(liveGoal) ? 'Mark as Complete' : 'Restore Goal'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
               {goal && onDelete && (
                 <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button">
                   <Text style={styles.deleteBtnText}>Delete Goal</Text>
@@ -325,11 +362,12 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
 const localStyles = StyleSheet.create({
   savedCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 20 },
   savedLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  savedAmount: { fontSize: 18, fontWeight: '700', marginTop: 4, marginBottom: 12 },
-  moveRow: { flexDirection: 'row', gap: 10 },
+  savedAmount: { fontSize: 18, fontWeight: '700', marginTop: 4, marginBottom: 4 },
+  moveRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
   moveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 10, paddingVertical: 10 },
   moveBtnText: { fontSize: 14, fontWeight: '600' },
   lockedHint: { fontSize: 13, lineHeight: 18, marginBottom: 20 },
+  completedHint: { fontSize: 13, lineHeight: 18 },
   targetDateToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   targetDateToggleLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },

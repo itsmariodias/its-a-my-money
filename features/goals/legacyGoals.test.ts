@@ -15,7 +15,7 @@ const categories = [{ id: 7, name: 'Travel', icon: 'flight', color: '#2196F3' }]
 describe('isLegacyGoal', () => {
   it('tells an old category goal from a bucket goal', () => {
     // Given one goal of each shape
-    const bucket = { id: 1, name: 'Car', icon: 'directions-car', color: '#000', account_id: 1, target_amount: 1, target_date: null, created_at: '' };
+    const bucket = { id: 1, name: 'Car', icon: 'directions-car', color: '#000', account_id: 1, target_amount: 1, target_date: null, archived_at: null, created_at: '' };
 
     // Then only the category-based one is legacy
     expect(isLegacyGoal(legacy)).toBe(true);
@@ -36,6 +36,7 @@ describe('convertLegacyGoal', () => {
       account_id: 2,
       target_amount: 5000,
       target_date: '2026-12-31',
+      archived_at: null,
       created_at: '2026-03-01 10:00:00',
     });
   });

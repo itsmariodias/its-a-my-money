@@ -25,7 +25,7 @@ import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { notifyThresholdsCrossed, takeSaveSnapshot } from '@/features/transactions/postSaveAlerts';
 import GoalSplitField from '@/features/goals/GoalSplitField';
 import { useGoalsStore } from '@/features/goals/useGoalsStore';
-import { hasSplitErrors, savedExcluding, validateSplits } from '@/features/goals/goalUtils';
+import { hasSplitErrors, isActiveGoal, savedExcluding, validateSplits } from '@/features/goals/goalUtils';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
@@ -80,8 +80,9 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
   // In edit mode, the splits the transaction already has — counted in each goal's saved amount.
   const [priorAllocations, setPriorAllocations] = useState<GoalAllocation[]>([]);
 
+  // Completed goals take no new money, so only active ones are offered.
   const accountGoals = useMemo(
-    () => allGoals.filter((g) => g.account_id === selectedAccountId),
+    () => allGoals.filter((g) => g.account_id === selectedAccountId && isActiveGoal(g)),
     [allGoals, selectedAccountId]
   );
   const savedByGoal = useMemo(() => savedExcluding(accountGoals, priorAllocations), [accountGoals, priorAllocations]);

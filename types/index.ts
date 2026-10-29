@@ -83,8 +83,13 @@ export interface Goal {
   target_amount: number;
   /** Optional deadline. Display only: it drives the countdown badge and the overdue colour. */
   target_date: string | null;
+  /** When the goal was marked complete. Archived goals stop counting as reserved; null = active. */
+  archived_at: string | null;
   created_at: string;
 }
+
+/** The fields the goal form edits. Archiving has its own action. */
+export type GoalFields = Omit<Goal, 'id' | 'created_at' | 'archived_at'>;
 
 export interface GoalWithDetails extends Goal {
   account_name: string;

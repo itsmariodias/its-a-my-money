@@ -9,7 +9,7 @@ import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
 import { todayString } from '@/features/recurring/dateUtils';
-import { goalProgress, goalStatusColor, targetDateLabel } from './goalUtils';
+import { goalProgress, goalStatusColor, isActiveGoal, targetDateLabel } from './goalUtils';
 import type { GoalWithDetails } from '@/types';
 
 interface Props {
@@ -26,8 +26,9 @@ export default function GoalsDashboardCard({ onPress }: Props) {
   const allGoals = useGoalsStore((s) => s.goals);
   // Follows the header's account filter, like the rest of the dashboard.
   const selectedAccountId = useUIStore((s) => s.selectedAccountId);
+  // Completed goals live only in the goals list.
   const goals = useMemo(
-    () => (selectedAccountId == null ? allGoals : allGoals.filter((g) => g.account_id === selectedAccountId)),
+    () => allGoals.filter((g) => isActiveGoal(g) && (selectedAccountId == null || g.account_id === selectedAccountId)),
     [allGoals, selectedAccountId],
   );
   const numberFormat = useSettingsStore((s) => s.numberFormat);

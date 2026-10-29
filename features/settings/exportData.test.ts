@@ -14,7 +14,7 @@ describe('exportData', () => {
   const mockCategories = [{ id: 1, name: 'Food', type: 'expense', color: '#FF5722', icon: 'restaurant', is_default: 1 }];
   const mockTransactions = [{ id: 1, amount: 50, type: 'expense', category_id: 1, account_id: 1, note: null, date: '2026-03-01', created_at: '2026-03-01' }];
   const mockTransfers = [{ id: 1, from_account_id: 1, to_account_id: 2, amount: 25, note: null, date: '2026-03-01', created_at: '2026-03-01' }];
-  const mockGoal = { id: 1, name: 'Japan trip', icon: 'flight', color: '#2196F3', account_id: 1, target_amount: 10000, target_date: '2026-12-31', created_at: '2026-03-01' };
+  const mockGoal = { id: 1, name: 'Japan trip', icon: 'flight', color: '#2196F3', account_id: 1, target_amount: 10000, target_date: '2026-12-31', archived_at: null, created_at: '2026-03-01' };
   const mockGoalAllocation = { id: 1, goal_id: 1, amount: 300, date: '2026-03-01', transaction_id: 1, note: null, created_at: '2026-03-01' };
 
   it('should return all data with correct structure', async () => {

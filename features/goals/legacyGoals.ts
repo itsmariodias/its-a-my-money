@@ -42,6 +42,7 @@ export function convertLegacyGoal(
     account_id: account.id,
     target_amount: legacy.target_amount,
     target_date: legacy.target_date ?? null,
+    archived_at: null,
     created_at: legacy.created_at,
   };
 }

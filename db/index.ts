@@ -1,4 +1,4 @@
-import type { Account, Budget, BudgetWithDetails, Category, Goal, GoalAllocation, GoalSplit, GoalWithDetails, RecurringTransaction, RecurringTransactionWithDetails, Transaction, TransactionWithDetails, Transfer, TransferWithDetails } from '@/types';
+import type { Account, Budget, BudgetWithDetails, Category, Goal, GoalAllocation, GoalFields, GoalSplit, GoalWithDetails, RecurringTransaction, RecurringTransactionWithDetails, Transaction, TransactionWithDetails, Transfer, TransferWithDetails } from '@/types';
 import { convertLegacyGoal, isLegacyGoal, type LegacyGoal } from '@/features/goals/legacyGoals';
 import { useSQLiteContext } from 'expo-sqlite';
 
@@ -98,8 +98,13 @@ export function useTransactionsDb() {
 
   // A transaction's goal splits are rewritten wholesale on every save: income reserves into each
   // goal, an expense takes out of it. Callers run this inside the transaction's own DB transaction.
+  // Splits into archived goals are left alone: the form does not show those goals, so rewriting
+  // would silently erase a finished goal's history.
   const replaceGoalSplits = async (txId: number, type: 'income' | 'expense', date: string, splits: GoalSplit[]) => {
-    await db.runAsync('DELETE FROM goal_allocations WHERE transaction_id=?', txId);
+    await db.runAsync(
+      'DELETE FROM goal_allocations WHERE transaction_id=? AND goal_id IN (SELECT id FROM goals WHERE archived_at IS NULL)',
+      txId
+    );
     for (const s of splits) {
       if (s.amount <= 0) continue;
       await db.runAsync(
@@ -376,8 +381,8 @@ export function useImportDb() {
             const goal = isLegacyGoal(g) ? convertLegacyGoal(g, data.categories, data.accounts) : g;
             if (!goal) continue;
             const result = await db.runAsync(
-              'INSERT INTO goals (name, icon, color, account_id, target_amount, target_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-              goal.name, goal.icon, goal.color, goal.account_id, goal.target_amount, goal.target_date ?? null, goal.created_at
+              'INSERT INTO goals (name, icon, color, account_id, target_amount, target_date, archived_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              goal.name, goal.icon, goal.color, goal.account_id, goal.target_amount, goal.target_date ?? null, goal.archived_at ?? null, goal.created_at
             );
             goalIdMap.set(g.id, result.lastInsertRowId);
           }
@@ -590,13 +595,13 @@ export function useGoalsDb() {
     getAll: () =>
       db.getAllAsync<GoalWithDetails>(`${GOAL_SELECT} ORDER BY a.name ASC, g.name ASC`),
 
-    insert: (goal: Omit<Goal, 'id' | 'created_at'>) =>
+    insert: (goal: GoalFields) =>
       db.runAsync(
         'INSERT INTO goals (name, icon, color, account_id, target_amount, target_date) VALUES (?, ?, ?, ?, ?, ?)',
         goal.name, goal.icon, goal.color, goal.account_id, goal.target_amount, goal.target_date
       ),
 
-    update: (id: number, goal: Omit<Goal, 'id' | 'created_at'>) =>
+    update: (id: number, goal: GoalFields) =>
       db.runAsync(
         'UPDATE goals SET name=?, icon=?, color=?, account_id=?, target_amount=?, target_date=? WHERE id=?',
         goal.name, goal.icon, goal.color, goal.account_id, goal.target_amount, goal.target_date ?? null, id
@@ -613,6 +618,10 @@ export function useGoalsDb() {
         await db.runAsync('DELETE FROM goal_allocations WHERE goal_id IN (SELECT id FROM goals WHERE account_id=?)', accountId);
         await db.runAsync('DELETE FROM goals WHERE account_id=?', accountId);
       }),
+
+    /** Marks a goal complete (a timestamp) or restores it (null). */
+    setArchived: (id: number, archivedAt: string | null) =>
+      db.runAsync('UPDATE goals SET archived_at=? WHERE id=?', archivedAt, id),
 
     /** A manual move: positive adds money to the goal, negative releases it back to the account. */
     allocate: (goalId: number, amount: number, date: string, note: string | null) =>

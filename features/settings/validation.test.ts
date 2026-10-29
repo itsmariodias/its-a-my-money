@@ -265,6 +265,16 @@ describe('isValidExport', () => {
     expect(isValidExport(data)).toBe(true);
   });
 
+  it('should accept a completed goal and one from before archiving existed', () => {
+    // Given one archived goal and one with no archived_at key at all (pre-017 backup)
+    const data = { ...validData, goals: [{ ...bucketGoal, archived_at: '2026-10-01T00:00:00.000Z' }, { ...bucketGoal, id: 2 }] };
+    expect(isValidExport(data)).toBe(true);
+  });
+
+  it('should reject a goal whose archived_at is not a date string', () => {
+    expect(isValidExport({ ...validData, goals: [{ ...bucketGoal, archived_at: 1 }] })).toBe(false);
+  });
+
   it('should reject a bucket goal without a name', () => {
     const { name: _name, ...nameless } = bucketGoal;
     expect(isValidExport({ ...validData, goals: [nameless] })).toBe(false);

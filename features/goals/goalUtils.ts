@@ -3,6 +3,13 @@ import { accountBalanceAsOf } from '@/features/accounts/balanceUtils';
 
 type TxLike = Pick<Transaction, 'account_id' | 'type' | 'amount' | 'date'>;
 type TransferLike = Pick<Transfer, 'from_account_id' | 'to_account_id' | 'amount' | 'to_amount' | 'date'>;
+/** What counting reserved money needs from a goal. `archived_at` is optional so plain fixtures fit. */
+export type ReservableGoal = Pick<GoalWithDetails, 'account_id' | 'saved'> & Partial<Pick<GoalWithDetails, 'archived_at'>>;
+
+/** A goal still being saved for, as opposed to one marked complete. */
+export function isActiveGoal(goal: Partial<Pick<GoalWithDetails, 'archived_at'>>): boolean {
+  return goal.archived_at == null;
+}
 
 export const GOAL_REACHED_COLOR = '#4CAF50';
 export const GOAL_OVERDUE_COLOR = '#F44336';
@@ -25,12 +32,14 @@ export function goalProgress(goal: Pick<GoalWithDetails, 'saved' | 'target_amoun
   };
 }
 
-/** Money set aside in goals, per account id. An account's available balance is its balance minus this. */
-export function reservedByAccount(
-  goals: readonly Pick<GoalWithDetails, 'account_id' | 'saved'>[],
-): Record<number, number> {
+/**
+ * Money set aside in goals, per account id. An account's available balance is its balance minus
+ * this. Completed (archived) goals no longer hold their money, so they are skipped.
+ */
+export function reservedByAccount(goals: readonly ReservableGoal[]): Record<number, number> {
   const reserved: Record<number, number> = {};
   for (const g of goals) {
+    if (!isActiveGoal(g)) continue;
     reserved[g.account_id] = (reserved[g.account_id] ?? 0) + g.saved;
   }
   return reserved;
@@ -45,7 +54,7 @@ export function availableAsOf(
   account: Account,
   transactions: readonly TxLike[],
   transfers: readonly TransferLike[],
-  goals: readonly Pick<GoalWithDetails, 'account_id' | 'saved'>[],
+  goals: readonly ReservableGoal[],
   asOf: string,
   reservedDelta = 0,
 ): number {
@@ -163,6 +172,26 @@ export function goalStatusColor(
   if (targetDate && targetDate < today) return GOAL_OVERDUE_COLOR;
   return accentColor;
 }
+
+/**
+ * What to set aside each month to reach the target by its date: the rest of the target spread
+ * over the months left, counted as a fraction (45 days is about 1.5 months). Null when there is
+ * no date, the goal is already reached, or the date has passed. Inside the last month the whole
+ * remainder is due, so it never asks for more than what is left.
+ */
+export function monthlyNeeded(
+  goal: Pick<GoalWithDetails, 'saved' | 'target_amount' | 'target_date'>,
+  today: string,
+): number | null {
+  if (!goal.target_date || goal.target_date < today) return null;
+  const remaining = goal.target_amount - goal.saved;
+  if (remaining <= EPSILON) return null;
+  const months = daysBetween(today, goal.target_date) / DAYS_PER_MONTH;
+  return remaining / Math.max(1, months);
+}
+
+/** Average month length, so "months left" does not depend on which months they are. */
+const DAYS_PER_MONTH = 365.25 / 12;
 
 /** "12 days left" / "4 months left" / "Overdue", or null when the goal has no deadline. */
 export function targetDateLabel(targetDate: string | null, today: string): string | null {

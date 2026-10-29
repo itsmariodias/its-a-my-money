@@ -99,7 +99,13 @@ function isValidGoal(item: unknown): boolean {
   if (!common) return false;
   // Savings-bucket goals (migration 016 onward).
   if (typeof g.account_id === 'number') {
-    return typeof g.name === 'string' && typeof g.icon === 'string' && typeof g.color === 'string';
+    return (
+      typeof g.name === 'string' &&
+      typeof g.icon === 'string' &&
+      typeof g.color === 'string' &&
+      // archived_at arrived in migration 017; backups from before it simply lack the key.
+      (g.archived_at == null || typeof g.archived_at === 'string')
+    );
   }
   // Category-based goals from older backups — still importable, converted on the way in.
   return (

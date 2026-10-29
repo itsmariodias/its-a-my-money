@@ -1,20 +1,22 @@
 import type { Account, GoalWithDetails, Transaction, Transfer } from '@/types';
-import { availableAsOf, overReservedAfterSave } from './goalUtils';
+import { availableAsOf, isActiveGoal, overReservedAfterSave, type ReservableGoal } from './goalUtils';
 
 /**
- * Goals that a save just pushed to their target, comparing each goal's `saved` before and after.
- * The below-to-at-or-above edge is strict, so a goal fires once when reached and stays quiet on
- * every later deposit.
+ * Goals that a save just made complete, comparing each goal before and after. Each side is
+ * judged against its own target, so lowering a target below what is already saved counts as
+ * reaching it. The under-to-at-or-over edge is strict: a goal fires once and stays quiet on every
+ * later deposit. Archived goals are finished already and never fire.
  */
 export function findReachedGoals(
-  prevGoals: readonly Pick<GoalWithDetails, 'id' | 'saved'>[],
+  prevGoals: readonly Pick<GoalWithDetails, 'id' | 'saved' | 'target_amount'>[],
   currGoals: GoalWithDetails[],
 ): GoalWithDetails[] {
-  const prevSaved = new Map(prevGoals.map((g) => [g.id, g.saved]));
+  const prevById = new Map(prevGoals.map((g) => [g.id, g]));
   return currGoals.filter((g) => {
-    if (g.target_amount <= 0) return false;
-    const prev = prevSaved.get(g.id) ?? 0;
-    return prev < g.target_amount && g.saved >= g.target_amount;
+    if (g.target_amount <= 0 || !isActiveGoal(g)) return false;
+    const prev = prevById.get(g.id);
+    const wasReached = prev != null && prev.target_amount > 0 && prev.saved >= prev.target_amount;
+    return !wasReached && g.saved >= g.target_amount;
   });
 }
 
@@ -22,7 +24,7 @@ export function findReachedGoals(
 export interface BalanceSnapshot {
   transactions: readonly Pick<Transaction, 'account_id' | 'type' | 'amount' | 'date'>[];
   transfers: readonly Pick<Transfer, 'from_account_id' | 'to_account_id' | 'amount' | 'to_amount' | 'date'>[];
-  goals: readonly Pick<GoalWithDetails, 'account_id' | 'saved'>[];
+  goals: readonly ReservableGoal[];
 }
 
 export interface OverspentAccount {
@@ -43,7 +45,7 @@ export function findOverspentAccounts(
   curr: BalanceSnapshot,
   asOf: string,
 ): OverspentAccount[] {
-  const withGoals = new Set(curr.goals.map((g) => g.account_id));
+  const withGoals = new Set(curr.goals.filter(isActiveGoal).map((g) => g.account_id));
   const overspent: OverspentAccount[] = [];
   for (const account of accounts) {
     if (!withGoals.has(account.id)) continue;

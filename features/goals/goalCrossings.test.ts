@@ -9,6 +9,7 @@ const goal = (overrides: Partial<GoalWithDetails> = {}): GoalWithDetails => ({
   account_id: 1,
   target_amount: 1000,
   target_date: null,
+  archived_at: null,
   created_at: '2026-01-01',
   account_name: 'Savings',
   account_currency: 'USD',
@@ -49,6 +50,30 @@ describe('findReachedGoals', () => {
     // When it arrives already full
     // Then it counts as reached from empty
     expect(findReachedGoals([], [goal({ saved: 1000 })]).map((g) => g.id)).toEqual([1]);
+  });
+
+  it('fires when the target is lowered to what is already saved', () => {
+    // Given a goal holding 800 toward 1,000
+    const prev = [goal({ saved: 800, target_amount: 1000 })];
+    // When the target is edited down to 750
+    const curr = [goal({ saved: 800, target_amount: 750 })];
+    // Then it counts as reached — judged against each side's own target
+    expect(findReachedGoals(prev, curr).map((g) => g.id)).toEqual([1]);
+  });
+
+  it('stays quiet when a reached goal\'s target is raised and lowered back', () => {
+    // Given a goal that was already full
+    const prev = [goal({ saved: 1000, target_amount: 900 })];
+    // When its target is changed but it is still full
+    // Then it does not fire again
+    expect(findReachedGoals(prev, [goal({ saved: 1000, target_amount: 950 })])).toEqual([]);
+  });
+
+  it('never fires for a completed goal', () => {
+    // Given an archived goal that receives a back-dated split
+    // Then it is finished already and stays quiet
+    const archived = { archived_at: '2026-10-01T00:00:00.000Z' };
+    expect(findReachedGoals([goal({ saved: 0, ...archived })], [goal({ saved: 1000, ...archived })])).toEqual([]);
   });
 
   it('never fires for a goal with no target', () => {
@@ -114,6 +139,14 @@ describe('findOverspentAccounts', () => {
     const curr = { ...base, transactions: [expense(300, '2026-11-15')] };
     // Then today's Available is untouched
     expect(findOverspentAccounts([savings], base, curr, TODAY)).toEqual([]);
+  });
+
+  it('ignores completed goals — their money is no longer set aside', () => {
+    // Given Savings' only goal is archived, and a 900 expense leaves 100
+    const archivedOnly: BalanceSnapshot = { transactions: [], transfers: [], goals: [{ account_id: 1, saved: 800, archived_at: '2026-10-01' }] };
+    const curr = { ...archivedOnly, transactions: [expense(900)] };
+    // Then nothing set aside was spent
+    expect(findOverspentAccounts([savings], archivedOnly, curr, TODAY)).toEqual([]);
   });
 
   it('skips accounts without goals', () => {
