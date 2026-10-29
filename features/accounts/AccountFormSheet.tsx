@@ -25,6 +25,7 @@ import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import ColorIconPicker, { ACCOUNT_ICONS, PRESET_COLORS } from '@/shared/components/ColorIconPicker';
 import type { Account, AccountType } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -299,9 +300,6 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                 layout="large"
               />
 
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-                <Text style={[styles.saveBtnText, { color: onAccentColor }]}>{account ? 'Save Changes' : 'Create Account'}</Text>
-              </TouchableOpacity>
               {account && onDelete && (
                 <TouchableOpacity
                   style={[styles.deleteBtn, deleteDisabled && { opacity: 0.4 }]}
@@ -314,6 +312,9 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                 </TouchableOpacity>
               )}
             </ScrollView>
+            <SheetFooter
+              primary={{ label: account ? 'Save Changes' : 'Create Account', onPress: handleSave }}
+            />
           </Animated.View>
         </View>
       </Modal>

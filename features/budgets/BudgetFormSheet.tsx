@@ -25,6 +25,7 @@ import { sheetStyles } from '@/constants/sheetStyles';
 import { Snackbar } from 'react-native-snackbar';
 import { requestNotificationPermission } from '@/features/backup/notifications';
 import type { BudgetPeriod, BudgetWithDetails, Category } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const CATEGORY_GRID_3_ROWS = 230;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -298,18 +299,15 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
                 <Text style={styles.errorText}>Please select a category</Text>
               )}
 
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-                <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                  {editingId != null ? 'Save Changes' : 'Save Budget'}
-                </Text>
-              </TouchableOpacity>
-
               {editingId != null && onDelete && (
                 <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button">
                   <Text style={styles.deleteBtnText}>Delete Budget</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
+            <SheetFooter
+              primary={{ label: editingId != null ? 'Save Changes' : 'Save Budget', onPress: handleSave }}
+            />
           </Animated.View>
         </View>
       </Modal>

@@ -35,6 +35,7 @@ import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { Category, GoalAllocation, GoalSplit, TransactionWithDetails } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 // Height for 3 rows of category items: 3 × (paddingV 8 + circle 44 + gap 4 + label 14) + 2 × row-gap 8
 const CATEGORY_GRID_3_ROWS = 230;
@@ -166,7 +167,6 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     }
   }, [type]);
 
-
   const saveTransaction = useCallback(async (parsedAmount: number) => {
     if (transaction) {
       await transactionsDb.update(transaction.id, {
@@ -234,7 +234,7 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     if (saved.type === type) setSelectedCategory(saved);
   }, [type]);
 
-  const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
+  const { isDark, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(600)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -283,7 +283,6 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
     },
     onPanResponderTerminate: () => snapBack(),
   })).current;
-
 
   return (
     <>
@@ -430,6 +429,8 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
 
             {/* Goals of the selected account */}
             <GoalSplitField
+              // Remounts, and so collapses, whenever the split is cleared: on open, or a new account or type.
+              key={`${isOpen}-${selectedAccountId}-${type}-${transaction?.id ?? 'new'}`}
               mode={splitMode}
               goals={accountGoals}
               savedByGoal={savedByGoal}
@@ -454,22 +455,16 @@ export default function AddTransactionSheet({ isOpen, onClose, transaction = nul
               returnKeyType="done"
             />
 
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-              <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                {transaction ? 'Save Changes' : 'Save Transaction'}
-              </Text>
-            </TouchableOpacity>
-            {!transaction && (
-              <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleSaveAndContinue} accessibilityRole="button">
-                <Text style={[styles.saveAndContinueBtnText, { color: accentColor }]}>Save & Add Another</Text>
-              </TouchableOpacity>
-            )}
             {transaction && onDelete && (
               <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button" accessibilityHint="Double tap to permanently delete. This cannot be undone.">
                 <Text style={styles.deleteBtnText}>Delete Transaction</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
+          <SheetFooter
+            primary={{ label: transaction ? 'Save Changes' : 'Save Transaction', onPress: handleSave }}
+            secondary={transaction ? null : { label: 'Save & Add Another', onPress: handleSaveAndContinue }}
+          />
         </Animated.View>
       </View>
     </Modal>

@@ -29,6 +29,7 @@ import { sheetStyles } from '@/constants/sheetStyles';
 import { Snackbar } from 'react-native-snackbar';
 import type { Category, RecurringFrequency, RecurringKind, RecurringTransactionWithDetails } from '@/types';
 import { advanceDate, todayString } from './dateUtils';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const CATEGORY_GRID_3_ROWS = 230;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -517,18 +518,15 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
                 returnKeyType="done"
               />
 
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-                <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                  {recurring ? 'Save Changes' : 'Save Recurring'}
-                </Text>
-              </TouchableOpacity>
-
               {recurring && onDelete && (
                 <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button">
                   <Text style={styles.deleteBtnText}>Delete Recurring</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
+            <SheetFooter
+              primary={{ label: recurring ? 'Save Changes' : 'Save Recurring', onPress: handleSave }}
+            />
           </Animated.View>
         </View>
       </Modal>

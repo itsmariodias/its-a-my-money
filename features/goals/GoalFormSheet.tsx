@@ -34,6 +34,7 @@ import GoalPaceHint from './GoalPaceHint';
 import { goalProgress, isActiveGoal, type GoalMoveDirection } from './goalUtils';
 import { notifyGoalsReached } from '@/features/transactions/postSaveAlerts';
 import type { GoalWithDetails } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const DEFAULT_COLOR = '#009688';
@@ -192,6 +193,8 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
   })).current;
 
   const amountInvalid = attempted && (!parseFloat(amount) || parseFloat(amount) <= 0);
+  const archiveLabel = liveGoal && isActiveGoal(liveGoal) ? 'Mark as Complete' : 'Restore Goal';
+  const archiveAction = liveGoal ? { label: archiveLabel, onPress: handleToggleArchived } : null;
 
   return (
     <>
@@ -316,26 +319,16 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
                 icons={CATEGORY_ICONS}
               />
 
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-                <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                  {goal ? 'Save Changes' : 'Save Goal'}
-                </Text>
-              </TouchableOpacity>
-
-              {liveGoal && (
-                <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleToggleArchived} accessibilityRole="button">
-                  <Text style={[styles.saveAndContinueBtnText, { color: accentColor }]}>
-                    {isActiveGoal(liveGoal) ? 'Mark as Complete' : 'Restore Goal'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
               {goal && onDelete && (
                 <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button">
                   <Text style={styles.deleteBtnText}>Delete Goal</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
+            <SheetFooter
+              primary={{ label: goal ? 'Save Changes' : 'Save Goal', onPress: handleSave }}
+              secondary={archiveAction}
+            />
           </Animated.View>
         </View>
       </Modal>

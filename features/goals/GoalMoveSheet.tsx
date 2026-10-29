@@ -28,6 +28,7 @@ import { todayString } from '@/features/recurring/dateUtils';
 import { moveError, type GoalMoveDirection } from './goalUtils';
 import { useAvailableBalances } from './useAvailableBalances';
 import type { GoalWithDetails } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -221,12 +222,10 @@ export default function GoalMoveSheet({ isOpen, onClose, goal, initialDirection 
                 returnKeyType="done"
               />
 
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-                <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                  {direction === 'add' ? 'Add to Goal' : 'Release from Goal'}
-                </Text>
-              </TouchableOpacity>
             </ScrollView>
+            <SheetFooter
+              primary={{ label: direction === 'add' ? 'Add to Goal' : 'Release from Goal', onPress: handleSave }}
+            />
           </Animated.View>
         </View>
       </Modal>

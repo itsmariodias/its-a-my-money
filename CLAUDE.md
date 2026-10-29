@@ -232,6 +232,7 @@ shared/                               # Cross-feature reusable code
     AccountIcon.tsx                   # Account icon renderer
     AccountCardPicker.tsx             # Horizontal row of selectable account cards (every sheet that picks an account)
     ColorIconPicker.tsx               # Color + Icon sections and their presets (category, account and goal sheets)
+    SheetFooter.tsx                   # Pinned primary/secondary action row under every sheet's form
     PeriodSelector.tsx                # Month/year period navigation
     CurrencyPicker.tsx                # Full-screen searchable currency picker (used by Settings, AccountFormSheet, BudgetFormSheet)
     Themed.tsx                        # Theme-aware Text/View wrappers
@@ -302,6 +303,7 @@ All sheets (`AddTransactionSheet`, `TransferSheet`, `AccountFormSheet`, `Categor
 - `ScrollView` uses `automaticallyAdjustKeyboardInsets` for keyboard avoidance (no `KeyboardAvoidingView`)
 - Outer container is a plain `View` with `justifyContent: 'flex-end'` — the sheet never moves when the keyboard opens
 - "Save & Add Another" resets only `amount` and `note` (and the goal split), preserving other fields
+- **Actions are pinned under the form** in the shared `SheetFooter`: the primary action, plus a secondary beside it (Save & Add Another, Mark as Complete). It sits directly after the `ScrollView`, which shrinks to make room, so Save stays in reach however long the form gets. Delete stays at the end of the scrolling content, out of thumb range of Save. The footer has no keyboard handling of its own: where the OS resizes the window it rides above the keyboard, and where it does not (edge-to-edge Android, iOS) the keyboard covers it like the rest of the form.
 
 ### Shared Components
 
@@ -313,6 +315,7 @@ Current shared components:
 - **`PeriodSelector`** — month/year navigation used on Dashboard and Transactions.
 - **`CurrencyPicker`** — full-screen searchable currency picker modal. Used by `SettingsScreen`, `AccountFormSheet`, and `BudgetFormSheet`. Accepts `{ visible, selectedCode, onSelect, onClose }`.
 - **`AccountCardPicker`** — the horizontal row of account cards. Used by `AddTransactionSheet`, `TransferSheet` (twice), `RecurringFormSheet`, and `GoalFormSheet`. Accepts `{ accounts, selectedId, onSelect, scrollRef? }`.
+- **`SheetFooter`** — the pinned action row at the bottom of every sheet. Accepts `{ primary, secondary? }`, each `{ label, onPress }`.
 - **`ColorIconPicker`** — the Color and Icon sections, plus `PRESET_COLORS`, `CATEGORY_ICONS` and `ACCOUNT_ICONS`. Used by `CategoryFormSheet`, `AccountFormSheet` (`layout="large"`), and `GoalFormSheet`.
 - **`Themed`** — theme-aware `Text` and `View` wrappers.
 
@@ -380,7 +383,7 @@ Money set aside inside an account. An account's balance is split into buckets �
 - **Saved is derived, never stored** — `GOAL_SELECT` in `db/index.ts` sums the goal's allocations into `saved`. Positive rows reserve (income split, manual add); negative rows take out (release, expense paid from the goal). After any allocation write, reload with `setGoals(await goalsDb.getAll())` or `useReloadGoals()` — the store has no per-allocation reducers.
 - **Reserved / Available** — `reservedByAccount(goals)` sums saved per account. Available is `availableAsOf()`: the account balance **as of today** minus that, so future-dated income cannot be reserved before its day. Every Available figure uses it through `useAvailableBalances()` — the Add money cap, the goals list, the account cards, both total cards — so they never disagree. On a current period whose end is later than today, Reserved + Available can therefore differ from the card's balance by future-dated rows. The Accounts tab shows Reserved and Available under the balance on cards for accounts with goals, and `ReservedSummaryLine` adds a per-currency "Reserved · Available" line to the Accounts total card and the Dashboard balance card (`reservedAcross` sums the accounts in scope). Current period only — goals have no history, so a past balance cannot be split.
 - **Three ways money moves:**
-  - **Income split** — `GoalSplitField` in `AddTransactionSheet` lists the selected account's goals; amounts typed there are written by `transactionsDb.insert/update(tx, goalSplits)` as allocations linked by `transaction_id`, inside the transaction's own `withTransactionAsync`. Update replaces the transaction's splits wholesale.
+  - **Income split** — `GoalSplitField` in `AddTransactionSheet` lists the selected account's goals, collapsed to one "Put toward goals · Optional" row until tapped (it opens by itself for existing splits and for errors, and `AddTransactionSheet` remounts it via `key` to collapse it again); amounts typed there are written by `transactionsDb.insert/update(tx, goalSplits)` as allocations linked by `transaction_id`, inside the transaction's own `withTransactionAsync`. Update replaces the transaction's splits wholesale.
   - **Spend from a goal** — the same field on an expense ("Paid from goals") writes negative allocations.
   - **Manual Add / Release** — `GoalMoveSheet`, opened from `GoalFormSheet` in edit mode, calls `goalsDb.allocate()` with no transaction. Nothing changes in the account balance, only how much of it is set aside.
 - **Overspend alert** — Available is allowed to go negative (an expense not paid from a goal, a transfer out, a falling market value); the sheets never block or warn. After a manual save, `findOverspentAccounts()` in `goalCrossings.ts` compares before/after snapshots and `notifyOverspentAccounts()` sends a "Goal money spent" notification (Android channel `'goals'`) for each account with goals whose Available the save pushed below zero (`overReservedAfterSave`). Measured as of today, so future-dated spend does not alert until its day; a save that leaves an overspent account no worse stays quiet. `AddTransactionSheet` and `TransferSheet` both go through `notifyThresholdsCrossed(takeSaveSnapshot() before, takeSaveSnapshot() after, accounts)`.

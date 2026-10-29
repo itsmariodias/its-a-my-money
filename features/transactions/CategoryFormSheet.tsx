@@ -22,6 +22,7 @@ import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import ColorIconPicker, { CATEGORY_ICONS, PRESET_COLORS } from '@/shared/components/ColorIconPicker';
 import type { Category } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -87,7 +88,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
     }
   };
 
-  const { accentColor, onAccentColor, cardBg: bg, textColor, subColor, inputBg, borderColor } = useAppTheme();
+  const { cardBg: bg, textColor, subColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -219,9 +220,6 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               </View>
             </View>
 
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-              <Text style={[styles.saveBtnText, { color: onAccentColor }]}>{category ? 'Save Changes' : 'Create Category'}</Text>
-            </TouchableOpacity>
             {category && onDelete && (
               <TouchableOpacity
                 style={[styles.deleteBtn, deleteDisabled && { opacity: 0.4 }]}
@@ -234,6 +232,9 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               </TouchableOpacity>
             )}
           </ScrollView>
+          <SheetFooter
+            primary={{ label: category ? 'Save Changes' : 'Create Category', onPress: handleSave }}
+          />
         </Animated.View>
       </View>
     </Modal>
