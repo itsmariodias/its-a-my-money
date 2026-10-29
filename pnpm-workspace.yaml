@@ -1,23 +1,31 @@
 nodeLinker: hoisted
 
-# Security overrides for transitive build/test-tool dependencies.
-# None of these ship in the app bundle (they come from eslint, ts-jest, and
-# the Expo build CLI). Pinned to patched versions to clear audit findings,
-# scoped per-major where multiple majors are in the tree to avoid breaking APIs.
+# Security overrides for transitive dependencies. Almost all are build/test
+# tools (eslint, ts-jest, Metro, the Expo CLI and dev server); moment is the
+# exception and ships in the app via react-native-calendars. Pinned to patched
+# versions to clear audit findings, scoped per-major where multiple majors are
+# in the tree (or a bare '>=' would jump a major) to avoid breaking APIs.
+# Not overridable: image-size and decode-uri-component (patches are breaking
+# majors), node-forge and deepmerge (no patch).
 overrides:
   flatted: '>=3.4.2'
-  handlebars: '>=4.7.9'
+  handlebars: '>=4.7.10'
   node-forge: '>=1.4.0'
-  fast-uri: '>=3.1.1'
+  'fast-uri@3': '^3.1.9'
   yaml: '>=2.8.3'
   lodash: '>=4.18.0'
   postcss: '>=8.5.10'
   '@xmldom/xmldom': '^0.8.12'
   '@tootallnate/once': '^2.0.1'
   uuid: '>=11.1.1'
-  'brace-expansion@1': '^1.1.13'
-  'brace-expansion@2': '^2.0.3'
-  'brace-expansion@5': '^5.0.6'
+  source-map-js: '>=1.2.2'
+  'compression@1': '^1.8.2'
+  shell-quote: '>=1.11.0'
+  'undici@6': '^6.29.1'
+  'moment@2': '^2.31.0'
+  'brace-expansion@1': '^1.1.21'
+  'brace-expansion@2': '^2.1.7'
+  'brace-expansion@5': '^5.0.12'
   'picomatch@2': '^2.3.2'
   'picomatch@3': '^3.0.2'
   'picomatch@4': '^4.0.4'
