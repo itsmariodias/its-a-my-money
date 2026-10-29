@@ -33,6 +33,21 @@ export function reservedByAccount(
 }
 
 /**
+ * What goals hold across a set of accounts, from a `reservedByAccount` map. Undefined when none
+ * of them has a goal, so callers can hide a Reserved line rather than show "Reserved 0".
+ */
+export function reservedAcross(
+  reserved: Record<number, number>,
+  accountIds: readonly number[],
+): number | undefined {
+  let total: number | undefined;
+  for (const id of accountIds) {
+    if (reserved[id] !== undefined) total = (total ?? 0) + reserved[id];
+  }
+  return total;
+}
+
+/**
  * Each goal's saved amount with a set of allocations taken back out — the transaction being
  * edited, whose old splits are already counted in `saved` and are about to be replaced.
  */

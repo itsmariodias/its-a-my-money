@@ -192,11 +192,12 @@ features/                             # Feature modules (screens + logic co-loca
     GoalMoveSheet.tsx                 # Manual Add / Release of money between a goal and its account
     GoalSplitField.tsx                # Per-goal amount rows inside AddTransactionSheet (income → into goals, expense → from goals)
     GoalsDashboardCard.tsx            # Dashboard widget with per-goal progress bars
+    ReservedSummaryLine.tsx           # "Reserved · Available" line under a total balance (Accounts total card, Dashboard)
     useGoalsStore.ts                  # Zustand store
     useGoalsStore.test.ts
     useAvailableBalances.ts           # Per-account balance minus what its goals hold
     useReloadGoals.ts                 # Re-reads goals after deletes that can change what they hold
-    goalUtils.ts                      # goalProgress, reservedByAccount, savedExcluding, validateSplits, moveError, goalStatusColor, targetDateLabel
+    goalUtils.ts                      # goalProgress, reservedByAccount, reservedAcross, savedExcluding, validateSplits, moveError, goalStatusColor, targetDateLabel
     goalUtils.test.ts
     legacyGoals.ts                    # Converts pre-016 category-based goals from old backups
     legacyGoals.test.ts
@@ -372,7 +373,7 @@ Money set aside inside an account. An account's balance is split into buckets �
 
 - **Schema** (migration 016, which rebuilt the 015 table): `goals (id, name, icon, color, account_id, target_amount, target_date, created_at)` and `goal_allocations (id, goal_id, amount, date, transaction_id, note, created_at)`. A goal has no currency column — it uses its account's (`account_currency` on `GoalWithDetails`).
 - **Saved is derived, never stored** — `GOAL_SELECT` in `db/index.ts` sums the goal's allocations into `saved`. Positive rows reserve (income split, manual add); negative rows take out (release, expense paid from the goal). After any allocation write, reload with `setGoals(await goalsDb.getAll())` or `useReloadGoals()` — the store has no per-allocation reducers.
-- **Reserved / Available** — `reservedByAccount(goals)` sums saved per account; available is the account balance minus that. `useAvailableBalances()` gives the all-time figure (what can be reserved now). The Accounts tab shows "Reserved · Available" on cards for accounts with goals, current period only — goals have no history, so a past balance cannot be split.
+- **Reserved / Available** — `reservedByAccount(goals)` sums saved per account; available is the account balance minus that. `useAvailableBalances()` gives the all-time figure (what can be reserved now). The Accounts tab shows Reserved and Available under the balance on cards for accounts with goals, and `ReservedSummaryLine` adds a per-currency "Reserved · Available" line to the Accounts total card and the Dashboard balance card (`reservedAcross` sums the accounts in scope). Current period only — goals have no history, so a past balance cannot be split.
 - **Three ways money moves:**
   - **Income split** — `GoalSplitField` in `AddTransactionSheet` lists the selected account's goals; amounts typed there are written by `transactionsDb.insert/update(tx, goalSplits)` as allocations linked by `transaction_id`, inside the transaction's own `withTransactionAsync`. Update replaces the transaction's splits wholesale.
   - **Spend from a goal** — the same field on an expense ("Paid from goals") writes negative allocations.

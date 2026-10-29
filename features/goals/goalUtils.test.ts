@@ -3,6 +3,7 @@ import {
   goalStatusColor,
   hasSplitErrors,
   moveError,
+  reservedAcross,
   reservedByAccount,
   savedExcluding,
   targetDateLabel,
@@ -48,6 +49,24 @@ describe('reservedByAccount', () => {
     // When totalling per account
     // Then each account's reserved amount is the sum of its goals
     expect(reservedByAccount(goals)).toEqual({ 1: 500, 2: 50 });
+  });
+});
+
+describe('reservedAcross', () => {
+  it('sums what goals hold across the given accounts', () => {
+    // Given goals holding money in accounts 1 and 2, but not 3
+    const reserved = { 1: 500, 2: 50 };
+
+    // When totalling accounts 1, 2 and 3
+    // Then only the accounts with goals contribute
+    expect(reservedAcross(reserved, [1, 2, 3])).toBe(550);
+  });
+
+  it('is undefined when none of the accounts has a goal', () => {
+    // Given goals only in account 1
+    // When totalling accounts 2 and 3
+    // Then there is nothing to show, rather than "Reserved 0"
+    expect(reservedAcross({ 1: 500 }, [2, 3])).toBeUndefined();
   });
 });
 

@@ -21,7 +21,8 @@ import {
 } from '@/shared/components/PeriodSelector';
 import { useAccountsDb, useTransactionsDb, useTransfersDb, useRecurringDb, useGoalsDb } from '@/db';
 import { useGoalsStore } from '@/features/goals/useGoalsStore';
-import { reservedByAccount } from '@/features/goals/goalUtils';
+import { reservedAcross, reservedByAccount } from '@/features/goals/goalUtils';
+import ReservedSummaryLine from '@/features/goals/ReservedSummaryLine';
 import { useReloadGoals } from '@/features/goals/useReloadGoals';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
@@ -149,18 +150,26 @@ function AccountCard({ account, balance, stat, reserved, onPress }: CardProps) {
             {stat.pct !== null && ` (${Math.abs(stat.pct).toFixed(1)}%)`}
           </Text>
         )}
+      </View>
+      {/* The balance, with what its goals hold and what is left right under it. */}
+      <View style={styles.cardAmounts}>
+        <Text style={[styles.cardBalance, { color: balanceColor }]}>
+          {formatAmount(balance, currency, undefined, numberFormat)}
+        </Text>
         {reserved !== null && (
-          <Text style={[styles.reservedLine, { color: subColor }]} numberOfLines={1}>
-            Reserved {formatAmount(reserved, currency, undefined, numberFormat)} · Available{' '}
-            <Text style={{ color: balance - reserved < 0 ? '#F44336' : subColor }}>
-              {formatAmount(balance - reserved, currency, undefined, numberFormat)}
+          <>
+            <Text style={[styles.reservedLine, { color: subColor }]} numberOfLines={1}>
+              Reserved {formatAmount(reserved, currency, undefined, numberFormat)}
             </Text>
-          </Text>
+            <Text style={[styles.reservedLine, { color: subColor }]} numberOfLines={1}>
+              Available{' '}
+              <Text style={{ color: balance - reserved < 0 ? '#F44336' : subColor }}>
+                {formatAmount(balance - reserved, currency, undefined, numberFormat)}
+              </Text>
+            </Text>
+          </>
         )}
       </View>
-      <Text style={[styles.cardBalance, { color: balanceColor }]}>
-        {formatAmount(balance, currency, undefined, numberFormat)}
-      </Text>
       <MaterialIcons name="chevron-right" size={20} color={subColor} />
     </TouchableOpacity>
   );
@@ -262,6 +271,17 @@ export default function AccountsScreen() {
     [goals, isPastPeriod]
   );
 
+  // The same reserved money, summed per currency for the total card's pages.
+  const reservedByCurrency = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const code of new Set(accounts.map((a) => a.currency || 'USD'))) {
+      const ids = accounts.filter((a) => (a.currency || 'USD') === code).map((a) => a.id);
+      const r = reservedAcross(reservedMap, ids);
+      if (r !== undefined) totals.set(code, r);
+    }
+    return totals;
+  }, [accounts, reservedMap]);
+
   const [carouselIndex, setCarouselIndex] = useState(0);
   const carouselRef = useRef<ScrollView>(null);
   const carouselWidth = Dimensions.get('window').width - 32; // matches scrollContent horizontal padding
@@ -353,6 +373,7 @@ export default function AccountsScreen() {
                       {pct >= 0 ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
                     </Text>
                   )}
+                  <ReservedSummaryLine total={amount} reserved={reservedByCurrency.get(code)} currency={code} color={onAccentColor + 'CC'} />
                 </>
               );
             })()}
@@ -411,6 +432,7 @@ export default function AccountsScreen() {
                         {pct >= 0 ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
                       </Text>
                     )}
+                    <ReservedSummaryLine total={amount} reserved={reservedByCurrency.get(code)} currency={code} color={onAccentColor + 'CC'} />
                     <Text style={[styles.totalSub, { color: onAccentColor + 'A6' }]}>
                       as of {periodNavLabel(periodMode, periodDate)} · {accounts.length} account{accounts.length !== 1 ? 's' : ''}
                     </Text>
@@ -613,11 +635,14 @@ const styles = StyleSheet.create({
   },
   reservedLine: {
     fontSize: 11,
-    marginTop: 2,
   },
   cardName: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  cardAmounts: {
+    alignItems: 'flex-end',
+    gap: 2,
   },
   cardBalance: {
     fontSize: 16,
