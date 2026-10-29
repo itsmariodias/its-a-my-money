@@ -91,6 +91,9 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
   const { cardBg: bg, textColor, subColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  // Focused once the sheet has settled. autoFocus fires on mount, before an Android Modal's
+  // window has focus, and the keyboard request is dropped.
+  const focusOnOpenRef = useRef<TextInput>(null);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -99,7 +102,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
     if (isOpen) {
       sheetTranslateY.setValue(SCREEN_HEIGHT);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start(({ finished }) => { if (finished && !category) focusOnOpenRef.current?.focus(); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -191,7 +194,7 @@ export default function CategoryFormSheet({ isOpen, category, defaultType = 'exp
               placeholder="e.g. Groceries"
               placeholderTextColor={subColor}
               returnKeyType="done"
-              autoFocus={!category}
+              ref={focusOnOpenRef}
             />
 
             {attempted && !name.trim() && (

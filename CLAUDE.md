@@ -303,6 +303,7 @@ All sheets (`AddTransactionSheet`, `TransferSheet`, `AccountFormSheet`, `Categor
 - `ScrollView` uses `automaticallyAdjustKeyboardInsets` for keyboard avoidance (no `KeyboardAvoidingView`)
 - Outer container is a plain `View` with `justifyContent: 'flex-end'` — the sheet never moves when the keyboard opens
 - "Save & Add Another" resets only `amount` and `note` (and the goal split), preserving other fields
+- **First field focus** — never `autoFocus`. It fires on mount, before an Android `Modal`'s window has focus, so the keyboard request is dropped. Each sheet holds a `focusOnOpenRef` on its first field and calls `.focus()` from the open spring's completion callback (create mode only)
 - **Actions are pinned under the form** in the shared `SheetFooter`: the primary action, plus a secondary beside it (Save & Add Another, Mark as Complete). It sits directly after the `ScrollView`, which shrinks to make room, so Save stays in reach however long the form gets. Delete stays at the end of the scrolling content, out of thumb range of Save. The footer has no keyboard handling of its own: where the OS resizes the window it rides above the keyboard, and where it does not (edge-to-edge Android, iOS) the keyboard covers it like the rest of the form.
 
 ### Shared Components

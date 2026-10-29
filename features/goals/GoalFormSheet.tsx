@@ -152,6 +152,9 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(600)).current;
+  // Focused once the sheet has settled. autoFocus fires on mount, before an Android Modal's
+  // window has focus, and the keyboard request is dropped.
+  const focusOnOpenRef = useRef<TextInput>(null);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -160,7 +163,7 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
     if (isOpen) {
       sheetTranslateY.setValue(600);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start(({ finished }) => { if (finished && !goal) focusOnOpenRef.current?.focus(); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -261,7 +264,7 @@ export default function GoalFormSheet({ isOpen, onClose, goal = null, onDelete }
                 placeholder="e.g. Japan trip"
                 placeholderTextColor={subTextColor}
                 returnKeyType="done"
-                autoFocus={!goal}
+                ref={focusOnOpenRef}
               />
               {attempted && !name.trim() && (
                 <Text style={styles.errorText}>Goal name is required</Text>
