@@ -139,7 +139,7 @@ Google Drive backup requires OAuth client IDs from the [Google Cloud Console](ht
 Native modules (Google Sign-In, notifications) require a development build — Expo Go is not supported. Use [EAS Build](https://docs.expo.dev/develop/development-builds/create-a-build/) to create one:
 
 ```bash
-npx eas build --profile development --platform android
+npx eas-cli build --profile development --platform android
 ```
 
 Install the resulting APK/IPA on your device, then run `pnpm start` and scan the QR code.
