@@ -30,6 +30,10 @@ const TABS = [
 ] as const;
 
 const TAB_BAR_HEIGHT = 56;
+// Each speed-dial item fades as one offscreen layer, so its children's elevation shadows fade with
+// it; Android sets them apart from the view's opacity otherwise. A layer clips to its view, so the
+// item is padded by this much to hold the shadows, and shifted back to stay where it was.
+const SPEED_ITEM_SHADOW_ROOM = 8;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function CustomPager({ navigationState, onIndexChange, layout, children, position }: any) {
@@ -156,7 +160,7 @@ function CustomPager({ navigationState, onIndexChange, layout, children, positio
 }
 
 export default function TabLayout() {
-  const { isDark, accentColor, onAccentColor, bg, textColor, borderColor } = useAppTheme();
+  const { accentColor, onAccentColor, bg, textColor, borderColor } = useAppTheme();
   const openAddTx = useUIStore((s) => s.openAddTx);
   const isAddTxOpen = useUIStore((s) => s.isAddTxOpen);
   const closeAddTx = useUIStore((s) => s.closeAddTx);
@@ -356,13 +360,15 @@ export default function TabLayout() {
           <Animated.View
             style={[
               styles.fabSpeedItem,
-              { bottom: fabBottom + 132 },
+              { bottom: fabBottom + 132 - SPEED_ITEM_SHADOW_ROOM },
               {
                 opacity: item2Opacity,
                 transform: [{ translateY: item2Translate.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
               },
             ]}
-            pointerEvents={fabExpanded ? 'auto' : 'none'}
+            pointerEvents={fabExpanded ? 'box-none' : 'none'}
+            renderToHardwareTextureAndroid
+            needsOffscreenAlphaCompositing
           >
             <Text style={[styles.fabSpeedLabel, { backgroundColor: bg, color: textColor, borderColor, opacity: accounts.length < 2 ? 0.4 : 1 }]}>Transfer</Text>
             <TouchableOpacity
@@ -381,13 +387,15 @@ export default function TabLayout() {
           <Animated.View
             style={[
               styles.fabSpeedItem,
-              { bottom: fabBottom + 72 },
+              { bottom: fabBottom + 72 - SPEED_ITEM_SHADOW_ROOM },
               {
                 opacity: item1Opacity,
                 transform: [{ translateY: item1Translate.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
               },
             ]}
-            pointerEvents={fabExpanded ? 'auto' : 'none'}
+            pointerEvents={fabExpanded ? 'box-none' : 'none'}
+            renderToHardwareTextureAndroid
+            needsOffscreenAlphaCompositing
           >
             <Text style={[styles.fabSpeedLabel, { backgroundColor: bg, color: textColor, borderColor }]}>Transaction</Text>
             <TouchableOpacity
@@ -531,7 +539,8 @@ const styles = StyleSheet.create({
   },
   fabSpeedItem: {
     position: 'absolute',
-    right: 12,
+    right: 12 - SPEED_ITEM_SHADOW_ROOM,
+    padding: SPEED_ITEM_SHADOW_ROOM,
     flexDirection: 'row',
     alignItems: 'center',
     zIndex: 99,
