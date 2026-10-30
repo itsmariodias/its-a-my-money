@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
+  Animated as RNAnimated,
   Pressable,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Animated, {
@@ -19,12 +22,15 @@ import { router, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
 import AccountIcon from '@/shared/components/AccountIcon';
+import DashboardCard from '@/shared/components/DashboardCard';
+import CarouselDots from '@/shared/components/CarouselDots';
+import { useCarousel } from '@/shared/components/useCarousel';
 import {
   getDateRange,
   shortPeriodLabel,
   periodNavLabel,
 } from '@/shared/components/PeriodSelector';
-import { useAccountsDb, useTransactionsDb, useTransfersDb, useBudgetsDb, useGoalsDb } from '@/db';
+import { useAccountsDb, useTransactionsDb, useTransfersDb, useBudgetsDb, useGoalsDb, useRecurringDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
@@ -38,6 +44,10 @@ import { reservedAcross, reservedByAccount } from '@/features/goals/goalUtils';
 import ReservedSummaryLine from '@/features/goals/ReservedSummaryLine';
 import { useAvailableBalances } from '@/features/goals/useAvailableBalances';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import { useRecurringStore } from '@/features/recurring/useRecurringStore';
+import CashForecastChart from '@/features/forecast/CashForecastChart';
+import CashflowTrendChart from '@/features/forecast/CashflowTrendChart';
+import { useCashflowTrend } from '@/features/forecast/useCashflowTrend';
 import { todayString } from '@/features/recurring/dateUtils';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
@@ -48,12 +58,17 @@ import {
   accountBalanceAsOf,
   aggregatePortfolio,
   computePnL,
+  pnlBreakdown,
 } from '@/features/accounts/balanceUtils';
 
 const PIE_COLORS = [
   '#F44336', '#2196F3', '#9C27B0', '#FF9800', '#009688',
   '#607D8B', '#795548', '#9E9E9E', '#4CAF50', '#03A9F4',
 ];
+
+// Dashboard content padding and DashboardCard padding — the carousel pages are sized from them.
+const CONTENT_PADDING = 16;
+const CARD_PADDING = 16;
 
 // Donut chart geometry
 const OUTER_R = 105;
@@ -64,6 +79,15 @@ const CIRC = 2 * Math.PI * STROKE_R;         // full circumference
 const CHART_SIZE = OUTER_R * 2 + 4;          // 214px canvas (2px breathing room each side)
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+interface PortfolioSlice {
+  label: string;
+  color: string;
+  icon: string;
+  value: number;          // sizes the slice
+  amount: number;         // the legend figure
+  change: number | null;  // ▲/▼ % under the legend figure
+}
 
 interface DonutSliceProps {
   fraction: number;       // 0–1 share of the total
@@ -120,6 +144,7 @@ export default function DashboardScreen() {
   const transfersDb = useTransfersDb();
   const budgetsDb = useBudgetsDb();
   const goalsDb = useGoalsDb();
+  const recurringDb = useRecurringDb();
   const accounts = useAccountsStore((s) => s.accounts);
   const setAccounts = useAccountsStore((s) => s.setAccounts);
   const transactions = useTransactionsStore((s) => s.transactions);
@@ -128,6 +153,7 @@ export default function DashboardScreen() {
   const setTransfers = useTransfersStore((s) => s.setTransfers);
   const setBudgets = useBudgetsStore((s) => s.setBudgets);
   const setGoals = useGoalsStore((s) => s.setGoals);
+  const setRecurringTransactions = useRecurringStore((s) => s.setRecurringTransactions);
   const currency = useSettingsStore((s) => s.currency);
   const numberFormat = useSettingsStore((s) => s.numberFormat);
   const dateFormat = useSettingsStore((s) => s.dateFormat);
@@ -142,12 +168,14 @@ export default function DashboardScreen() {
         transfersDb.getAll(),
         budgetsDb.getAll(),
         goalsDb.getAll(),
-      ]).then(([all, accs, tfrs, bdgs, gls]) => {
+        recurringDb.getAll(),
+      ]).then(([all, accs, tfrs, bdgs, gls, rec]) => {
         setTransactions(all);
         setAccounts(accs);
         setTransfers(tfrs);
         setBudgets(bdgs);
         setGoals(gls);
+        setRecurringTransactions(rec);
       });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -184,6 +212,18 @@ export default function DashboardScreen() {
     [transfers, scopedAccountIds]
   );
 
+  // The selected account, or every account in the currency scope.
+  const accountsInView = useMemo(
+    () => (selectedId !== null ? scopedAccounts.filter((a) => a.id === selectedId) : scopedAccounts),
+    [scopedAccounts, selectedId],
+  );
+  const accountIdsInView = useMemo(() => accountsInView.map((a) => a.id), [accountsInView]);
+  // The forecast is cash-only — investments have no history to project from.
+  const forecastAccounts = useMemo(
+    () => accountsInView.filter((a) => a.account_type === 'cash'),
+    [accountsInView],
+  );
+
   const hasMultipleCurrencies = useMemo(() => {
     const codes = new Set(accounts.map((a) => a.currency || currency));
     return codes.size > 1;
@@ -196,19 +236,13 @@ export default function DashboardScreen() {
   // have no history, so a past balance cannot be split.
   const goals = useGoalsStore((s) => s.goals);
   const availableByAccount = useAvailableBalances();
-  const { totalReserved, totalAvailable } = useMemo(() => {
-    const ids = selectedId !== null ? [selectedId] : scopedAccounts.map((a) => a.id);
-    return {
-      totalReserved: isPastPeriod ? undefined : reservedAcross(reservedByAccount(goals), ids),
-      totalAvailable: ids.reduce((sum, id) => sum + (availableByAccount[id] ?? 0), 0),
-    };
-  }, [goals, isPastPeriod, selectedId, scopedAccounts, availableByAccount]);
+  const { totalReserved, totalAvailable } = useMemo(() => ({
+    totalReserved: isPastPeriod ? undefined : reservedAcross(reservedByAccount(goals), accountIdsInView),
+    totalAvailable: accountIdsInView.reduce((sum, id) => sum + (availableByAccount[id] ?? 0), 0),
+  }), [goals, isPastPeriod, accountIdsInView, availableByAccount]);
 
   const totalBalance = useMemo(() => {
-    const scope = selectedId !== null
-      ? scopedAccounts.filter((a) => a.id === selectedId)
-      : scopedAccounts;
-    return scope.reduce(
+    return accountsInView.reduce(
       (sum, acc) => sum + accountBalanceAsOf(
         acc, scopedTransactions, scopedTransfers,
         { endInclusive: dateRange.end },
@@ -216,14 +250,12 @@ export default function DashboardScreen() {
       ),
       0
     );
-  }, [scopedAccounts, scopedTransactions, scopedTransfers, selectedId, dateRange, isPastPeriod]);
+  }, [accountsInView, scopedTransactions, scopedTransfers, dateRange, isPastPeriod]);
 
   // Portfolio aggregate + per-account breakdown. For past periods we show invested only — no historical market value exists.
   const portfolio = useMemo(() => {
     const filter = { endInclusive: dateRange.end };
-    const invAccounts = selectedId !== null
-      ? scopedAccounts.filter((a) => a.id === selectedId && a.account_type === 'investment')
-      : scopedAccounts.filter((a) => a.account_type === 'investment');
+    const invAccounts = accountsInView.filter((a) => a.account_type === 'investment');
     if (invAccounts.length === 0) return null;
     const rows = invAccounts.map((acc) => ({
       account: acc,
@@ -231,7 +263,7 @@ export default function DashboardScreen() {
     }));
     const agg = aggregatePortfolio(invAccounts, scopedTransactions, scopedTransfers, filter);
     return { ...agg, rows };
-  }, [scopedAccounts, scopedTransactions, scopedTransfers, selectedId, dateRange]);
+  }, [accountsInView, scopedTransactions, scopedTransfers, dateRange]);
 
   // Transactions within the selected period (for income/expenses/pie/recent)
   const periodTransactions = useMemo(
@@ -339,18 +371,50 @@ export default function DashboardScreen() {
     selectSlice(null);
   }, [pieData, periodExpenses, selectSlice]);
 
-  // Portfolio donut data — slices sized by invested amount
-  const portfolioChartData = useMemo(() => {
+  // One investment in view: its value split into invested vs profit (or what is left vs loss).
+  // Several: allocation, slices sized by amount invested. Past periods have no market value, so
+  // they only ever show allocation.
+  const portfolioBreakdown = useMemo(
+    () => (portfolio && portfolio.count === 1 && !isPastPeriod ? pnlBreakdown(portfolio) : null),
+    [portfolio, isPastPeriod],
+  );
+
+  const portfolioChartData = useMemo((): PortfolioSlice[] => {
     if (!portfolio) return [];
+    if (portfolioBreakdown) {
+      const account = portfolio.rows[0].account;
+      const accountSlice = { color: account.color || PIE_COLORS[0], icon: account.icon || 'account-balance-wallet' };
+      const sliceStyle = {
+        invested: { label: 'Invested', ...accountSlice },
+        current: { label: 'Current value', ...accountSlice },
+        profit: { label: 'Profit', color: '#4CAF50', icon: 'trending-up' },
+        loss: { label: 'Loss', color: '#F44336', icon: 'trending-down' },
+      };
+      // The return % is in the donut's centre; a ▲/▼ here would sit next to the slice's share of
+      // the ring, a different percentage.
+      return portfolioBreakdown.map((slice) => ({
+        ...sliceStyle[slice.kind],
+        value: slice.value,
+        amount: slice.value,
+        change: null,
+      }));
+    }
     return portfolio.rows
       .map((r, i) => ({
         label: r.account.name,
         color: r.account.color || PIE_COLORS[i % PIE_COLORS.length],
         icon: r.account.icon || 'account-balance-wallet',
-        row: r,
+        value: r.invested,
+        amount: isPastPeriod ? r.invested : r.current,
+        change: isPastPeriod ? null : r.pnlPct,
       }))
-      .sort((a, b) => b.row.invested - a.row.invested);
-  }, [portfolio]);
+      .sort((a, b) => b.value - a.value);
+  }, [portfolio, portfolioBreakdown, isPastPeriod]);
+
+  const portfolioTotal = useMemo(
+    () => portfolioChartData.reduce((sum, d) => sum + d.value, 0),
+    [portfolioChartData],
+  );
 
   const portfolioResetKey = useMemo(
     () => portfolioChartData.map((d) => d.label).join('|'),
@@ -383,12 +447,144 @@ export default function DashboardScreen() {
     const angle = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
     let cumulative = 0;
     for (let i = 0; i < portfolioChartData.length; i++) {
-      const sliceDeg = (portfolioChartData[i].row.invested / portfolio.invested) * 360;
+      const sliceDeg = (portfolioChartData[i].value / portfolioTotal) * 360;
       if (angle < cumulative + sliceDeg) { selectPortfolioSlice(i); return; }
       cumulative += sliceDeg;
     }
     selectPortfolioSlice(null);
-  }, [portfolio, portfolioChartData, selectPortfolioSlice]);
+  }, [portfolio, portfolioChartData, portfolioTotal, selectPortfolioSlice]);
+
+  // Charts carousel. Each page is shown only when it has something to say: the forecast looks
+  // ahead from today, so it skips past periods, and it is cash-only.
+  const cashflowTrend = useCashflowTrend(accountIdsInView, selectedId, periodMode, periodDate);
+  const { width: windowWidth } = useWindowDimensions();
+  // The carousel spans the card edge to edge; each page pads itself like the card would.
+  const carouselPageWidth = windowWidth - CONTENT_PADDING * 2;
+  const chartWidth = carouselPageWidth - CARD_PADDING * 2;
+  const chartPages: { label: string; content: ReactNode }[] = [];
+  if (pieData.length > 0) {
+    chartPages.push({
+      label: 'Spending by Category',
+      content: (
+        <>
+          <Text style={[styles.sectionTitle, { color: textColor }]}>Spending by Category</Text>
+
+          <View style={styles.pieContainer}>
+            <Pressable onPress={(e) => handleChartPress(e.nativeEvent.locationX, e.nativeEvent.locationY)}>
+              <View style={{ width: CHART_SIZE, height: CHART_SIZE }}>
+                <Svg width={CHART_SIZE} height={CHART_SIZE}>
+                  {/* Rotate -90° so arcs start drawing from 12 o'clock */}
+                  <G rotation={-90} originX={CHART_SIZE / 2} originY={CHART_SIZE / 2}>
+                    {/* Background ring so the donut hole is the card color */}
+                    <Circle
+                      cx={CHART_SIZE / 2}
+                      cy={CHART_SIZE / 2}
+                      r={STROKE_R}
+                      fill="none"
+                      stroke={cardBg}
+                      strokeWidth={STROKE_W + 2}
+                    />
+                    {pieDataWithFocus.map((item, i) => {
+                      const fraction = item.value / periodExpenses;
+                      const cumulativeStart = pieDataWithFocus
+                        .slice(0, i)
+                        .reduce((s, d) => s + d.value / periodExpenses, 0);
+                      return (
+                        <DonutSlice
+                          key={item.label}
+                          fraction={fraction}
+                          cumulativeStart={cumulativeStart}
+                          color={item.color}
+                          resetKey={pieResetKey}
+                          index={i}
+                        />
+                      );
+                    })}
+                  </G>
+                </Svg>
+
+                {/* Center label — absolutely overlaid in the hole */}
+                <View style={[StyleSheet.absoluteFill, styles.pieCenterOverlay]} pointerEvents="none">
+                  <View style={styles.pieCenter}>
+                    {selectedSliceIdx !== null ? (() => {
+                      const slice = pieData[selectedSliceIdx];
+                      const pct = Math.round((slice.value / periodExpenses) * 100);
+                      return (
+                        <>
+                          <Text style={[styles.pieCenterCategory, { color: subTextColor }]} numberOfLines={2}>
+                            {slice.label}
+                          </Text>
+                          <Text style={[styles.pieCenterAmount, { color: textColor }]}>
+                            {formatAmount(slice.value, scopeCurrency, undefined, numberFormat)}
+                          </Text>
+                          <Text style={[styles.pieCenterPct, { color: slice.color }]}>{pct}%</Text>
+                        </>
+                      );
+                    })() : (
+                      <>
+                        <Text style={[styles.pieCenterTotal, { color: textColor }]}>
+                          {formatAmount(periodExpenses, scopeCurrency, undefined, numberFormat)}
+                        </Text>
+                        <Text style={[styles.pieCenterLabel, { color: subTextColor }]}>total spent</Text>
+                      </>
+                    )}
+                  </View>
+                </View>
+              </View>
+            </Pressable>
+          </View>
+
+          {/* Legend */}
+          <ScrollView style={styles.legend} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+            {pieData.map((item, idx) => {
+              const pct = Math.round((item.value / periodExpenses) * 100);
+              const isSelected = selectedSliceIdx === idx;
+              return (
+                <TouchableOpacity
+                  key={item.label}
+                  style={[
+                    styles.legendRow,
+                    isSelected && { backgroundColor: item.color + '18', borderRadius: 10 },
+                  ]}
+                  onPress={() => selectSlice(idx)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.label}, ${formatAmount(item.value, scopeCurrency, undefined, numberFormat)}, ${pct}%`}
+                >
+                  <View style={[styles.legendDot, { backgroundColor: item.color }]}>
+                    <MaterialIcons name={(item.icon as any) || 'label'} size={12} color="#fff" />
+                  </View>
+                  <Text
+                    style={[styles.legendLabel, { color: isSelected ? textColor : subTextColor, fontWeight: isSelected ? '600' : '400' }]}
+                    numberOfLines={1}
+                  >
+                    {item.label}
+                  </Text>
+                  <Text style={[styles.legendPct, { color: item.color }]}>{pct}%</Text>
+                  <Text style={[styles.legendAmount, { color: textColor, fontWeight: isSelected ? '700' : '500' }]}>
+                    {formatAmount(item.value, scopeCurrency, undefined, numberFormat)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </>
+      ),
+    });
+  }
+  if (!isPastPeriod && forecastAccounts.length > 0) {
+    chartPages.push({
+      label: 'Cash Forecast',
+      content: <CashForecastChart accounts={forecastAccounts} currency={scopeCurrency} width={chartWidth} />,
+    });
+  }
+  if (cashflowTrend) {
+    chartPages.push({
+      label: 'Income vs Expenses',
+      content: <CashflowTrendChart trend={cashflowTrend} currency={scopeCurrency} width={chartWidth} />,
+    });
+  }
+  const carousel = useCarousel(chartPages.map((page) => page.label), carouselPageWidth);
 
   const selectedAccount = accounts.find((a) => a.id === selectedId) ?? null;
   const periodShort = shortPeriodLabel(periodMode, periodDate);
@@ -432,7 +628,7 @@ export default function DashboardScreen() {
 
         {/* Portfolio Summary */}
         {portfolio && portfolio.invested > 0 && (
-          <View style={[styles.section, { backgroundColor: cardBg }]}>
+          <DashboardCard>
             <Text style={[styles.sectionTitle, { color: textColor }]}>
               {portfolio.count > 1 ? 'Portfolio Allocation' : 'Investment'}
             </Text>
@@ -451,10 +647,10 @@ export default function DashboardScreen() {
                         strokeWidth={STROKE_W + 2}
                       />
                       {portfolioChartWithFocus.map((item, i) => {
-                        const fraction = item.row.invested / portfolio.invested;
+                        const fraction = item.value / portfolioTotal;
                         const cumulativeStart = portfolioChartWithFocus
                           .slice(0, i)
-                          .reduce((s, d) => s + d.row.invested / portfolio.invested, 0);
+                          .reduce((s, d) => s + d.value / portfolioTotal, 0);
                         return (
                           <DonutSlice
                             key={item.label}
@@ -473,14 +669,14 @@ export default function DashboardScreen() {
                     <View style={styles.pieCenter}>
                       {selectedPortfolioIdx !== null ? (() => {
                         const slice = portfolioChartData[selectedPortfolioIdx];
-                        const pct = (slice.row.invested / portfolio.invested) * 100;
+                        const pct = (slice.value / portfolioTotal) * 100;
                         return (
                           <>
                             <Text style={[styles.pieCenterCategory, { color: subTextColor }]} numberOfLines={2}>
                               {slice.label}
                             </Text>
                             <Text style={[styles.pieCenterAmount, { color: textColor }]}>
-                              {formatAmount(slice.row.invested, scopeCurrency, undefined, numberFormat)}
+                              {formatAmount(slice.value, scopeCurrency, undefined, numberFormat)}
                             </Text>
                             <Text style={[styles.pieCenterPct, { color: slice.color }]}>{pct.toFixed(1)}%</Text>
                           </>
@@ -488,9 +684,11 @@ export default function DashboardScreen() {
                       })() : (
                         <>
                           <Text style={[styles.pieCenterTotal, { color: textColor }]}>
-                            {formatAmount(portfolio.invested, scopeCurrency, undefined, numberFormat)}
+                            {formatAmount(portfolioBreakdown ? portfolio.current : portfolio.invested, scopeCurrency, undefined, numberFormat)}
                           </Text>
-                          <Text style={[styles.pieCenterLabel, { color: subTextColor }]}>total invested</Text>
+                          <Text style={[styles.pieCenterLabel, { color: subTextColor }]}>
+                            {portfolioBreakdown ? 'current value' : 'total invested'}
+                          </Text>
                           {!isPastPeriod && portfolio.pnlPct !== null && (
                             <Text style={[styles.pieCenterPct, { color: portfolio.pnl >= 0 ? '#4CAF50' : '#F44336' }]}>
                               {portfolio.pnl >= 0 ? '▲' : '▼'} {Math.abs(portfolio.pnlPct).toFixed(2)}%
@@ -506,9 +704,8 @@ export default function DashboardScreen() {
 
             <ScrollView style={styles.legend} nestedScrollEnabled showsVerticalScrollIndicator={false}>
               {portfolioChartData.map((item, idx) => {
-                const pct = (item.row.invested / portfolio.invested) * 100;
+                const pct = (item.value / portfolioTotal) * 100;
                 const isSelected = selectedPortfolioIdx === idx;
-                const pnlColor = item.row.pnl >= 0 ? '#4CAF50' : '#F44336';
                 return (
                   <TouchableOpacity
                     key={item.label}
@@ -519,7 +716,7 @@ export default function DashboardScreen() {
                     onPress={() => selectPortfolioSlice(idx)}
                     activeOpacity={0.7}
                     accessibilityRole="button"
-                    accessibilityLabel={`${item.label}, ${formatAmount(item.row.invested, scopeCurrency, undefined, numberFormat)}, ${pct.toFixed(1)}%`}
+                    accessibilityLabel={`${item.label}, ${formatAmount(item.value, scopeCurrency, undefined, numberFormat)}, ${pct.toFixed(1)}%`}
                   >
                     <View style={[styles.legendDot, { backgroundColor: item.color }]}>
                       <AccountIcon name={item.icon} size={12} color="#fff" />
@@ -531,134 +728,44 @@ export default function DashboardScreen() {
                       {item.label}
                     </Text>
                     <Text style={[styles.legendPct, { color: item.color }]}>{pct.toFixed(0)}%</Text>
-                    {isPastPeriod ? (
+                    <View style={styles.legendAmountCol}>
                       <Text style={[styles.legendAmount, { color: textColor, fontWeight: isSelected ? '700' : '500' }]}>
-                        {formatAmount(item.row.invested, scopeCurrency, undefined, numberFormat)}
+                        {formatAmount(item.amount, scopeCurrency, undefined, numberFormat)}
                       </Text>
-                    ) : (
-                      <View style={styles.legendAmountCol}>
-                        <Text style={[styles.legendAmount, { color: textColor, fontWeight: isSelected ? '700' : '500' }]}>
-                          {formatAmount(item.row.current, scopeCurrency, undefined, numberFormat)}
+                      {item.change !== null && (
+                        <Text style={[styles.legendSubPct, { color: item.change >= 0 ? '#4CAF50' : '#F44336' }]}>
+                          {item.change >= 0 ? '▲' : '▼'} {Math.abs(item.change).toFixed(1)}%
                         </Text>
-                        {item.row.pnlPct !== null && (
-                          <Text style={[styles.legendSubPct, { color: pnlColor }]}>
-                            {item.row.pnl >= 0 ? '▲' : '▼'} {Math.abs(item.row.pnlPct).toFixed(1)}%
-                          </Text>
-                        )}
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Pie Chart */}
-        {pieData.length > 0 && (
-          <View style={[styles.section, { backgroundColor: cardBg }]}>
-            <Text style={[styles.sectionTitle, { color: textColor }]}>Spending by Category</Text>
-
-            <View style={styles.pieContainer}>
-              <Pressable onPress={(e) => handleChartPress(e.nativeEvent.locationX, e.nativeEvent.locationY)}>
-                <View style={{ width: CHART_SIZE, height: CHART_SIZE }}>
-                  <Svg width={CHART_SIZE} height={CHART_SIZE}>
-                    {/* Rotate -90° so arcs start drawing from 12 o'clock */}
-                    <G rotation={-90} originX={CHART_SIZE / 2} originY={CHART_SIZE / 2}>
-                      {/* Background ring so the donut hole is the card color */}
-                      <Circle
-                        cx={CHART_SIZE / 2}
-                        cy={CHART_SIZE / 2}
-                        r={STROKE_R}
-                        fill="none"
-                        stroke={cardBg}
-                        strokeWidth={STROKE_W + 2}
-                      />
-                      {pieDataWithFocus.map((item, i) => {
-                        const fraction = item.value / periodExpenses;
-                        const cumulativeStart = pieDataWithFocus
-                          .slice(0, i)
-                          .reduce((s, d) => s + d.value / periodExpenses, 0);
-                        return (
-                          <DonutSlice
-                            key={item.label}
-                            fraction={fraction}
-                            cumulativeStart={cumulativeStart}
-                            color={item.color}
-                            resetKey={pieResetKey}
-                            index={i}
-                          />
-                        );
-                      })}
-                    </G>
-                  </Svg>
-
-                  {/* Center label — absolutely overlaid in the hole */}
-                  <View style={[StyleSheet.absoluteFill, styles.pieCenterOverlay]} pointerEvents="none">
-                    <View style={styles.pieCenter}>
-                      {selectedSliceIdx !== null ? (() => {
-                        const slice = pieData[selectedSliceIdx];
-                        const pct = Math.round((slice.value / periodExpenses) * 100);
-                        return (
-                          <>
-                            <Text style={[styles.pieCenterCategory, { color: subTextColor }]} numberOfLines={2}>
-                              {slice.label}
-                            </Text>
-                            <Text style={[styles.pieCenterAmount, { color: textColor }]}>
-                              {formatAmount(slice.value, scopeCurrency, undefined, numberFormat)}
-                            </Text>
-                            <Text style={[styles.pieCenterPct, { color: slice.color }]}>{pct}%</Text>
-                          </>
-                        );
-                      })() : (
-                        <>
-                          <Text style={[styles.pieCenterTotal, { color: textColor }]}>
-                            {formatAmount(periodExpenses, scopeCurrency, undefined, numberFormat)}
-                          </Text>
-                          <Text style={[styles.pieCenterLabel, { color: subTextColor }]}>total spent</Text>
-                        </>
                       )}
                     </View>
-                  </View>
-                </View>
-              </Pressable>
-            </View>
-
-            {/* Legend */}
-            <ScrollView style={styles.legend} nestedScrollEnabled showsVerticalScrollIndicator={false}>
-              {pieData.map((item, idx) => {
-                const pct = Math.round((item.value / periodExpenses) * 100);
-                const isSelected = selectedSliceIdx === idx;
-                return (
-                  <TouchableOpacity
-                    key={item.label}
-                    style={[
-                      styles.legendRow,
-                      isSelected && { backgroundColor: item.color + '18', borderRadius: 10 },
-                    ]}
-                    onPress={() => selectSlice(idx)}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${item.label}, ${formatAmount(item.value, scopeCurrency, undefined, numberFormat)}, ${pct}%`}
-                  >
-                    <View style={[styles.legendDot, { backgroundColor: item.color }]}>
-                      <MaterialIcons name={(item.icon as any) || 'label'} size={12} color="#fff" />
-                    </View>
-                    <Text
-                      style={[styles.legendLabel, { color: isSelected ? textColor : subTextColor, fontWeight: isSelected ? '600' : '400' }]}
-                      numberOfLines={1}
-                    >
-                      {item.label}
-                    </Text>
-                    <Text style={[styles.legendPct, { color: item.color }]}>{pct}%</Text>
-                    <Text style={[styles.legendAmount, { color: textColor, fontWeight: isSelected ? '700' : '500' }]}>
-                      {formatAmount(item.value, scopeCurrency, undefined, numberFormat)}
-                    </Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
-          </View>
+          </DashboardCard>
+        )}
+
+        {/* Charts carousel — spending, forecast and trend share one card */}
+        {chartPages.length > 0 && (
+          <DashboardCard>
+            <RNAnimated.ScrollView {...carousel.scrollProps} style={[styles.carousel, carousel.scrollProps.style]}>
+              {chartPages.map((page) => (
+                <View key={page.label} style={[styles.carouselPage, { width: carouselPageWidth }]}>
+                  <View onLayout={(e) => carousel.onPageLayout(page.label, e)}>{page.content}</View>
+                </View>
+              ))}
+            </RNAnimated.ScrollView>
+            {chartPages.length > 1 && (
+              <CarouselDots
+                index={carousel.index}
+                onSelect={carousel.goTo}
+                accessibilityLabels={chartPages.map((page) => `Show ${page.label}`)}
+                activeColor={accentColor}
+                inactiveColor={subTextColor + '55'}
+                style={styles.carouselDots}
+              />
+            )}
+          </DashboardCard>
         )}
 
         {/* Budgets */}
@@ -668,7 +775,7 @@ export default function DashboardScreen() {
         <GoalsDashboardCard onPress={() => setGoalsOpen(true)} />
 
         {/* Recent Transactions */}
-        <View style={[styles.section, { backgroundColor: cardBg }]}>
+        <DashboardCard>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: textColor, marginBottom: 0 }]}>Recent Transactions</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/transactions')} accessibilityRole="link" accessibilityLabel="See all transactions">
@@ -729,7 +836,7 @@ export default function DashboardScreen() {
               );
             })
           )}
-        </View>
+        </DashboardCard>
       </ScrollView>
 
       <BudgetsListScreen isOpen={budgetsOpen} onClose={() => setBudgetsOpen(false)} />
@@ -743,7 +850,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
 
   scroll: { flex: 1 },
-  content: { padding: 16, gap: 12, paddingBottom: 32 },
+  content: { padding: CONTENT_PADDING, gap: 12, paddingBottom: 32 },
 
   balanceCard: {
     borderRadius: 16,
@@ -793,14 +900,6 @@ const styles = StyleSheet.create({
   summaryPeriod: { fontSize: 11 },
 
 
-  section: {
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -808,6 +907,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
+
+  carousel: { marginHorizontal: -CARD_PADDING },
+  carouselPage: { paddingHorizontal: CARD_PADDING },
+  carouselDots: { alignSelf: 'center', marginTop: 12 },
   seeAll: { fontSize: 13, fontWeight: '500' },
 
   pieContainer: { alignItems: 'center', marginVertical: 4 },

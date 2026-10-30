@@ -99,3 +99,13 @@ export function formatAmount(
   if (type === 'expense') return `-${str}`;
   return (amount < 0 ? '-' : '') + str;
 }
+
+/** Short axis label for an amount: 950 → "950", 1200 → "1.2k", 2500000 → "2.5M". No symbol. */
+export function formatCompact(amount: number): string {
+  const abs = Math.abs(amount);
+  const sign = amount < 0 ? '-' : '';
+  const short = (n: number, unit: string) => `${sign}${n.toFixed(1).replace(/\.0$/, '')}${unit}`;
+  if (abs >= 1_000_000) return short(abs / 1_000_000, 'M');
+  if (abs >= 1_000) return short(abs / 1_000, 'k');
+  return `${sign}${Math.round(abs)}`;
+}

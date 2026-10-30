@@ -12,8 +12,12 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 
 **Dashboard**
 - Total balance and period income/expense summary
-- Spending breakdown by category as an animated donut chart — tap a slice to highlight it
+- Charts carousel — swipe between three charts in one card:
+  - **Spending by Category** — animated donut chart; tap a slice to highlight it
+  - **Cash Forecast** — your cash balance over the last 90 days, projected 90 days ahead as a dashed line. The projection adds your scheduled recurring items on their dates, entries you've already dated in the future, and your average day-to-day spending over the last 90 days. Investment accounts are left out, since there's no history of their market value to project from
+  - **Income vs Expenses** — monthly bars for the last 6 months (or the whole year in year view), with average saved per month and savings rate. Tap a month for its in, out, and net. With one account selected, its transfers in and out show as grey caps on the bars
 - Portfolio allocation donut — per-investment-account slices sized by invested amount, with live P&L % beside each
+- Investment breakdown — with a single investment account in view, the donut splits its value into invested vs. profit (or what's left vs. loss), with the return % in the centre
 - Recent transactions list
 - Filter by account or time period (day, month, year)
 - Multi-currency aware — when no account filter is active, aggregates are scoped to your primary currency (no FX conversion); the currency code shows in the balance card
@@ -48,6 +52,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Dashboard card with one row per budget: progress bar, percent used, spent vs. limit
 - Color-coded status — green under 80%, amber 80–99%, red at or over 100%
 - Local notification when a transaction pushes a budget over its limit
+- Pace warning — when your spending so far, plus bills and recurring expenses still due, would take a budget over its limit before the period ends, the card says so: "On pace for €620 — over by ~Oct 20"
 - Manage from Settings — add, edit, delete; deleting a category removes its budget too
 
 **Goals**

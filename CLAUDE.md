@@ -96,9 +96,11 @@ features/backup/googleDrive.test.ts
 features/backup/useAutoBackup.test.ts
 features/backup/useBackupStore.test.ts
 features/budgets/budgetCrossings.test.ts
+features/budgets/budgetPace.test.ts
 features/budgets/budgetStatus.test.ts
 features/budgets/periodUtils.test.ts
 features/budgets/useBudgetsStore.test.ts
+features/forecast/forecastUtils.test.ts
 features/goals/goalCrossings.test.ts
 features/goals/goalUtils.test.ts
 features/goals/legacyGoals.test.ts
@@ -148,7 +150,7 @@ app/                                  # expo-router screens (file-based routing)
 features/                             # Feature modules (screens + logic co-located)
   accounts/
     AccountFormSheet.tsx              # Create/edit account bottom sheet (Cash vs Investment toggle, current market value field)
-    balanceUtils.ts                   # accountFlowAsOf, accountBalanceAsOf, computePnL, aggregatePortfolio
+    balanceUtils.ts                   # accountFlowAsOf, accountBalanceAsOf, computePnL, aggregatePortfolio, pnlBreakdown
     balanceUtils.test.ts
     currencyUtils.ts                  # getAccountCurrency, buildAccountCurrencyMap
     currencyUtils.test.ts
@@ -176,9 +178,9 @@ features/                             # Feature modules (screens + logic co-loca
     useRecurringStore.ts              # Zustand store
     useRecurringStore.test.ts
     useRecurringCheck.ts              # AppState-based auto-generation trigger (mirrors useAutoBackup pattern)
-    dateUtils.ts                      # advanceDate() — date math for recurring schedules with month-end clamping
+    dateUtils.ts                      # advanceDate() — date math for recurring schedules with month-end clamping; addDays, daysBetween
     dateUtils.test.ts
-    recurringUtils.ts                 # getRecurringItemCurrency()
+    recurringUtils.ts                 # getRecurringItemCurrency(), expandOccurrences() — future fire dates of recurring items
     recurringUtils.test.ts
   budgets/
     BudgetsListScreen.tsx             # Full-screen modal listing budgets (opened from Settings)
@@ -192,7 +194,15 @@ features/                             # Feature modules (screens + logic co-loca
     budgetCrossings.test.ts
     budgetStatus.ts                   # budgetStatusColor(), BUDGET_WARNING_PCT
     budgetStatus.test.ts
+    budgetPace.ts                     # budgetPace() — projected end-of-period spend and the day it crosses the limit
+    budgetPace.test.ts
     budgetAlerts.ts                   # expo-notifications wrapper for "Budget exceeded" and "Budget almost used" alerts
+  forecast/
+    CashForecastChart.tsx             # Dashboard carousel page: cash balance 90 days back + projected 90 days ahead (dashed)
+    CashflowTrendChart.tsx            # Dashboard carousel page: income vs expense bars per month, avg saved, savings rate
+    useCashflowTrend.ts               # Monthly rows + summary for the trend page; null when there is nothing to show
+    forecastUtils.ts                  # scopeDelta, dailyTrend, balanceForecast, monthlyCashflow, cashflowSummary, shiftMonth, niceAxis
+    forecastUtils.test.ts
   goals/
     GoalsListScreen.tsx               # Full-screen modal listing goals grouped by account (opened from Settings and the Dashboard card)
     GoalFormSheet.tsx                 # Create/edit goal bottom sheet (name, icon/colour, account, target, optional target date) + Add/Release
@@ -244,6 +254,9 @@ shared/                               # Cross-feature reusable code
     AccountCardPicker.tsx             # Horizontal row of selectable account cards (every sheet that picks an account)
     ColorIconPicker.tsx               # Color + Icon sections and their presets (category, account and goal sheets)
     SheetFooter.tsx                   # Pinned primary/secondary action row under every sheet's form
+    DashboardCard.tsx                 # Rounded card container for every Dashboard section (optionally pressable)
+    useCarousel.ts                    # Horizontal paged carousel whose height follows the page in view
+    CarouselDots.tsx                  # Tappable page dots for a useCarousel carousel
     PeriodSelector.tsx                # Month/year period navigation
     CurrencyPicker.tsx                # Full-screen searchable currency picker (used by Settings, AccountFormSheet, BudgetFormSheet)
     Themed.tsx                        # Theme-aware Text/View wrappers
@@ -330,6 +343,8 @@ Current shared components:
 - **`CurrencyPicker`** — full-screen searchable currency picker modal. Used by `SettingsScreen`, `AccountFormSheet`, and `BudgetFormSheet`. Accepts `{ visible, selectedCode, onSelect, onClose }`.
 - **`AccountCardPicker`** — the horizontal row of account cards. Used by `AddTransactionSheet`, `TransferSheet` (twice), `RecurringFormSheet`, `GoalFormSheet`, and `StatementSheet`. Accepts `{ accounts, selectedId, onSelect, scrollRef?, allOption? }`; `allOption` (a label) adds a leading card that is selected when `selectedId` is null and calls `onSelect(null)`.
 - **`SheetFooter`** — the pinned action row at the bottom of every sheet. Accepts `{ primary, secondary? }`, each `{ label, onPress }`.
+- **`DashboardCard`** — the card every Dashboard section sits in. Accepts `{ children, onPress?, accessibilityLabel? }`; with `onPress` the whole card is a button (Budgets, Goals).
+- **`useCarousel` + `CarouselDots`** — a horizontal paged carousel: `useCarousel(pageKeys, pageWidth, verticalPadding?)`. Spread `scrollProps` on an `Animated.ScrollView`, give each page `width: pageWidth`, and wrap each page's content in a View with `onLayout={(e) => onPageLayout(key, e)}` so the height eases between pages of different heights. Heights are stored by page key, never by index: when a page drops out (the forecast on a past period or an investment account), the pages after it shift left without resizing, so they don't re-fire `onLayout`, and an index-keyed height would clip them. `CarouselDots` takes `{ index, onSelect: goTo, accessibilityLabels, activeColor, inactiveColor, size? }`. Used by the Accounts total card (one page per currency) and the Dashboard charts card. It relies on the native horizontal ScrollView winning the gesture over the tab-swipe `PanResponder`.
 - **`ColorIconPicker`** — the Color and Icon sections, plus `PRESET_COLORS`, `CATEGORY_ICONS` and `ACCOUNT_ICONS`. Used by `CategoryFormSheet`, `AccountFormSheet` (`layout="large"`), and `GoalFormSheet`.
 - **`Themed`** — theme-aware `Text` and `View` wrappers.
 
@@ -363,14 +378,14 @@ Accounts carry an `account_type` column (`'cash' | 'investment'`). Investment ac
 - **Auto-adjust** — when money flows into or out of an investment account (transfer in/out, income/expense), `db/index.ts` atomically shifts `current_value` by the same delta so P&L reflects market drift only, not cashflow. Wrapped in `withTransactionAsync` in `useTransfersDb` and `useTransactionsDb`
 - **Form UX** — `AccountFormSheet` shows a Cash/Investment toggle; investment mode reveals a "Current Market Value" field. Editing the invested amount on an existing investment account without touching the current value shifts current by the same delta (so only the market moves reflect P&L)
 - **Accounts tab** — sectioned into Cash and Investments. Investment cards show current value as the primary amount and P&L vs invested as the stat line
-- **Dashboard** — portfolio donut card: slices sized by invested amount per account; center shows total invested + aggregate P&L %; legend shows allocation % + per-account current value and P&L %. Hidden when zero investment accounts, or when a non-investment account filter is active. Past periods show invested-only
+- **Dashboard** — portfolio donut card. With several investment accounts in view ("Portfolio Allocation"): slices sized by invested amount per account; center shows total invested + aggregate P&L %; legend shows allocation % + per-account current value and P&L %. With one ("Investment" — that account selected, or the only one): `pnlBreakdown()` splits it — in profit the ring is the current value as Invested + Profit (green), in loss it is the invested amount as Current value + Loss (red); center shows current value + return %. Falls back to the single allocation slice when there is no gain or loss to split (e.g. no market value entered). Hidden when zero investment accounts, or when a non-investment account filter is active. Past periods show invested-only allocation (no historical market value)
 
 ### Multi-currency
 The app supports holding accounts in different currencies. It **never** invents an FX rate — there is no conversion to a base currency anywhere. The user types every amount in the currency it belongs to.
 
 - **Schema** — `accounts.currency` is the per-account ISO code (back-filled from the global setting in migration 011 for accounts created before multi-currency landed). `transfers.to_amount` (migration 012, nullable) holds the destination-side amount when from/to currencies differ; `NULL` means same-currency and `amount` applies on both sides. `budgets.currency` (migration 013) scopes a budget to one currency.
 - **Display rule** — at the row level, each transaction/transfer/account is formatted in its own account's currency. At the aggregate level, the app shows **per-currency subtotals** rather than a blended number. `totalsByCurrency(accounts, balanceMap)` in `balanceUtils.ts` returns `Record<code, number>`.
-- **Accounts tab total card** — swipeable horizontal carousel, one page per currency, primary (global) currency first. Dots inline in the header next to the currency code (no extra vertical space). Single-currency users see the regular card layout.
+- **Accounts tab total card** — swipeable horizontal carousel (`useCarousel`), one page per currency, primary (global) currency first. Dots inline in the header next to the currency code (no extra vertical space). Single-currency users see the regular card layout.
 - **Transfers** — `accountFlowAsOf` debits the source with `amount` and credits the destination with `to_amount ?? amount`. `TransferSheet` shows an "Amount received (XXX)" field only when from/to currencies differ; `useTransfersDb` persists both, and the investment auto-adjust uses each side's own amount. `DeleteTransferModal` shows `100 USD → 92.50 EUR` for cross-currency.
 - **Recurring transfers** — blocked at the form when the two accounts have different currencies (a recurring template carries a single amount; cross-currency would require inventing an FX rate every fire). `RecurringFormSheet` shows an inline error and disables save.
 - **Dashboard** — when an account is selected, aggregates follow that account's currency. When nothing is selected, `scopedAccounts`/`scopedTransactions`/`scopedTransfers` filter to accounts of the **primary** (global) currency only. A small currency-code tag in the top-right of the balance card surfaces this scope when multiple currencies exist.
@@ -388,6 +403,7 @@ Per-category spending limits with weekly, monthly, or yearly periods. Managed fr
 - **Dashboard card** (`BudgetsDashboardCard`) — hidden when no budgets exist; renders one row per budget with a progress bar. Tapping it opens `BudgetsListScreen`.
 - **Color thresholds** — `budgetStatusColor()` in `features/budgets/budgetStatus.ts`: `< 80%` green `#4CAF50`, `80–99%` amber `#FFC107`, `≥ 100%` red `#F44336`. Defined once (with `BUDGET_WARNING_PCT`) and used by both the list screen and the dashboard card.
 - **Alerts** — when a manual transaction save in `AddTransactionSheet` pushes a budget from `<limit` to `≥limit` for the current period, `findCrossings()` in `budgetCrossings.ts` flags it and `notifyCrossedBudgets()` fires a local notification via `expo-notifications` (Android channel `'budgets'`). `findCrossings` receives `accountCurrencyById` so only budgets matching the transaction's account currency are evaluated. Permission is requested best-effort when the user first saves a budget. Recurring auto-generated transactions don't fire alerts.
+- **Pace line** — `budgetPace()` in `budgetPace.ts` projects each budget to the end of its period: spent to date + the daily pace of hand-entered spending (rows with `recurring_transaction_id` are left out of the pace) + future-dated entries and recurring expense occurrences in that category and currency on their own dates. `BudgetsDashboardCard` shows "On pace for X — over by ~date" in amber when the projection crosses the limit. Silent before 20% of the period has passed (`BUDGET_PACE_MIN_ELAPSED`) and once the budget is already over.
 - **Heads-up at 80%** — `findNearingLimit()` in `budgetCrossings.ts` flags a budget a save took from under `BUDGET_WARNING_PCT` to at-or-over it while still under 100%; `notifyNearingBudgets()` sends "Budget almost used" (same `'budgets'` channel). A save that jumps straight past 100% only sends "Budget exceeded", so one save never sends both. Both run from `notifyThresholdsCrossed()`.
 
 ### Goals
@@ -409,6 +425,15 @@ Money set aside inside an account. An account's balance is split into buckets �
 - **Alerts** — `findReachedGoals(prevGoals, currGoals)` in `goalCrossings.ts` judges each side against its own target with a strict under → at-or-over edge, so it fires once, and lowering a target to what is already saved counts. `notifyThresholdsCrossed()` in `features/transactions/postSaveAlerts.ts` runs it alongside the budget check after a transaction save (both `handleSave` and `handleSaveAndContinue`); `notifyGoalsReached()` is the goal half alone, used by `GoalMoveSheet` and by `GoalFormSheet` on save. Add any future post-save threshold check there rather than inlining it twice.
 - **Old goals** — migration 016 converted category-based goals: category name/icon/colour become the goal's, the goal lands in the first account of its currency (else the first account), and it starts empty. Old JSON backups go through the same rule via `convertLegacyGoal()` in `legacyGoals.ts`; `isValidGoal` accepts both shapes.
 - **Not covered** — recurring income carries no split, and transfers never touch buckets (a transfer out can leave Available negative; it renders red).
+
+### Forecasts & trends
+Two Dashboard charts in `features/forecast/`, both built from the stores (no schema, no settings key — nothing for backup/restore). Both cover `accountsInView` in `app/(tabs)/index.tsx`: the selected account, or every account in the primary currency. No FX, as everywhere else. The forecast line uses `react-native-gifted-charts`; the trend bars are plain flex Views (one equal-width column per month, axis from `niceAxis`), after months with data went missing from gifted-charts' `BarChart` inside the carousel (root cause not pinned down).
+
+- **Charts carousel** — Spending by Category, Cash Forecast and Income vs Expenses are pages of one `DashboardCard` carousel (`useCarousel`), so they take one card's height. A page is added only when it has content (spending this period; forecast when not a past period and cash accounts are in view; trend when `useCashflowTrend` is non-null), and the card is hidden when no page qualifies. The `ScrollView` uses a negative horizontal margin to span the card edge to edge, and each page pads itself; chart components take `width` from the Dashboard rather than measuring the window.
+- **Cash Forecast** (`CashForecastChart`, `balanceForecast()`) — **cash accounts only**: investments have no market-value history, so projecting them would be invented. Hidden when nothing cash is in view and on past periods. Past points are `accountFlowAsOf` every 7 days up to today. A future point = flow as of that date (so future-dated entries land on their day) + `scopeDelta` of every recurring occurrence up to it (`expandOccurrences`; a transfer counts only when one side is in view) + `dailyTrend × days`. The Y axis comes from `niceAxis()`: round bounds near the data, not zero, so small moves on a large balance show — which is why it must keep its labels, or the bottom of the chart reads as running out of money.
+- **`dailyTrend`** — average daily net of **hand-entered** transactions over the last 90 days (rows with a `recurring_transaction_id` are skipped, since the schedule already adds them), divided by the days of history when shorter. `null` under 14 days (`MIN_TREND_DAYS`), and the card then says it is using recurring items only. One-off transfers are not extrapolated.
+- **Income vs Expenses** (`CashflowTrendChart`, `useCashflowTrend`, `monthlyCashflow()`) — grouped bars for the 6 months ending at the selected month (12 months of the year in year mode). Income and expense bars count transactions only, like the Income/Expense summary cards. **With one account selected**, that account's transfers are added as grey caps — transfers in on top of the income bar, out on top of the expense bar (`monthlyCashflow`'s `transferView`, amounts via `getTransferSide`) — with a colour key and a "Transfers in / out" detail line. Across several accounts transfers are left off: between accounts in view they are the same money twice. Tapping a month shows its In/Out/Net; Net, "Avg saved" and the savings rate stay transactions-only, because moving money is not earning or spending it (transfers do count as activity, so an account fed only by transfers still gets a chart). `cashflowSummary()` averages from the first month with activity up to the current month, so months before the user started and future months don't drag "Avg saved / month" or the savings rate toward zero.
+- The Dashboard loads `useRecurringStore` in its focus effect; before this, only `RecurringListScreen` filled it.
 
 ### PDF Statements
 Settings → Data → **Export Statement** opens `StatementSheet`: pick All or one account and a range (default the last 12 months, `defaultStatementRange`), and it renders a bank-style PDF. On Android it is saved straight into the export folder, the same one Export Data uses (`saveToExportFolder`, which asks for the folder once and remembers it as `export_directory_uri`); on iOS it opens the share sheet, which has Save to Files.
