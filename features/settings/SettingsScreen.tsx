@@ -16,7 +16,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as LegacyFS from 'expo-file-system/legacy';
-import { StorageAccessFramework } from 'expo-file-system/legacy';
+import { saveToExportFolder } from '@/shared/saveToExportFolder';
 import { Text } from '@/shared/components/Themed';
 import DeleteModal from '@/shared/components/DeleteModal';
 import InfoModal from '@/shared/components/InfoModal';
@@ -47,6 +47,7 @@ import GoogleDriveSection from '@/features/backup/GoogleDriveSection';
 import RecurringListScreen from '@/features/recurring/RecurringListScreen';
 import BudgetsListScreen from '@/features/budgets/BudgetsListScreen';
 import GoalsListScreen from '@/features/goals/GoalsListScreen';
+import StatementSheet from '@/features/statements/StatementSheet';
 import { useUIStore } from '@/shared/store/useUIStore';
 import AppIcon from '@/assets/images/icon.svg';
 
@@ -161,6 +162,7 @@ export default function SettingsScreen({ isVisible = true }: SettingsScreenProps
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [budgetsOpen, setBudgetsOpen] = useState(false);
   const [goalsOpen, setGoalsOpen] = useState(false);
+  const [statementOpen, setStatementOpen] = useState(false);
   const [activeType, setActiveType] = useState<'expense' | 'income'>('expense');
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [catFormOpen, setCatFormOpen] = useState(false);
@@ -269,47 +271,15 @@ export default function SettingsScreen({ isVisible = true }: SettingsScreenProps
       const filename = `its-a-my-money-${new Date().toISOString().split('T')[0]}.json`;
 
       if (Platform.OS === 'android') {
-        const safDirToPath = (uri: string) => {
-          const decoded = decodeURIComponent(uri);
-          const match = decoded.match(/tree\/primary:(.*)$/);
-          return match ? match[1] : decoded.replace(/^content:\/\/.*\/tree\//, '');
-        };
-
-        const writeToDirectory = async (dirUri: string): Promise<boolean> => {
-          try {
-            const fileUri = await StorageAccessFramework.createFileAsync(dirUri, filename, 'application/json');
-            await StorageAccessFramework.writeAsStringAsync(fileUri, data, { encoding: LegacyFS.EncodingType.UTF8 });
-            return true;
-          } catch {
-            return false;
-          }
-        };
-
-        const showSuccess = (dirUri: string) => {
-          const folder = safDirToPath(dirUri);
-          setInfoModal({ icon: 'check-circle', iconColor: '#4CAF50', title: 'Export Successful', message: `Saved to ${folder}/${filename}` });
-        };
-
-        // Try cached directory first
-        const cached = await settingsDb.get('export_directory_uri');
-        if (cached?.value) {
-          const ok = await writeToDirectory(cached.value);
-          if (ok) { showSuccess(cached.value); return; }
-          // Permission revoked — fall through to re-request
-        }
-
-        // Dismiss overlay before OS directory picker
-        setOperationMessage(null);
-        useUIStore.getState().setExternalActivityActive(true);
-        const perm = await StorageAccessFramework.requestDirectoryPermissionsAsync();
-        if (!perm.granted) return;
-
-        setOperationMessage('Exporting…');
-        await settingsDb.set('export_directory_uri', perm.directoryUri);
-        const ok = await writeToDirectory(perm.directoryUri);
-        if (ok) {
-          showSuccess(perm.directoryUri);
-        } else {
+        // The overlay hides while the OS folder picker is open
+        const result = await saveToExportFolder(
+          settingsDb,
+          { filename, mimeType: 'application/json', contents: data, encoding: 'utf8' },
+          (open) => setOperationMessage(open ? null : 'Exporting…'),
+        );
+        if (result.status === 'saved') {
+          setInfoModal({ icon: 'check-circle', iconColor: '#4CAF50', title: 'Export Successful', message: `Saved to ${result.path}` });
+        } else if (result.status === 'failed') {
           setInfoModal({ icon: 'error', iconColor: '#F44336', title: 'Export Failed', message: 'Could not save file to the selected folder.' });
         }
       } else {
@@ -702,6 +672,15 @@ export default function SettingsScreen({ isVisible = true }: SettingsScreenProps
             <MaterialIcons name="chevron-right" size={20} color={subColor} />
           </TouchableOpacity>
           <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
+          <TouchableOpacity style={styles.row} onPress={() => setStatementOpen(true)} activeOpacity={0.7}>
+            <View style={[styles.rowIcon, { backgroundColor: '#F4433620' }]}>
+              <MaterialIcons name="picture-as-pdf" size={20} color="#F44336" />
+            </View>
+            <Text style={[styles.rowLabel, { color: textColor }]}>Export Statement</Text>
+            <Text style={[styles.rowValue, { color: subColor }]}>PDF</Text>
+            <MaterialIcons name="chevron-right" size={20} color={subColor} />
+          </TouchableOpacity>
+          <View style={[styles.rowDivider, { backgroundColor: borderColor }]} />
           <TouchableOpacity style={styles.row} onPress={handleImport} activeOpacity={0.7}>
             <View style={[styles.rowIcon, { backgroundColor: '#3b82f620' }]}>
               <MaterialIcons name="file-upload" size={20} color="#3b82f6" />
@@ -849,6 +828,9 @@ export default function SettingsScreen({ isVisible = true }: SettingsScreenProps
 
       {/* Goals screen */}
       <GoalsListScreen isOpen={goalsOpen} onClose={() => setGoalsOpen(false)} />
+
+      {/* PDF statement */}
+      <StatementSheet isOpen={statementOpen} onClose={() => setStatementOpen(false)} />
 
       {/* Currency picker */}
       <CurrencyPicker

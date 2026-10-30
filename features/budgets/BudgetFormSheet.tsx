@@ -239,12 +239,12 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
                 {PERIODS.map((p) => (
                   <TouchableOpacity
                     key={p.key}
-                    style={[localStyles.periodBtn, period === p.key && { backgroundColor: accentColor }]}
+                    style={[styles.periodBtn, period === p.key && { backgroundColor: accentColor }]}
                     onPress={() => setPeriod(p.key)}
                     accessibilityRole="radio"
                     accessibilityState={{ selected: period === p.key }}
                   >
-                    <Text style={[localStyles.periodBtnText, { color: period === p.key ? onAccentColor : subTextColor }]}>
+                    <Text style={[styles.periodBtnText, { color: period === p.key ? onAccentColor : subTextColor }]}>
                       {p.label}
                     </Text>
                   </TouchableOpacity>
@@ -341,8 +341,6 @@ const localStyles = StyleSheet.create({
   categoryCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   categoryCircleSelected: { borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
   categoryLabel: { fontSize: 11, textAlign: 'center' },
-  periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-  periodBtnText: { fontWeight: '600', fontSize: 12 },
   currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 20 },
   currencyRowSymbol: { fontSize: 20, fontWeight: '700', width: 28, textAlign: 'center' },
   currencyRowCode: { fontSize: 15, fontWeight: '600' },

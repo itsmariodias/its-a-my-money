@@ -10,11 +10,11 @@ export function advanceDate(current: string, frequency: RecurringFrequency): str
   switch (frequency) {
     case 'daily': {
       const d = new Date(year, month - 1, day + 1);
-      return formatDate(d);
+      return toISODate(d);
     }
     case 'weekly': {
       const d = new Date(year, month - 1, day + 7);
-      return formatDate(d);
+      return toISODate(d);
     }
     case 'monthly': {
       const targetMonth = month === 12 ? 1 : month + 1;
@@ -42,7 +42,8 @@ export function advanceDate(current: string, frequency: RecurringFrequency): str
   }
 }
 
-function formatDate(d: Date): string {
+/** A local Date as a YYYY-MM-DD string. */
+export function toISODate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
@@ -50,7 +51,7 @@ function formatDate(d: Date): string {
 }
 
 export function todayString(): string {
-  return formatDate(new Date());
+  return toISODate(new Date());
 }
 
 /**
@@ -59,5 +60,5 @@ export function todayString(): string {
  */
 export function previousDay(date: string): string {
   const [year, month, day] = date.split('-').map(Number);
-  return formatDate(new Date(year, month - 1, day - 1));
+  return toISODate(new Date(year, month - 1, day - 1));
 }

@@ -30,6 +30,9 @@ export const sheetStyles = StyleSheet.create({
   typeToggle: { flexDirection: 'row', borderRadius: 10, padding: 4, marginBottom: 16 },
   typeBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   typeBtnText: { fontWeight: '600', fontSize: 14 },
+  // Smaller segments for toggles with more than two options (budget period, statement range)
+  periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  periodBtnText: { fontWeight: '600', fontSize: 12 },
 
   // Account picker
   accountScroll: { marginBottom: 20 },
