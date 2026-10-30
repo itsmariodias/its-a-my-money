@@ -109,11 +109,14 @@ features/recurring/useRecurringStore.test.ts
 features/settings/exportData.test.ts
 features/settings/useSettingsStore.test.ts
 features/settings/validation.test.ts
+features/statements/statementData.test.ts
+features/statements/statementHtml.test.ts
 features/transactions/sectionUtils.test.ts
 features/transactions/useCategoriesStore.test.ts
 features/transactions/useTransactionsStore.test.ts
 features/transfers/transferSide.test.ts
 features/transfers/useTransfersStore.test.ts
+shared/saveToExportFolder.test.ts
 shared/store/useUIStore.test.ts
 ```
 
@@ -124,6 +127,7 @@ shared/store/useUIStore.test.ts
 - **expo-sqlite** — local SQLite database, all data on-device
 - **expo-notifications** — local notifications for backup status
 - **expo-local-authentication** — biometric lock (fingerprint/Face ID)
+- **expo-print** — renders the PDF statement from HTML
 - **@react-native-google-signin/google-signin** — Google OAuth for Drive backup
 - **react-native-calendars** — cross-platform date picker (shared `DatePickerField` component)
 - **react-native-gifted-charts** — charts on the dashboard
@@ -217,6 +221,13 @@ features/                             # Feature modules (screens + logic co-loca
     exportData.ts                     # Reusable JSON export generator (used by manual export + Drive backup)
     exportData.test.ts
     monefy/                           # Monefy backup CSV parser (stub)
+  statements/
+    StatementSheet.tsx                # Export Statement bottom sheet (account or All, period presets, From/To) — opened from Settings
+    statementData.ts                  # buildStatement, buildAccountStatement, defaultStatementRange, STATEMENT_PRESETS
+    statementData.test.ts
+    statementHtml.ts                  # renderStatementHtml() — print-ready, light-palette HTML; escapeHtml
+    statementHtml.test.ts
+    exportStatementPdf.ts             # Embeds font + logo, Print.printToFileAsync (A4), returns the PDF's cache URI and filename
   backup/
     googleDrive.ts                    # Google Drive API service (sign-in, upload, folder management)
     googleDrive.test.ts
@@ -236,6 +247,8 @@ shared/                               # Cross-feature reusable code
     PeriodSelector.tsx                # Month/year period navigation
     CurrencyPicker.tsx                # Full-screen searchable currency picker (used by Settings, AccountFormSheet, BudgetFormSheet)
     Themed.tsx                        # Theme-aware Text/View wrappers
+  saveToExportFolder.ts               # Android: writes an export into the remembered SAF folder (Export Data + Export Statement)
+  saveToExportFolder.test.ts
   store/
     useUIStore.ts                     # UI state (open sheets, selected account filter)
     useUIStore.test.ts
@@ -296,7 +309,7 @@ expo-router with a bottom tab layout (`app/(tabs)/`). Tabs support horizontal sw
 A single expandable speed-dial FAB lives in `app/(tabs)/_layout.tsx`. Tapping it expands to two labeled options: **Transaction** and **Transfer**. Tapping either opens the corresponding sheet and collapses the menu. A dimmed backdrop closes the menu on tap. The FAB icon rotates 45 degrees when expanded. Hidden when the settings overlay is open.
 
 ### Bottom Sheets
-All sheets (`AddTransactionSheet`, `TransferSheet`, `AccountFormSheet`, `CategoryFormSheet`, `BudgetFormSheet`, `GoalFormSheet`, `GoalMoveSheet`, `RecurringFormSheet`) share the same animation pattern:
+All sheets (`AddTransactionSheet`, `TransferSheet`, `AccountFormSheet`, `CategoryFormSheet`, `BudgetFormSheet`, `GoalFormSheet`, `GoalMoveSheet`, `RecurringFormSheet`, `StatementSheet`) share the same animation pattern:
 - Slide in via `Animated.spring` on `sheetTranslateY`; backdrop (`absoluteFill`, `rgba(0,0,0,0.4)`) snaps to full opacity instantly on open
 - Slide out via `Animated.timing`; backdrop fades out after the sheet has fully exited
 - Drag handle with `PanResponder` — swipe down to dismiss (dy > 120 or vy > 0.3)
@@ -315,7 +328,7 @@ Current shared components:
 - **`AccountIcon`** — renders account icons consistently across all screens.
 - **`PeriodSelector`** — month/year navigation used on Dashboard and Transactions.
 - **`CurrencyPicker`** — full-screen searchable currency picker modal. Used by `SettingsScreen`, `AccountFormSheet`, and `BudgetFormSheet`. Accepts `{ visible, selectedCode, onSelect, onClose }`.
-- **`AccountCardPicker`** — the horizontal row of account cards. Used by `AddTransactionSheet`, `TransferSheet` (twice), `RecurringFormSheet`, and `GoalFormSheet`. Accepts `{ accounts, selectedId, onSelect, scrollRef? }`.
+- **`AccountCardPicker`** — the horizontal row of account cards. Used by `AddTransactionSheet`, `TransferSheet` (twice), `RecurringFormSheet`, `GoalFormSheet`, and `StatementSheet`. Accepts `{ accounts, selectedId, onSelect, scrollRef?, allOption? }`; `allOption` (a label) adds a leading card that is selected when `selectedId` is null and calls `onSelect(null)`.
 - **`SheetFooter`** — the pinned action row at the bottom of every sheet. Accepts `{ primary, secondary? }`, each `{ label, onPress }`.
 - **`ColorIconPicker`** — the Color and Icon sections, plus `PRESET_COLORS`, `CATEGORY_ICONS` and `ACCOUNT_ICONS`. Used by `CategoryFormSheet`, `AccountFormSheet` (`layout="large"`), and `GoalFormSheet`.
 - **`Themed`** — theme-aware `Text` and `View` wrappers.
@@ -396,6 +409,15 @@ Money set aside inside an account. An account's balance is split into buckets �
 - **Alerts** — `findReachedGoals(prevGoals, currGoals)` in `goalCrossings.ts` judges each side against its own target with a strict under → at-or-over edge, so it fires once, and lowering a target to what is already saved counts. `notifyThresholdsCrossed()` in `features/transactions/postSaveAlerts.ts` runs it alongside the budget check after a transaction save (both `handleSave` and `handleSaveAndContinue`); `notifyGoalsReached()` is the goal half alone, used by `GoalMoveSheet` and by `GoalFormSheet` on save. Add any future post-save threshold check there rather than inlining it twice.
 - **Old goals** — migration 016 converted category-based goals: category name/icon/colour become the goal's, the goal lands in the first account of its currency (else the first account), and it starts empty. Old JSON backups go through the same rule via `convertLegacyGoal()` in `legacyGoals.ts`; `isValidGoal` accepts both shapes.
 - **Not covered** — recurring income carries no split, and transfers never touch buckets (a transfer out can leave Available negative; it renders red).
+
+### PDF Statements
+Settings → Data → **Export Statement** opens `StatementSheet`: pick All or one account and a range (default the last 12 months, `defaultStatementRange`), and it renders a bank-style PDF. On Android it is saved straight into the export folder, the same one Export Data uses (`saveToExportFolder`, which asks for the folder once and remembers it as `export_directory_uri`); on iOS it opens the share sheet, which has Save to Files.
+
+- **Built from the stores**, not the DB — `useTransactionsStore` / `useTransfersStore` already hold every row. No schema or settings key, so nothing to add to backup/restore.
+- **One section per account**: opening balance (`accountFlowAsOf` with `endExclusive: start`), every transaction and transfer in `start..end` inclusive with a running balance, closing balance. Balances are flow, so investment accounts show the amount invested, with the current market value as a footnote.
+- **Transfers are rows** ("Transfer to/from X", via `getTransferSide`) so the running balance reaches the closing balance. The **summary** (income, expenses, net, by category) counts transactions only, per currency — no FX, same rule as everywhere else.
+- **All accounts** skips accounts with no rows and a zero opening balance; a single chosen account always gets its section.
+- **Rendering**: `renderStatementHtml` is pure and always uses the light `THEMES.white` palette (print-friendly) plus the user's accent, number format and date format. Every user string goes through `escapeHtml`, and colours must be plain hex. `exportStatementPdf` embeds LilitaOne and the app icon as base64 (both optional), prints A4 (`margins` on iOS, which ignores CSS `@page` margins), and moves the file to `its-a-my-money-statement-{start}_{end}.pdf` in the cache directory.
 
 ### Cloud Backup (Google Drive)
 Automatic backups to Google Drive using the same JSON format as manual export.
