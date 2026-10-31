@@ -1,8 +1,7 @@
 import { generateExportData, generateExportJson } from './exportData';
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { getMockDb } from '../../__mocks__/expo-sqlite';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { getMockDb } = require('../../__mocks__/expo-sqlite');
 const mockDb = getMockDb() as unknown as SQLiteDatabase;
 
 describe('exportData', () => {

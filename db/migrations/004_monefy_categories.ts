@@ -16,7 +16,7 @@ export async function up(db: SQLiteDatabase): Promise<void> {
 
   // Add new Monefy categories only if they don't already exist (no UNIQUE constraint on name,
   // so we guard each insert with a NOT EXISTS check)
-  const newCategories: Array<[string, string, string, string]> = [
+  const newCategories: [string, string, string, string][] = [
     ['Car',           'expense', '#2196F3', 'directions-car'],
     ['Communications','expense', '#00BCD4', 'phone'],
     ['Food',          'expense', '#FF5722', 'local-grocery-store'],

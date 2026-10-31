@@ -1,3 +1,5 @@
+import type { TextStyle } from 'react-native';
+
 export interface AppColors {
   bg: string;         // page / screen background
   cardBg: string;     // card / surface background
@@ -70,8 +72,6 @@ export const ACCENT_COLORS: AccentColor[] = [
   { label: 'Grey',        color: '#757575' },
   { label: 'Blue Grey',   color: '#546E7A' },
 ];
-
-import { TextStyle } from 'react-native';
 
 export function isLightColor(hex: string): boolean {
   const r = parseInt(hex.slice(1, 3), 16);
