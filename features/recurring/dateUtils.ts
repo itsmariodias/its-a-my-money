@@ -2,18 +2,24 @@ import type { RecurringFrequency } from '@/types';
 
 /**
  * Advance a YYYY-MM-DD date string by one frequency unit.
- * Monthly advancement clamps to the last day of the target month.
+ * Monthly, quarterly and yearly advancement clamp to the last day of the target month.
+ *
+ * Pass the schedule's start date as `anchor` when stepping a recurring item: the result goes back
+ * to the anchor's day of the month whenever the target month has it. Without it, the clamped day
+ * sticks — Jan 31 → Feb 28 → Mar 28 — and an item set for the 31st ends up on the 28th for good.
  */
-export function advanceDate(current: string, frequency: RecurringFrequency): string {
-  const [year, month, day] = current.split('-').map(Number);
+export function advanceDate(current: string, frequency: RecurringFrequency, anchor?: string): string {
+  const [year, month, currentDay] = current.split('-').map(Number);
+  // The day of the month the schedule wants; month-based steps clamp it to the target month.
+  const day = anchor ? Number(anchor.slice(8, 10)) : currentDay;
 
   switch (frequency) {
     case 'daily': {
-      const d = new Date(year, month - 1, day + 1);
+      const d = new Date(year, month - 1, currentDay + 1);
       return toISODate(d);
     }
     case 'weekly': {
-      const d = new Date(year, month - 1, day + 7);
+      const d = new Date(year, month - 1, currentDay + 7);
       return toISODate(d);
     }
     case 'monthly': {

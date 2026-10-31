@@ -178,7 +178,7 @@ features/                             # Feature modules (screens + logic co-loca
     useRecurringStore.ts              # Zustand store
     useRecurringStore.test.ts
     useRecurringCheck.ts              # AppState-based auto-generation trigger (mirrors useAutoBackup pattern)
-    dateUtils.ts                      # advanceDate() — date math for recurring schedules with month-end clamping; addDays, daysBetween
+    dateUtils.ts                      # advanceDate() — date math for recurring schedules with month-end clamping, anchored to the start date's day; addDays, daysBetween
     dateUtils.test.ts
     recurringUtils.ts                 # getRecurringItemCurrency(), expandOccurrences() — future fire dates of recurring items
     recurringUtils.test.ts
@@ -305,7 +305,7 @@ Core entities:
 - `categories` — income and expense categories with icons/colors
 - `transactions` — individual income/expense entries linked to an account and category
 - `transfers` — money movements between accounts (full CRUD via `TransferSheet`)
-- `recurring_transactions` — repeating transaction templates; auto-generate real transactions on app open via `useRecurringCheck`
+- `recurring_transactions` — repeating transaction templates; auto-generate real transactions on app open via `useRecurringCheck`. Every step passes the item's `start_date` to `advanceDate` as the anchor, so an item set for the 31st clamps to the 30th in a short month and goes back to the 31st after it. Stepping from the previous due date alone made the clamped day stick (31st → 28th for good after February)
 - `budgets` — per-category spending limits with weekly/monthly/yearly periods (full CRUD via `BudgetFormSheet`)
 - `goals` — savings buckets inside one account, with a name, icon, colour, target and optional deadline (migrations 015/016, full CRUD via `GoalFormSheet`)
 - `goal_allocations` — signed movements of money into (+) and out of (−) a goal; optionally linked to the transaction that made them (migration 016)

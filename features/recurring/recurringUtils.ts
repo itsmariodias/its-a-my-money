@@ -13,7 +13,7 @@ export type RecurringOccurrence = Pick<
 export type RecurringTemplate = Pick<
   RecurringTransaction,
   'amount' | 'kind' | 'type' | 'category_id' | 'account_id' | 'to_account_id'
-  | 'frequency' | 'end_date' | 'next_due_date' | 'is_active'
+  | 'frequency' | 'start_date' | 'end_date' | 'next_due_date' | 'is_active'
 >;
 
 // A daily item over a few years; anything past this is a runaway loop, not a forecast.
@@ -45,7 +45,7 @@ export function expandOccurrences(
           to_account_id: item.to_account_id,
         });
       }
-      date = advanceDate(date, item.frequency);
+      date = advanceDate(date, item.frequency, item.start_date);
     }
   }
   return out.sort((a, b) => a.date.localeCompare(b.date));

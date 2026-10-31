@@ -44,6 +44,7 @@ const recurring = (overrides: Partial<RecurringTemplate>): RecurringTemplate => 
   next_due_date: '2026-11-01',
   is_active: 1,
   ...overrides,
+  start_date: overrides.start_date ?? overrides.next_due_date ?? '2026-11-01',
 });
 
 const noTransfers: Pick<Transfer, 'from_account_id' | 'to_account_id' | 'amount' | 'to_amount' | 'date'>[] = [];

@@ -44,10 +44,11 @@ export function useRecurringCheck() {
           to_account_id: number | null;
           note: string | null;
           frequency: RecurringFrequency;
+          start_date: string;
           end_date: string | null;
           next_due_date: string;
         }>(
-          `SELECT id, amount, kind, type, category_id, account_id, to_account_id, note, frequency, end_date, next_due_date
+          `SELECT id, amount, kind, type, category_id, account_id, to_account_id, note, frequency, start_date, end_date, next_due_date
            FROM recurring_transactions
            WHERE is_active = 1 AND next_due_date <= ?`,
           today
@@ -83,7 +84,7 @@ export function useRecurringCheck() {
                 rec.type === 'income' ? rec.amount : -rec.amount, rec.account_id
               );
             }
-            dueDate = advanceDate(dueDate, rec.frequency);
+            dueDate = advanceDate(dueDate, rec.frequency, rec.start_date);
           }
 
           // dueDate is now past today — check if it exceeds end_date

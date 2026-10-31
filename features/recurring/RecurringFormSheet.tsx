@@ -161,7 +161,7 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
             type === 'income' ? parsedAmount : -parsedAmount, fromAccountId!
           );
         }
-        dueDate = advanceDate(dueDate, frequency);
+        dueDate = advanceDate(dueDate, frequency, startDate);
       }
       const isActive = endDate == null || dueDate <= endDate ? 1 : 0;
       await db.runAsync(
@@ -202,7 +202,7 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
         if (startDate !== recurring.start_date || frequency !== recurring.frequency) {
           const today = todayString();
           let d = startDate;
-          while (d <= today) d = advanceDate(d, frequency);
+          while (d <= today) d = advanceDate(d, frequency, startDate);
           nextDueDate = d;
         }
         await recurringDb.update(recurring.id, {
