@@ -1,3 +1,5 @@
+import { format, isValid, parse } from 'date-fns';
+
 export type DateFormatId =
   | 'DD/MM/YYYY'
   | 'MM/DD/YYYY'
@@ -15,23 +17,19 @@ export const DATE_FORMATS: { id: DateFormatId; label: string; example: string }[
 
 export const DEFAULT_DATE_FORMAT: DateFormatId = 'DD/MM/YYYY';
 
-const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+/** The date-fns pattern behind each display format. */
+const PATTERNS: Record<DateFormatId, string> = {
+  'DD/MM/YYYY':   'dd/MM/yyyy',
+  'MM/DD/YYYY':   'MM/dd/yyyy',
+  'YYYY-MM-DD':   'yyyy-MM-dd',
+  'DD MMM YYYY':  'dd MMM yyyy',
+  'MMM DD, YYYY': 'MMM dd, yyyy',
+};
 
-export function formatDate(dateString: string, format: DateFormatId = DEFAULT_DATE_FORMAT): string {
-  const m = DATE_RE.exec(dateString);
-  if (!m) return dateString;
-  const [, yyyy, mm, dd] = m;
-  const mIdx = parseInt(mm, 10) - 1;
-  if (mIdx < 0 || mIdx > 11) return dateString;
-  const mmm = MONTH_SHORT[mIdx];
-  switch (format) {
-    case 'DD/MM/YYYY':   return `${dd}/${mm}/${yyyy}`;
-    case 'MM/DD/YYYY':   return `${mm}/${dd}/${yyyy}`;
-    case 'YYYY-MM-DD':   return `${yyyy}-${mm}-${dd}`;
-    case 'DD MMM YYYY':  return `${dd} ${mmm} ${yyyy}`;
-    case 'MMM DD, YYYY': return `${mmm} ${dd}, ${yyyy}`;
-  }
+export function formatDate(dateString: string, dateFormat: DateFormatId = DEFAULT_DATE_FORMAT): string {
+  // Strict parse: anything that is not a real YYYY-MM-DD day is shown as it came.
+  const date = parse(dateString, 'yyyy-MM-dd', new Date());
+  return isValid(date) ? format(date, PATTERNS[dateFormat]) : dateString;
 }
 
 export function isValidDateFormat(value: string): value is DateFormatId {

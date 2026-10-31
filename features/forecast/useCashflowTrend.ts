@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import type { PeriodMode } from '@/shared/components/PeriodSelector';
+import type { PeriodMode } from '@/shared/periodUtils';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
-import { todayString } from '@/features/recurring/dateUtils';
-import { cashflowSummary, monthlyCashflow, type MonthlyCashflow } from './forecastUtils';
+import { monthKeyOf, todayString } from '@/shared/dates';
+import { cashflowSummary, monthlyCashflow, trendEndMonth, type MonthlyCashflow } from './forecastUtils';
 
 export interface CashflowTrend {
   rows: MonthlyCashflow[];
@@ -24,12 +24,9 @@ export function useCashflowTrend(
 ): CashflowTrend | null {
   const transactions = useTransactionsStore((s) => s.transactions);
   const transfers = useTransfersStore((s) => s.transfers);
-  const year = periodDate.getFullYear();
-  const endMonth = periodMode === 'year'
-    ? `${year}-12`
-    : `${year}-${String(periodDate.getMonth() + 1).padStart(2, '0')}`;
+  const endMonth = trendEndMonth(periodMode, periodDate);
   const monthCount = periodMode === 'year' ? 12 : 6;
-  const currentMonth = todayString().slice(0, 7);
+  const currentMonth = monthKeyOf(todayString());
 
   return useMemo(() => {
     const transferView = selectedAccountId !== null ? { transfers, accountId: selectedAccountId } : undefined;

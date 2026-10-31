@@ -24,7 +24,7 @@ import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount, getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import { moveError, type GoalMoveDirection } from './goalUtils';
 import { useAvailableBalances } from './useAvailableBalances';
 import type { GoalWithDetails } from '@/types';

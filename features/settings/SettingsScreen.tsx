@@ -49,6 +49,7 @@ import BudgetsListScreen from '@/features/budgets/BudgetsListScreen';
 import GoalsListScreen from '@/features/goals/GoalsListScreen';
 import StatementSheet from '@/features/statements/StatementSheet';
 import { useUIStore } from '@/shared/store/useUIStore';
+import { todayString } from '@/shared/dates';
 import AppIcon from '@/assets/images/icon.svg';
 
 // ─── Category row ─────────────────────────────────────────────────────────────
@@ -268,7 +269,7 @@ export default function SettingsScreen({ isVisible = true }: SettingsScreenProps
     setOperationMessage('Exporting…');
     try {
       const data = await generateExportJson(db);
-      const filename = `its-a-my-money-${new Date().toISOString().split('T')[0]}.json`;
+      const filename = `its-a-my-money-${todayString()}.json`;
 
       if (Platform.OS === 'android') {
         // The overlay hides while the OS folder picker is open

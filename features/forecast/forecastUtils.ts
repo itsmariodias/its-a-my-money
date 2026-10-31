@@ -1,6 +1,8 @@
+import { endOfYear, format } from 'date-fns';
 import type { Account, Transaction, Transfer, TransferWithDetails } from '@/types';
 import { accountFlowAsOf } from '@/features/accounts/balanceUtils';
-import { addDays, daysBetween } from '@/features/recurring/dateUtils';
+import { addDays, daysBetween, monthKeyOf, parseDay, parseMonth, shiftMonth, toMonth } from '@/shared/dates';
+import type { PeriodMode } from '@/shared/periodUtils';
 import { getTransferSide } from '@/features/transfers/transferSide';
 import {
   expandOccurrences,
@@ -126,13 +128,6 @@ export function balanceForecast({
   return { points, endValue: points[points.length - 1].value, trendPerDay };
 }
 
-/** 'YYYY-MM' moved by `delta` months. */
-export function shiftMonth(month: string, delta: number): string {
-  const [y, m] = month.split('-').map(Number);
-  const zeroBased = y * 12 + (m - 1) + delta;
-  return `${String(Math.floor(zeroBased / 12)).padStart(4, '0')}-${String((zeroBased % 12) + 1).padStart(2, '0')}`;
-}
-
 export interface MonthlyCashflow {
   month: string; // YYYY-MM
   income: number;
@@ -162,7 +157,7 @@ export function monthlyCashflow(
   }
   for (const t of transactions) {
     if (!accountIds.has(t.account_id)) continue;
-    const row = byMonth[t.date.slice(0, 7)];
+    const row = byMonth[monthKeyOf(t.date)];
     if (!row) continue;
     if (t.type === 'income') row.income += t.amount;
     else row.expense += t.amount;
@@ -171,7 +166,7 @@ export function monthlyCashflow(
     const { transfers, accountId } = transferView;
     for (const t of transfers) {
       if (t.from_account_id !== accountId && t.to_account_id !== accountId) continue;
-      const row = byMonth[t.date.slice(0, 7)];
+      const row = byMonth[monthKeyOf(t.date)];
       if (!row) continue;
       const side = getTransferSide(t, accountId, '');
       if (side.isOutgoing) row.transferOut += side.amount;
@@ -226,4 +221,19 @@ export function niceAxis(min: number, max: number, targetSections = 4): ChartAxi
   let axisMax = Math.ceil(max / step) * step;
   if (axisMax === axisMin) axisMax += step;
   return { min: axisMin, max: axisMax, step, sections: Math.round((axisMax - axisMin) / step) };
+}
+
+/** "Oct 31" — the forecast chart's axis label for a YYYY-MM-DD day. */
+export function shortDayLabel(day: string): string {
+  return format(parseDay(day), 'MMM d');
+}
+
+/** "Oct" for a trend bar, "October 2026" for the detail line and screen readers. */
+export function monthLabel(month: string, style: 'short' | 'long'): string {
+  return format(parseMonth(month), style === 'short' ? 'MMM' : 'MMMM yyyy');
+}
+
+/** The last month the trend chart shows: December of the year in year mode, else the selected month. */
+export function trendEndMonth(periodMode: PeriodMode, periodDate: Date): string {
+  return toMonth(periodMode === 'year' ? endOfYear(periodDate) : periodDate);
 }

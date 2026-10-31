@@ -1,5 +1,7 @@
+import { differenceInMonths } from 'date-fns';
 import type { Account, GoalAllocation, GoalSplit, GoalWithDetails, Transaction, Transfer } from '@/types';
 import { accountBalanceAsOf } from '@/features/accounts/balanceUtils';
+import { daysBetween, parseDay } from '@/shared/dates';
 
 type TxLike = Pick<Transaction, 'account_id' | 'type' | 'amount' | 'date'>;
 type TransferLike = Pick<Transfer, 'from_account_id' | 'to_account_id' | 'amount' | 'to_amount' | 'date'>;
@@ -201,15 +203,9 @@ export function targetDateLabel(targetDate: string | null, today: string): strin
   const days = daysBetween(today, targetDate);
   if (days === 0) return 'Due today';
   if (days === 1) return '1 day left';
-  // 30 days out is a month away, not "30 days left".
-  if (days < 30) return `${days} days left`;
 
-  const months = Math.round(days / 30);
+  // Whole calendar months, so Jun 1 → Jul 1 is "1 month left" and Jul 1 → Jul 31 is "30 days left".
+  const months = differenceInMonths(parseDay(targetDate), parseDay(today));
+  if (months === 0) return `${days} days left`;
   return months === 1 ? '1 month left' : `${months} months left`;
-}
-
-function daysBetween(from: string, to: string): number {
-  const MS_PER_DAY = 24 * 60 * 60 * 1000;
-  // Parsed as UTC midnight on both sides, so DST never shifts the difference.
-  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / MS_PER_DAY);
 }

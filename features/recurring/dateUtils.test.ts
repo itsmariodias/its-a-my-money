@@ -1,4 +1,4 @@
-import { addDays, advanceDate, daysBetween, previousDay } from './dateUtils';
+import { advanceDate } from './dateUtils';
 
 describe('advanceDate', () => {
   describe('daily', () => {
@@ -138,40 +138,5 @@ describe('advanceDate', () => {
       expect(advanceDate('2026-02-28', 'daily', '2026-01-31')).toBe('2026-03-01');
       expect(advanceDate('2026-02-28', 'weekly', '2026-01-31')).toBe('2026-03-07');
     });
-  });
-});
-
-describe('previousDay', () => {
-  it('given a mid-month date, when stepping back, then returns the day before', () => {
-    expect(previousDay('2025-03-15')).toBe('2025-03-14');
-  });
-
-  it('given the first of a month, when stepping back, then returns the last day of the previous month', () => {
-    expect(previousDay('2025-03-01')).toBe('2025-02-28');
-  });
-
-  it('given Jan 1, when stepping back, then rolls back to Dec 31 of the previous year', () => {
-    expect(previousDay('2025-01-01')).toBe('2024-12-31');
-  });
-
-  it('given Mar 1 of a leap year, when stepping back, then returns Feb 29', () => {
-    expect(previousDay('2024-03-01')).toBe('2024-02-29');
-  });
-});
-
-describe('addDays', () => {
-  it('moves forward and back across month and year boundaries', () => {
-    expect(addDays('2026-10-31', 1)).toBe('2026-11-01');
-    expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
-    expect(addDays('2026-10-31', 90)).toBe('2027-01-29');
-  });
-});
-
-describe('daysBetween', () => {
-  it('counts calendar days, negative when going back', () => {
-    expect(daysBetween('2026-10-01', '2026-10-31')).toBe(30);
-    expect(daysBetween('2026-03-01', '2026-02-01')).toBe(-28);
-    // Across a DST change (late March in Europe)
-    expect(daysBetween('2026-03-28', '2026-03-30')).toBe(2);
   });
 });

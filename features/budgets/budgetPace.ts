@@ -1,5 +1,5 @@
 import type { Budget, Transaction } from '@/types';
-import { addDays, daysBetween, toISODate } from '@/features/recurring/dateUtils';
+import { addDays, daysBetween, toDay } from '@/shared/dates';
 import { expandOccurrences, type RecurringTemplate } from '@/features/recurring/recurringUtils';
 import { currentPeriodRange, spentInRange } from './periodUtils';
 
@@ -29,7 +29,7 @@ export function budgetPace(
   today: Date = new Date(),
 ): BudgetPace | null {
   const { start, end } = currentPeriodRange(budget.period, today);
-  const todayStr = toISODate(today);
+  const todayStr = toDay(today);
   const { currency, accountCurrencyById } = currencyFilter;
 
   if (spentInRange(transactions, budget.category_id, start, end, currencyFilter) >= budget.amount) {

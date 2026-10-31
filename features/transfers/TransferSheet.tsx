@@ -28,7 +28,7 @@ import { Snackbar } from 'react-native-snackbar';
 import { getCurrencySymbol } from '@/constants/currencies';
 import type { Account } from '@/types';
 import { useAppTheme } from '@/shared/components/useAppTheme';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { TransferWithDetails } from '@/types';
 import SheetFooter from '@/shared/components/SheetFooter';

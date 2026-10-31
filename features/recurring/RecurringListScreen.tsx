@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Snackbar } from 'react-native-snackbar';
-import { todayString } from './dateUtils';
+import { todayString } from '@/shared/dates';
 import RecurringFormSheet from './RecurringFormSheet';
 import { getRecurringItemCurrency } from './recurringUtils';
 import { useRecurringStore } from './useRecurringStore';

@@ -33,6 +33,15 @@ When adding a feature, always ask: "Does another component already do something 
 - Avoid deeply nested ternaries — extract into small helper components or early returns.
 - Name things clearly. If a function name needs a comment to explain it, rename the function.
 
+### Dates
+
+**No hand-written date logic.** Every step, count, period boundary, parse and format goes through **date-fns**. Hand-rolled date code is where this app's date bugs came from: `setMonth` on Oct 31 asked for Sep 31, which rolled over to Oct 1, so the period arrows skipped a month; recurring items set for the 31st drifted to the 28th; `toISOString().split('T')[0]` gave the UTC day, not the local one.
+
+- **Storage format is unchanged:** calendar days are `'YYYY-MM-DD'` strings and months are `'YYYY-MM'`, in SQLite, the stores and backups. Timestamps stay `new Date().toISOString()`.
+- **`shared/dates.ts` is the boundary.** `parseDay` / `toDay` (and `parseMonth` / `toMonth`) convert between those strings and `Date`. In between, use date-fns: `addMonths`, `differenceInCalendarDays`, `startOfMonth`, `format`, and so on. `todayString`, `addDays`, `previousDay`, `daysBetween`, `shiftMonth` and `monthKeyOf` cover the common string-to-string cases.
+- **What stays as strings:** comparing (`t.date < start`) and grouping by `monthKeyOf(t.date)`. The format sorts chronologically, and parsing every row in a hot loop gains nothing.
+- **Enforced by lint:** `.eslintrc.js` rejects the `Date` getters and setters (`getMonth`, `setDate`, `getFullYear`, …) and `toLocaleDateString`. date-fns `format` uses its own English locale data, so labels match on Hermes Android and iOS.
+
 ## Commands
 
 ```bash
@@ -109,6 +118,7 @@ features/recurring/dateUtils.test.ts
 features/recurring/recurringUtils.test.ts
 features/recurring/useRecurringStore.test.ts
 features/settings/exportData.test.ts
+features/settings/monefy/index.test.ts
 features/settings/useSettingsStore.test.ts
 features/settings/validation.test.ts
 features/statements/statementData.test.ts
@@ -118,6 +128,8 @@ features/transactions/useCategoriesStore.test.ts
 features/transactions/useTransactionsStore.test.ts
 features/transfers/transferSide.test.ts
 features/transfers/useTransfersStore.test.ts
+shared/dates.test.ts
+shared/periodUtils.test.ts
 shared/saveToExportFolder.test.ts
 shared/store/useUIStore.test.ts
 ```
@@ -134,6 +146,7 @@ shared/store/useUIStore.test.ts
 - **react-native-calendars** — cross-platform date picker (shared `DatePickerField` component)
 - **react-native-gifted-charts** — charts on the dashboard
 - **Zustand** — global state management
+- **date-fns** — all date arithmetic, parsing and formatting (see [Dates](#dates))
 - **pnpm** — package manager
 - **TypeScript** throughout
 
@@ -178,7 +191,7 @@ features/                             # Feature modules (screens + logic co-loca
     useRecurringStore.ts              # Zustand store
     useRecurringStore.test.ts
     useRecurringCheck.ts              # AppState-based auto-generation trigger (mirrors useAutoBackup pattern)
-    dateUtils.ts                      # advanceDate() — date math for recurring schedules with month-end clamping, anchored to the start date's day; addDays, daysBetween
+    dateUtils.ts                      # advanceDate() — steps a recurring schedule; months counted from the start date via date-fns addMonths, so the 31st clamps and comes back
     dateUtils.test.ts
     recurringUtils.ts                 # getRecurringItemCurrency(), expandOccurrences() — future fire dates of recurring items
     recurringUtils.test.ts
@@ -201,7 +214,7 @@ features/                             # Feature modules (screens + logic co-loca
     CashForecastChart.tsx             # Dashboard carousel page: cash balance 90 days back + projected 90 days ahead (dashed)
     CashflowTrendChart.tsx            # Dashboard carousel page: income vs expense bars per month, avg saved, savings rate
     useCashflowTrend.ts               # Monthly rows + summary for the trend page; null when there is nothing to show
-    forecastUtils.ts                  # scopeDelta, dailyTrend, balanceForecast, monthlyCashflow, cashflowSummary, shiftMonth, niceAxis
+    forecastUtils.ts                  # scopeDelta, dailyTrend, balanceForecast, monthlyCashflow, cashflowSummary, niceAxis
     forecastUtils.test.ts
   goals/
     GoalsListScreen.tsx               # Full-screen modal listing goals grouped by account (opened from Settings and the Dashboard card)
@@ -257,9 +270,13 @@ shared/                               # Cross-feature reusable code
     DashboardCard.tsx                 # Rounded card container for every Dashboard section (optionally pressable)
     useCarousel.ts                    # Horizontal paged carousel whose height follows the page in view
     CarouselDots.tsx                  # Tappable page dots for a useCarousel carousel
-    PeriodSelector.tsx                # Month/year period navigation
+    PeriodSelector.tsx                # Day/month/year period navigation (logic in shared/periodUtils.ts)
     CurrencyPicker.tsx                # Full-screen searchable currency picker (used by Settings, AccountFormSheet, BudgetFormSheet)
     Themed.tsx                        # Theme-aware Text/View wrappers
+  dates.ts                            # YYYY-MM-DD ↔ Date boundary + string helpers over date-fns (todayString, addDays, daysBetween, shiftMonth, monthKeyOf)
+  dates.test.ts
+  periodUtils.ts                      # PeriodMode, getDateRange, navigatePeriod (month/year land on the last day of the month; today when stepping into the current period), isCurrentPeriod, periodNavLabel, shortPeriodLabel
+  periodUtils.test.ts
   saveToExportFolder.ts               # Android: writes an export into the remembered SAF folder (Export Data + Export Statement)
   saveToExportFolder.test.ts
   store/
@@ -450,7 +467,7 @@ Automatic backups to Google Drive using the same JSON format as manual export.
 - **Auth**: `@react-native-google-signin/google-signin` with `drive.file` scope (only accesses files the app creates)
 - **API**: Plain `fetch()` to Google Drive REST API v3 — no heavy SDK
 - **Storage**: Single file (`its-a-my-money-backup.json`) in a dedicated folder (`It's a My Money! Backups`), overwritten each backup
-- **Trigger**: `useAutoBackup` hook listens to `AppState` changes. When the app comes to foreground and the chosen interval (daily/weekly/monthly) has elapsed, it triggers a backup
+- **Trigger**: `useAutoBackup` hook listens to `AppState` changes. When the app comes to foreground and the chosen interval has elapsed (a day, a week, or a calendar month — `isBackupDue` in `backupSchedule.ts`), it triggers a backup
 - **Notifications**: `expo-notifications` shows local notifications for backup start/completion
 - **State**: `useBackupStore` (Zustand) holds backup state; persisted in SQLite `settings` table as key-value pairs
 - **UI**: `GoogleDriveSection` component in Settings — connect/disconnect, frequency picker, backup now, last backup time

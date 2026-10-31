@@ -9,7 +9,7 @@ import AccountIcon from '@/shared/components/AccountIcon';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import { goalProgress, goalStatusColor, isActiveGoal, targetDateLabel } from './goalUtils';
 import type { GoalWithDetails } from '@/types';
 

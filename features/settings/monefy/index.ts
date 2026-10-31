@@ -11,8 +11,10 @@
  *   We use only the "To" rows to build transfers and skip the "From" rows.
  */
 
+import { isValid, parse } from 'date-fns';
 import type { Account, Category, Transaction, Transfer } from '@/types';
 import type { ExportData } from '@/db';
+import { toDay } from '@/shared/dates';
 
 // ─── CSV parsing ──────────────────────────────────────────────────────────────
 
@@ -47,11 +49,9 @@ function parseAmount(raw: string): number {
 }
 
 /** Convert DD/MM/YYYY to YYYY-MM-DD. */
-function convertDate(ddmmyyyy: string): string {
-  const parts = ddmmyyyy.split('/');
-  if (parts.length !== 3) return ddmmyyyy;
-  const [dd, mm, yyyy] = parts;
-  return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+export function convertDate(ddmmyyyy: string): string {
+  const date = parse(ddmmyyyy, 'd/M/yyyy', new Date());
+  return isValid(date) ? toDay(date) : ddmmyyyy;
 }
 
 // ─── Category metadata ────────────────────────────────────────────────────────

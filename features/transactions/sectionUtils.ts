@@ -1,5 +1,7 @@
 import type { TransactionWithDetails, TransferWithDetails } from '@/types';
+import { formatDate, type DateFormatId } from '@/constants/dateFormats';
 import { getTransferSide } from '@/features/transfers/transferSide';
+import { previousDay, todayString } from '@/shared/dates';
 
 export type TransactionListItem =
   | { kind: 'tx'; item: TransactionWithDetails }
@@ -53,4 +55,11 @@ export function getSectionCurrencySummary(
   }
 
   return rollUpByCurrency(rows);
+}
+
+/** "Today", "Yesterday", or the day in the user's date format. */
+export function formatDateHeader(day: string, dateFormat: DateFormatId, today: string = todayString()): string {
+  if (day === today) return 'Today';
+  if (day === previousDay(today)) return 'Yesterday';
+  return formatDate(day, dateFormat);
 }

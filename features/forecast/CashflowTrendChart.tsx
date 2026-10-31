@@ -4,7 +4,7 @@ import { Text } from '@/shared/components/Themed';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount, formatCompact } from '@/constants/currencies';
-import { niceAxis } from './forecastUtils';
+import { monthLabel, niceAxis } from './forecastUtils';
 import type { CashflowTrend } from './useCashflowTrend';
 
 interface Props {
@@ -39,12 +39,6 @@ function StackedBar({ width, base, top, baseColor, topColor }: StackedBarProps) 
       <View style={{ height: base, backgroundColor: baseColor }} />
     </View>
   );
-}
-
-function monthName(month: string, style: 'short' | 'long'): string {
-  const [y, m] = month.split('-').map(Number);
-  const opts: Intl.DateTimeFormatOptions = style === 'short' ? { month: 'short' } : { month: 'long', year: 'numeric' };
-  return new Date(y, m - 1, 1).toLocaleDateString('en-US', opts);
 }
 
 export default function CashflowTrendChart({ trend, currency, width }: Props) {
@@ -96,7 +90,7 @@ export default function CashflowTrendChart({ trend, currency, width }: Props) {
               style={styles.group}
               onPress={() => toggle(r.month)}
               accessibilityRole="button"
-              accessibilityLabel={`${monthName(r.month, 'long')}: in ${formatAmount(r.income, currency, undefined, numberFormat)}, out ${formatAmount(r.expense, currency, undefined, numberFormat)}${hasTransfers ? `, transfers in ${formatAmount(r.transferIn, currency, undefined, numberFormat)}, transfers out ${formatAmount(r.transferOut, currency, undefined, numberFormat)}` : ''}`}
+              accessibilityLabel={`${monthLabel(r.month, 'long')}: in ${formatAmount(r.income, currency, undefined, numberFormat)}, out ${formatAmount(r.expense, currency, undefined, numberFormat)}${hasTransfers ? `, transfers in ${formatAmount(r.transferIn, currency, undefined, numberFormat)}, transfers out ${formatAmount(r.transferOut, currency, undefined, numberFormat)}` : ''}`}
             >
               <StackedBar
                 width={barWidth}
@@ -123,7 +117,7 @@ export default function CashflowTrendChart({ trend, currency, width }: Props) {
             style={[styles.monthLabel, { color: selected?.month === r.month ? textColor : subColor }]}
             numberOfLines={1}
           >
-            {monthName(r.month, 'short')}
+            {monthLabel(r.month, 'short')}
           </Text>
         ))}
       </View>
@@ -139,7 +133,7 @@ export default function CashflowTrendChart({ trend, currency, width }: Props) {
       )}
 
       <View style={[styles.detail, { borderTopColor: borderColor }]}>
-        <Text style={[styles.detailMonth, { color: textColor }]}>{monthName(detail.month, 'long')}</Text>
+        <Text style={[styles.detailMonth, { color: textColor }]}>{monthLabel(detail.month, 'long')}</Text>
         <View style={styles.detailRow}>
           <Text style={[styles.detailLabel, { color: subColor }]}>In</Text>
           <Text style={[styles.detailValue, { color: INCOME_COLOR }]}>
