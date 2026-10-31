@@ -30,7 +30,7 @@ import { useTransactionsStore } from '@/features/transactions/useTransactionsSto
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { Snackbar } from 'react-native-snackbar';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import { getCurrencySymbol } from '@/constants/currencies';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';

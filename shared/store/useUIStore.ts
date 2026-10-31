@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PeriodMode } from '@/shared/components/PeriodSelector';
+import type { PeriodMode } from '@/shared/periodUtils';
 
 interface UIState {
   isAddTxOpen: boolean;

@@ -25,11 +25,7 @@ import AccountIcon from '@/shared/components/AccountIcon';
 import DashboardCard from '@/shared/components/DashboardCard';
 import CarouselDots from '@/shared/components/CarouselDots';
 import { useCarousel } from '@/shared/components/useCarousel';
-import {
-  getDateRange,
-  shortPeriodLabel,
-  periodNavLabel,
-} from '@/shared/components/PeriodSelector';
+import { getDateRange, shortPeriodLabel, periodNavLabel } from '@/shared/periodUtils';
 import { useAccountsDb, useTransactionsDb, useTransfersDb, useBudgetsDb, useGoalsDb, useRecurringDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { getAccountCurrency } from '@/features/accounts/currencyUtils';
@@ -48,7 +44,7 @@ import { useRecurringStore } from '@/features/recurring/useRecurringStore';
 import CashForecastChart from '@/features/forecast/CashForecastChart';
 import CashflowTrendChart from '@/features/forecast/CashflowTrendChart';
 import { useCashflowTrend } from '@/features/forecast/useCashflowTrend';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';

@@ -16,10 +16,7 @@ import AccountIcon from '@/shared/components/AccountIcon';
 import DeleteModal from '@/shared/components/DeleteModal';
 import CarouselDots from '@/shared/components/CarouselDots';
 import { useCarousel } from '@/shared/components/useCarousel';
-import {
-  getDateRange,
-  periodNavLabel,
-} from '@/shared/components/PeriodSelector';
+import { getDateRange, periodNavLabel } from '@/shared/periodUtils';
 import { useAccountsDb, useTransactionsDb, useTransfersDb, useRecurringDb, useGoalsDb } from '@/db';
 import { useGoalsStore } from '@/features/goals/useGoalsStore';
 import { reservedAcross, reservedByAccount } from '@/features/goals/goalUtils';
@@ -29,7 +26,7 @@ import { useReloadGoals } from '@/features/goals/useReloadGoals';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';

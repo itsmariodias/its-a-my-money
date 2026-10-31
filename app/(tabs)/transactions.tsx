@@ -1,19 +1,18 @@
 import { formatAmount } from '@/constants/currencies';
-import { formatDate, type DateFormatId } from '@/constants/dateFormats';
+import { formatDate } from '@/constants/dateFormats';
 import { useAccountsDb, useTransactionsDb, useTransfersDb } from '@/db';
 import { useReloadGoals } from '@/features/goals/useReloadGoals';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { getAccountCurrency } from '@/features/accounts/currencyUtils';
-import { previousDay, todayString } from '@/features/recurring/dateUtils';
 import { getTransferSide } from '@/features/transfers/transferSide';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import AddTransactionSheet from '@/features/transactions/AddTransactionSheet';
-import { getSectionAmountColor, getSectionCurrencySummary, netInCurrency, rollUpByCurrency, type SectionCurrencySummary } from '@/features/transactions/sectionUtils';
+import { formatDateHeader, getSectionAmountColor, getSectionCurrencySummary, netInCurrency, rollUpByCurrency, type SectionCurrencySummary } from '@/features/transactions/sectionUtils';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import TransferSheet from '@/features/transfers/TransferSheet';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import DeleteModal from '@/shared/components/DeleteModal';
-import { getDateRange } from '@/shared/components/PeriodSelector';
+import { getDateRange } from '@/shared/periodUtils';
 import { Text } from '@/shared/components/Themed';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useUIStore } from '@/shared/store/useUIStore';
@@ -32,12 +31,6 @@ import {
 import { Snackbar } from 'react-native-snackbar';
 
 
-function formatDateHeader(d: string, dateFormat: DateFormatId): string {
-  const todayStr = todayString();
-  if (d === todayStr) return 'Today';
-  if (d === previousDay(todayStr)) return 'Yesterday';
-  return formatDate(d, dateFormat);
-}
 
 // ─── DeleteTxModal ─────────────────────────────────────────────────────────
 

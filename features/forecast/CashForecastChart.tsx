@@ -7,11 +7,11 @@ import { useTransactionsStore } from '@/features/transactions/useTransactionsSto
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
 import { useRecurringStore } from '@/features/recurring/useRecurringStore';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import { formatAmount, formatCompact } from '@/constants/currencies';
 import { formatDate } from '@/constants/dateFormats';
 import type { Account } from '@/types';
-import { balanceForecast, niceAxis } from './forecastUtils';
+import { balanceForecast, niceAxis, shortDayLabel } from './forecastUtils';
 
 interface Props {
   /** Cash accounts in the dashboard's scope — all one currency. Not empty. */
@@ -23,11 +23,6 @@ interface Props {
 
 const CHART_HEIGHT = 120;
 const Y_AXIS_WIDTH = 40;
-
-function shortDate(date: string): string {
-  const [y, m, d] = date.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
 
 export default function CashForecastChart({ accounts, currency, width }: Props) {
   const transactions = useTransactionsStore((s) => s.transactions);
@@ -124,11 +119,11 @@ export default function CashForecastChart({ accounts, currency, width }: Props) 
       </View>
 
       <View style={styles.axisRow}>
-        <Text style={[styles.axisLabel, { color: subColor }]}>{shortDate(points[0].date)}</Text>
+        <Text style={[styles.axisLabel, { color: subColor }]}>{shortDayLabel(points[0].date)}</Text>
         <Text style={[styles.axisLabel, { color: textColor }]}>
           Today · {formatAmount(todayValue, currency, undefined, numberFormat)}
         </Text>
-        <Text style={[styles.axisLabel, { color: subColor }]}>{shortDate(points[points.length - 1].date)}</Text>
+        <Text style={[styles.axisLabel, { color: subColor }]}>{shortDayLabel(points[points.length - 1].date)}</Text>
       </View>
 
       <Text style={[styles.footnote, { color: subColor }]}>

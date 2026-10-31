@@ -29,7 +29,7 @@ import { saveToExportFolder } from '@/shared/saveToExportFolder';
 import { useSettingsDb } from '@/db';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import { STATEMENT_PRESETS, buildStatement, defaultStatementRange } from './statementData';
 import { exportStatementPdf } from './exportStatementPdf';
 

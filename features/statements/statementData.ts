@@ -1,7 +1,8 @@
+import { addDays, endOfYear, startOfMonth, startOfYear, subYears } from 'date-fns';
 import type { Account, TransactionWithDetails, TransferWithDetails } from '@/types';
 import { accountFlowAsOf } from '@/features/accounts/balanceUtils';
 import { getTransferSide } from '@/features/transfers/transferSide';
-import { toISODate } from '@/features/recurring/dateUtils';
+import { toDay } from '@/shared/dates';
 
 export interface StatementRange {
   start: string;
@@ -10,11 +11,8 @@ export interface StatementRange {
 
 /** The 12 months ending today: from the day after this date last year, through today. */
 export function defaultStatementRange(today: Date = new Date()): StatementRange {
-  const y = today.getFullYear() - 1;
-  const m = today.getMonth();
-  // Clamp so 29 Feb starts on 1 Mar of the year before, not 2 Mar.
-  const lastDay = new Date(y, m + 1, 0).getDate();
-  return { start: toISODate(new Date(y, m, Math.min(today.getDate(), lastDay) + 1)), end: toISODate(today) };
+  // subYears clamps 29 Feb to 28 Feb, so the range starts on 1 Mar of the year before.
+  return { start: toDay(addDays(subYears(today, 1), 1)), end: toDay(today) };
 }
 
 export const STATEMENT_PRESETS: { id: string; label: string; range: (today: Date) => StatementRange }[] = [
@@ -22,17 +20,17 @@ export const STATEMENT_PRESETS: { id: string; label: string; range: (today: Date
   {
     id: 'this-month',
     label: 'This month',
-    range: (today) => ({ start: toISODate(new Date(today.getFullYear(), today.getMonth(), 1)), end: toISODate(today) }),
+    range: (today) => ({ start: toDay(startOfMonth(today)), end: toDay(today) }),
   },
   {
     id: 'this-year',
     label: 'This year',
-    range: (today) => ({ start: `${today.getFullYear()}-01-01`, end: toISODate(today) }),
+    range: (today) => ({ start: toDay(startOfYear(today)), end: toDay(today) }),
   },
   {
     id: 'last-year',
     label: 'Last year',
-    range: (today) => ({ start: `${today.getFullYear() - 1}-01-01`, end: `${today.getFullYear() - 1}-12-31` }),
+    range: (today) => ({ start: toDay(startOfYear(subYears(today, 1))), end: toDay(endOfYear(subYears(today, 1))) }),
   },
 ];
 

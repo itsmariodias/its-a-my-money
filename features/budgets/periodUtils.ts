@@ -1,29 +1,14 @@
+import { endOfMonth, endOfWeek, endOfYear, startOfMonth, startOfWeek, startOfYear } from 'date-fns';
 import type { BudgetPeriod, Transaction } from '@/types';
+import { toDay } from '@/shared/dates';
 
-function toISO(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+/** ISO week: Monday to Sunday. */
+const WEEK = { weekStartsOn: 1 } as const;
 
 export function currentPeriodRange(period: BudgetPeriod, today: Date = new Date()): { start: string; end: string } {
-  if (period === 'weekly') {
-    const day = today.getDay(); // 0 = Sunday, 1 = Monday, ... 6 = Saturday
-    const offsetFromMonday = day === 0 ? 6 : day - 1;
-    const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offsetFromMonday);
-    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
-    return { start: toISO(monday), end: toISO(sunday) };
-  }
-  if (period === 'monthly') {
-    const first = new Date(today.getFullYear(), today.getMonth(), 1);
-    const last = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    return { start: toISO(first), end: toISO(last) };
-  }
-  // yearly
-  const first = new Date(today.getFullYear(), 0, 1);
-  const last = new Date(today.getFullYear(), 11, 31);
-  return { start: toISO(first), end: toISO(last) };
+  if (period === 'weekly') return { start: toDay(startOfWeek(today, WEEK)), end: toDay(endOfWeek(today, WEEK)) };
+  if (period === 'monthly') return { start: toDay(startOfMonth(today)), end: toDay(endOfMonth(today)) };
+  return { start: toDay(startOfYear(today)), end: toDay(endOfYear(today)) };
 }
 
 export function spentInRange(

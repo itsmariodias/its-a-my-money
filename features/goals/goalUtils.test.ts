@@ -308,6 +308,14 @@ describe('targetDateLabel', () => {
     expect(targetDateLabel('2026-10-01', '2026-06-01')).toBe('4 months left');
   });
 
+  it('counts whole calendar months', () => {
+    // Given a deadline 45 days out, and one 30 days out that is still inside the month
+    // When labelling them
+    // Then only completed months count
+    expect(targetDateLabel('2026-07-16', '2026-06-01')).toBe('1 month left');
+    expect(targetDateLabel('2026-07-31', '2026-07-01')).toBe('30 days left');
+  });
+
   it('says overdue once the date has passed', () => {
     // Given yesterday's deadline
     // When labelling it

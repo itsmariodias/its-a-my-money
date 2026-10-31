@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { parseISO } from 'date-fns';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Text } from '@/shared/components/Themed';
 import InfoModal from '@/shared/components/InfoModal';
@@ -15,6 +16,7 @@ import { useSettingsDb } from '@/db';
 import { useBackupStore, initialBackupState } from './useBackupStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import type { BackupFrequency } from './useBackupStore';
+import { formatRelativeTime } from './backupSchedule';
 import { signIn, signOut, getAccessToken, ensureBackupFolder, findBackupFile, uploadBackup, downloadBackup } from './googleDrive';
 import { isValidExport } from '@/features/settings/validation';
 import type { ExportData } from '@/db';
@@ -22,26 +24,14 @@ import type { ExportJson } from '@/features/settings/exportData';
 import { generateExportJson } from '@/features/settings/exportData';
 import { requestNotificationPermission, notifyBackupStarted, dismissBackupNotification } from './notifications';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
-import { formatDate, type DateFormatId } from '@/constants/dateFormats';
+import { formatDate } from '@/constants/dateFormats';
+import { toDay } from '@/shared/dates';
 
 const FREQUENCY_OPTIONS: { value: BackupFrequency; label: string }[] = [
   { value: 'daily', label: 'Daily' },
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' },
 ];
-
-function formatRelativeTime(isoDate: string | null, dateFormat: DateFormatId): string {
-  if (!isoDate) return 'Never';
-  const diff = Date.now() - new Date(isoDate).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return formatDate(isoDate.split('T')[0], dateFormat);
-}
 
 interface Props {
   isDark: boolean;
@@ -362,7 +352,7 @@ export default function GoogleDriveSection({
             <Text style={[styles.modalTitle, { color: textColor }]}>Backup Found</Text>
             <Text style={[styles.restoreMessage, { color: subColor }]}>
               {pendingRestoreData
-                ? `A backup from ${formatDate(pendingRestoreData.exported_at.split('T')[0], dateFormat)} was found in your Google Drive. Would you like to restore it now?\n\nThis will replace all current app data.`
+                ? `A backup from ${formatDate(toDay(parseISO(pendingRestoreData.exported_at)), dateFormat)} was found in your Google Drive. Would you like to restore it now?\n\nThis will replace all current app data.`
                 : ''}
             </Text>
             <TouchableOpacity

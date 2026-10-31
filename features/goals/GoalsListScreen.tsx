@@ -18,7 +18,7 @@ import AccountIcon from '@/shared/components/AccountIcon';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import GoalFormSheet from './GoalFormSheet';
 import { goalProgress, goalStatusColor, isActiveGoal, reservedByAccount, targetDateLabel } from './goalUtils';
 import GoalPaceHint from './GoalPaceHint';

@@ -3,7 +3,7 @@ import { Text } from '@/shared/components/Themed';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { formatAmount } from '@/constants/currencies';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import { isActiveGoal, monthlyNeeded } from './goalUtils';
 import type { GoalWithDetails } from '@/types';
 

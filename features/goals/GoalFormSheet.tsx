@@ -28,7 +28,7 @@ import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import { Snackbar } from 'react-native-snackbar';
 import { requestNotificationPermission } from '@/features/backup/notifications';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import GoalMoveSheet from './GoalMoveSheet';
 import GoalPaceHint from './GoalPaceHint';
 import { goalProgress, isActiveGoal, type GoalMoveDirection } from './goalUtils';

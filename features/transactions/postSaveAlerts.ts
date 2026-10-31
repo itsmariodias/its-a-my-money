@@ -6,7 +6,7 @@ import { findOverspentAccounts, findReachedGoals, notifyOverspentAccounts, notif
 import { useGoalsStore } from '@/features/goals/useGoalsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 
 /** What the threshold checks compare: the stores as they stood before and after a save. */
 export interface SaveSnapshot {

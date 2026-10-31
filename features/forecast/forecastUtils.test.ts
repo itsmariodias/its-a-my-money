@@ -4,10 +4,12 @@ import {
   balanceForecast,
   cashflowSummary,
   dailyTrend,
+  monthLabel,
   monthlyCashflow,
   niceAxis,
   scopeDelta,
-  shiftMonth,
+  shortDayLabel,
+  trendEndMonth,
 } from './forecastUtils';
 
 const account = (id: number, initial_balance = 0): Account => ({
@@ -186,14 +188,6 @@ describe('balanceForecast', () => {
   });
 });
 
-describe('shiftMonth', () => {
-  it('crosses year boundaries both ways', () => {
-    expect(shiftMonth('2026-01', -1)).toBe('2025-12');
-    expect(shiftMonth('2026-11', 3)).toBe('2027-02');
-    expect(shiftMonth('2026-06', -18)).toBe('2024-12');
-  });
-});
-
 describe('monthlyCashflow', () => {
   it('buckets income and expense by month, zero-filling quiet months', () => {
     // Given income in Aug and expenses in Oct, plus a row on an out-of-scope account
@@ -295,5 +289,35 @@ describe('niceAxis', () => {
 
   it('handles an all-zero series', () => {
     expect(niceAxis(0, 0)).toEqual({ min: 0, max: 1, step: 1, sections: 1 });
+  });
+});
+
+describe('shortDayLabel', () => {
+  it('labels a day as month and day', () => {
+    // Given the forecast's first and last points
+    // Then each reads as a short month and an unpadded day
+    expect(shortDayLabel('2026-10-31')).toBe('Oct 31');
+    expect(shortDayLabel('2027-01-05')).toBe('Jan 5');
+  });
+});
+
+describe('monthLabel', () => {
+  it('uses the short month under a bar and the full month with the year elsewhere', () => {
+    expect(monthLabel('2026-10', 'short')).toBe('Oct');
+    expect(monthLabel('2026-10', 'long')).toBe('October 2026');
+    expect(monthLabel('2027-01', 'long')).toBe('January 2027');
+  });
+});
+
+describe('trendEndMonth', () => {
+  it('ends on the selected month in day and month mode', () => {
+    // Given the 31st selected
+    // Then the month is that month, not the next one
+    expect(trendEndMonth('month', new Date(2026, 9, 31))).toBe('2026-10');
+    expect(trendEndMonth('day', new Date(2026, 0, 31))).toBe('2026-01');
+  });
+
+  it('ends on December in year mode', () => {
+    expect(trendEndMonth('year', new Date(2026, 2, 15))).toBe('2026-12');
   });
 });

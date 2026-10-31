@@ -28,7 +28,8 @@ import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
 import { Snackbar } from 'react-native-snackbar';
 import type { Category, RecurringFrequency, RecurringKind, RecurringTransactionWithDetails } from '@/types';
-import { advanceDate, todayString } from './dateUtils';
+import { todayString } from '@/shared/dates';
+import { advanceDate } from './dateUtils';
 import SheetFooter from '@/shared/components/SheetFooter';
 
 const CATEGORY_GRID_3_ROWS = 230;

@@ -1,5 +1,6 @@
 import type { TransactionWithDetails, TransferWithDetails } from '@/types';
 import {
+  formatDateHeader,
   getSectionAmountColor,
   getSectionCurrencySummary,
   netInCurrency,
@@ -167,5 +168,27 @@ describe('netInCurrency', () => {
     // When asking for euros
     // Then it sorts as zero rather than dropping out
     expect(netInCurrency(totals, 'EUR')).toBe(0);
+  });
+});
+
+describe('formatDateHeader', () => {
+  const TODAY = '2026-11-01';
+
+  it('names today and yesterday', () => {
+    // Given Nov 1 as today
+    // Then Nov 1 is Today and Oct 31 — across the month boundary — is Yesterday
+    expect(formatDateHeader('2026-11-01', 'DD/MM/YYYY', TODAY)).toBe('Today');
+    expect(formatDateHeader('2026-10-31', 'DD/MM/YYYY', TODAY)).toBe('Yesterday');
+  });
+
+  it('names yesterday across a year boundary', () => {
+    expect(formatDateHeader('2025-12-31', 'DD/MM/YYYY', '2026-01-01')).toBe('Yesterday');
+  });
+
+  it('shows other days in the user\'s date format', () => {
+    // Given a day two days back, and a future-dated entry
+    // Then both are plain dates
+    expect(formatDateHeader('2026-10-30', 'DD MMM YYYY', TODAY)).toBe('30 Oct 2026');
+    expect(formatDateHeader('2026-11-02', 'MM/DD/YYYY', TODAY)).toBe('11/02/2026');
   });
 });

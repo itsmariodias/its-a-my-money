@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useSettingsDb } from '@/db';
-import { advanceDate, todayString } from './dateUtils';
+import { todayString } from '@/shared/dates';
+import { advanceDate } from './dateUtils';
 import type { RecurringFrequency, RecurringKind } from '@/types';
 
 export function useRecurringCheck() {

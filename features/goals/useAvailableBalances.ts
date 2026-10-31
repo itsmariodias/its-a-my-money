@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
-import { todayString } from '@/features/recurring/dateUtils';
+import { todayString } from '@/shared/dates';
 import { useGoalsStore } from './useGoalsStore';
 import { availableAsOf } from './goalUtils';
 
