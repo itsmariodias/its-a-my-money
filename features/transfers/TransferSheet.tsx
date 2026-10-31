@@ -16,11 +16,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import DatePickerField from '@/shared/components/DatePickerField';
 import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
-import AccountIcon from '@/shared/components/AccountIcon';
+import AccountCardPicker from '@/shared/components/AccountCardPicker';
 import { useTransfersDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
 import { getAccountCurrency } from '@/features/accounts/currencyUtils';
 import { useTransfersStore } from '@/features/transfers/useTransfersStore';
+import { notifyThresholdsCrossed, takeSaveSnapshot } from '@/features/transactions/postSaveAlerts';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useUIStore } from '@/shared/store/useUIStore';
 import { Snackbar } from 'react-native-snackbar';
@@ -30,6 +31,7 @@ import { useAppTheme } from '@/shared/components/useAppTheme';
 import { todayString } from '@/features/recurring/dateUtils';
 import { sheetStyles } from '@/constants/sheetStyles';
 import type { TransferWithDetails } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -91,7 +93,6 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, transfer]);
 
-
   const saveTransfer = useCallback(async (parsedAmount: number, parsedToAmount: number | null) => {
     if (transfer) {
       await transfersDb.update(transfer.id, {
@@ -134,21 +135,25 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     const parsed = parseAmounts();
     if (!parsed || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
+      const before = takeSaveSnapshot();
       await saveTransfer(parsed[0], parsed[1]);
+      notifyThresholdsCrossed(before, takeSaveSnapshot(), accounts);
       Snackbar.show({ text: transfer ? 'Transfer updated' : 'Transfer saved', duration: Snackbar.LENGTH_SHORT });
       triggerCloseRef.current();
     } catch {
       setErrorModal('Failed to save transfer.');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer]);
+  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer, accounts]);
 
   const handleSaveAndContinue = useCallback(async () => {
     setAttempted(true);
     const parsed = parseAmounts();
     if (!parsed || !fromAccountId || !toAccountId || fromAccountId === toAccountId) return;
     try {
+      const before = takeSaveSnapshot();
       await saveTransfer(parsed[0], parsed[1]);
+      notifyThresholdsCrossed(before, takeSaveSnapshot(), accounts);
       Snackbar.show({ text: transfer ? 'Transfer updated' : 'Transfer saved', duration: Snackbar.LENGTH_SHORT });
       setAmount('');
       setToAmount('');
@@ -158,11 +163,14 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
       setErrorModal('Failed to save transfer.');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer]);
+  }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer, accounts]);
 
-  const { isDark, accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
+  const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(600)).current;
+  // Focused once the sheet has settled. autoFocus fires on mount, before an Android Modal's
+  // window has focus, and the keyboard request is dropped.
+  const focusOnOpenRef = useRef<TextInput>(null);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -171,7 +179,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     if (isOpen) {
       sheetTranslateY.setValue(600);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start(({ finished }) => { if (finished && !transfer) focusOnOpenRef.current?.focus(); });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -207,7 +215,6 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
     },
     onPanResponderTerminate: () => snapBack(),
   })).current;
-
 
   return (
     <>
@@ -258,7 +265,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
                 placeholderTextColor={subTextColor}
                 keyboardType="decimal-pad"
                 returnKeyType="done"
-                autoFocus={!transfer}
+                ref={focusOnOpenRef}
               />
             </View>
             {attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) && (
@@ -289,93 +296,33 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
 
             {/* From account */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>From</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
-              {accounts.map((acc) => {
-                const isSelected = fromAccountId === acc.id;
-                const accentBg = acc.color ?? '#55A3FF';
-                return (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={[
-                      styles.accountCard,
-                      {
-                        backgroundColor: isSelected ? accentBg + '18' : inputBg,
-                        borderColor: isSelected ? accentBg : borderColor,
-                        borderWidth: isSelected ? 2 : 1,
-                      },
-                    ]}
-                    onPress={() => {
-                      if (acc.id === toAccountId) {
-                        setToAccountId(fromAccountId);
-                        setFromAccountId(acc.id);
-                      } else {
-                        setFromAccountId(acc.id);
-                      }
-                    }}
-                    activeOpacity={0.7}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: isSelected }}
-                  >
-                    <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
-                      <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
-                    </View>
-                    <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
-                      {acc.name}
-                    </Text>
-                    {isSelected && (
-                      <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
-                        <MaterialIcons name="check" size={10} color="#fff" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <AccountCardPicker
+              accounts={accounts}
+              selectedId={fromAccountId}
+              onSelect={(id) => {
+                if (id === toAccountId) {
+                  setToAccountId(fromAccountId);
+                  setFromAccountId(id);
+                } else {
+                  setFromAccountId(id);
+                }
+              }}
+            />
 
             {/* To account */}
             <Text style={[styles.sectionLabel, { color: subTextColor }]}>To</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
-              {accounts.map((acc) => {
-                const isSelected = toAccountId === acc.id;
-                const accentBg = acc.color ?? '#55A3FF';
-                return (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={[
-                      styles.accountCard,
-                      {
-                        backgroundColor: isSelected ? accentBg + '18' : inputBg,
-                        borderColor: isSelected ? accentBg : borderColor,
-                        borderWidth: isSelected ? 2 : 1,
-                      },
-                    ]}
-                    onPress={() => {
-                      if (acc.id === fromAccountId) {
-                        setFromAccountId(toAccountId);
-                        setToAccountId(acc.id);
-                      } else {
-                        setToAccountId(acc.id);
-                      }
-                    }}
-                    activeOpacity={0.7}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: isSelected }}
-                  >
-                    <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
-                      <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
-                    </View>
-                    <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
-                      {acc.name}
-                    </Text>
-                    {isSelected && (
-                      <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
-                        <MaterialIcons name="check" size={10} color="#fff" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <AccountCardPicker
+              accounts={accounts}
+              selectedId={toAccountId}
+              onSelect={(id) => {
+                if (id === fromAccountId) {
+                  setFromAccountId(toAccountId);
+                  setToAccountId(id);
+                } else {
+                  setToAccountId(id);
+                }
+              }}
+            />
             {attempted && fromAccountId === toAccountId && (
               <Text style={styles.errorText}>From and To accounts must be different</Text>
             )}
@@ -395,22 +342,16 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
               returnKeyType="done"
             />
 
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-              <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                {transfer ? 'Save Changes' : 'Save Transfer'}
-              </Text>
-            </TouchableOpacity>
-            {!transfer && (
-              <TouchableOpacity style={[styles.saveAndContinueBtn, { borderColor: accentColor }]} onPress={handleSaveAndContinue} accessibilityRole="button">
-                <Text style={[styles.saveAndContinueBtnText, { color: accentColor }]}>Save & Add Another</Text>
-              </TouchableOpacity>
-            )}
             {transfer && onDelete && (
               <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button" accessibilityHint="Double tap to permanently delete. This cannot be undone.">
                 <Text style={styles.deleteBtnText}>Delete Transfer</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
+          <SheetFooter
+            primary={{ label: transfer ? 'Save Changes' : 'Save Transfer', onPress: handleSave }}
+            secondary={transfer ? null : { label: 'Save & Add Another', onPress: handleSaveAndContinue }}
+          />
         </Animated.View>
       </View>
     </Modal>

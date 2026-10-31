@@ -15,7 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import DatePickerField from '@/shared/components/DatePickerField';
 import InfoModal from '@/shared/components/InfoModal';
 import { Text } from '@/shared/components/Themed';
-import AccountIcon from '@/shared/components/AccountIcon';
+import AccountCardPicker from '@/shared/components/AccountCardPicker';
 import { useRecurringDb } from '@/db';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
@@ -29,6 +29,7 @@ import { sheetStyles } from '@/constants/sheetStyles';
 import { Snackbar } from 'react-native-snackbar';
 import type { Category, RecurringFrequency, RecurringKind, RecurringTransactionWithDetails } from '@/types';
 import { advanceDate, todayString } from './dateUtils';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const CATEGORY_GRID_3_ROWS = 230;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -160,7 +161,7 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
             type === 'income' ? parsedAmount : -parsedAmount, fromAccountId!
           );
         }
-        dueDate = advanceDate(dueDate, frequency);
+        dueDate = advanceDate(dueDate, frequency, startDate);
       }
       const isActive = endDate == null || dueDate <= endDate ? 1 : 0;
       await db.runAsync(
@@ -201,7 +202,7 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
         if (startDate !== recurring.start_date || frequency !== recurring.frequency) {
           const today = todayString();
           let d = startDate;
-          while (d <= today) d = advanceDate(d, frequency);
+          while (d <= today) d = advanceDate(d, frequency, startDate);
           nextDueDate = d;
         }
         await recurringDb.update(recurring.id, {
@@ -250,6 +251,9 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(600)).current;
+  // Focused once the sheet has settled. autoFocus fires on mount, before an Android Modal's
+  // window has focus, and the keyboard request is dropped.
+  const focusOnOpenRef = useRef<TextInput>(null);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -258,7 +262,7 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
     if (isOpen) {
       sheetTranslateY.setValue(600);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start(({ finished }) => { if (finished && !recurring) focusOnOpenRef.current?.focus(); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -291,34 +295,12 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
   })).current;
 
   const renderAccountList = (selectedId: number | null, onSelect: (id: number) => void, scrollRef: React.RefObject<ScrollView | null>, excludeId?: number | null) => (
-    <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll} contentContainerStyle={styles.accountScrollContent}>
-      {accounts.filter((a) => a.id !== excludeId).map((acc) => {
-        const isSelected = selectedId === acc.id;
-        const accentBg = acc.color ?? '#55A3FF';
-        return (
-          <TouchableOpacity
-            key={acc.id}
-            style={[styles.accountCard, { backgroundColor: isSelected ? accentBg + '18' : inputBg, borderColor: isSelected ? accentBg : borderColor, borderWidth: isSelected ? 2 : 1 }]}
-            onPress={() => onSelect(acc.id)}
-            activeOpacity={0.7}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: isSelected }}
-          >
-            <View style={[styles.accountCardIcon, { backgroundColor: accentBg }]}>
-              <AccountIcon name={acc.icon ?? 'account-balance-wallet'} size={20} color="#fff" />
-            </View>
-            <Text style={[styles.accountCardName, { color: isSelected ? accentBg : textColor }]} numberOfLines={1}>
-              {acc.name}
-            </Text>
-            {isSelected && (
-              <View style={[styles.accountCardCheck, { backgroundColor: accentBg }]}>
-                <MaterialIcons name="check" size={10} color="#fff" />
-              </View>
-            )}
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
+    <AccountCardPicker
+      accounts={accounts.filter((a) => a.id !== excludeId)}
+      selectedId={selectedId}
+      onSelect={onSelect}
+      scrollRef={scrollRef}
+    />
   );
 
   return (
@@ -377,7 +359,7 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
                   placeholderTextColor={subTextColor}
                   keyboardType="decimal-pad"
                   returnKeyType="done"
-                  autoFocus={!recurring}
+                  ref={focusOnOpenRef}
                 />
               </View>
               {attempted && (!parseFloat(amount) || parseFloat(amount) <= 0) && (
@@ -539,18 +521,15 @@ export default function RecurringFormSheet({ isOpen, onClose, recurring = null, 
                 returnKeyType="done"
               />
 
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-                <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                  {recurring ? 'Save Changes' : 'Save Recurring'}
-                </Text>
-              </TouchableOpacity>
-
               {recurring && onDelete && (
                 <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button">
                   <Text style={styles.deleteBtnText}>Delete Recurring</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
+            <SheetFooter
+              primary={{ label: recurring ? 'Save Changes' : 'Save Recurring', onPress: handleSave }}
+            />
           </Animated.View>
         </View>
       </Modal>

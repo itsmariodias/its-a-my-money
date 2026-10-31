@@ -22,16 +22,7 @@ import { formatAmount } from '@/constants/currencies';
 import BudgetFormSheet from './BudgetFormSheet';
 import { currentPeriodRange, spentInRange, periodLabel } from './periodUtils';
 import type { BudgetWithDetails } from '@/types';
-
-const STATUS_GREEN = '#4CAF50';
-const STATUS_AMBER = '#FFC107';
-const STATUS_RED = '#F44336';
-
-function statusColor(pct: number): string {
-  if (pct >= 100) return STATUS_RED;
-  if (pct >= 80) return STATUS_AMBER;
-  return STATUS_GREEN;
-}
+import { budgetStatusColor } from './budgetStatus';
 
 interface Props {
   isOpen: boolean;
@@ -110,7 +101,7 @@ export default function BudgetsListScreen({ isOpen, onClose }: Props) {
       accountCurrencyById,
     });
     const pct = item.amount > 0 ? (spent / item.amount) * 100 : 0;
-    const color = statusColor(pct);
+    const color = budgetStatusColor(pct);
     const barPct = Math.min(100, pct);
     const isFirst = index === 0;
     const isLast = index === budgets.length - 1;

@@ -1,4 +1,4 @@
-import { formatAmount, getCurrencySymbol } from '@/constants/currencies';
+import { formatAmount, formatCompact, getCurrencySymbol } from '@/constants/currencies';
 
 describe('formatAmount', () => {
   it('should format an expense with minus sign and currency symbol', () => {
@@ -84,5 +84,17 @@ describe('getCurrencySymbol', () => {
     // When getCurrencySymbol is called
     // Then it should return "XYZ" as the fallback
     expect(getCurrencySymbol('XYZ')).toBe('XYZ');
+  });
+});
+
+describe('formatCompact', () => {
+  it('shortens thousands and millions, dropping a trailing .0', () => {
+    // Given chart axis values of different sizes
+    // Then each gets a short label
+    expect(formatCompact(950)).toBe('950');
+    expect(formatCompact(1200)).toBe('1.2k');
+    expect(formatCompact(2000)).toBe('2k');
+    expect(formatCompact(2_500_000)).toBe('2.5M');
+    expect(formatCompact(-1500)).toBe('-1.5k');
   });
 });

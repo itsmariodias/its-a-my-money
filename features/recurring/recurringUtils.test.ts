@@ -1,5 +1,5 @@
 import type { RecurringTransactionWithDetails } from '@/types';
-import { getRecurringItemCurrency } from './recurringUtils';
+import { expandOccurrences, getRecurringItemCurrency, type RecurringTemplate } from './recurringUtils';
 
 describe('getRecurringItemCurrency', () => {
   it('returns the account currency when present', () => {
@@ -60,5 +60,77 @@ describe('getRecurringItemCurrency', () => {
     } as RecurringTransactionWithDetails;
 
     expect(getRecurringItemCurrency(item, 'USD')).toBe('USD');
+  });
+});
+
+describe('expandOccurrences', () => {
+  const template = (overrides: Partial<RecurringTemplate>): RecurringTemplate => ({
+    amount: 100,
+    kind: 'transaction',
+    type: 'expense',
+    category_id: 1,
+    account_id: 1,
+    to_account_id: null,
+    frequency: 'monthly',
+    end_date: null,
+    next_due_date: '2026-01-31',
+    is_active: 1,
+    ...overrides,
+    // A new item's first due date is its start date.
+    start_date: overrides.start_date ?? overrides.next_due_date ?? '2026-01-31',
+  });
+
+  it('steps a monthly item with month-end clamping, back to the 31st after a short month', () => {
+    // Given rent due on the 31st
+    const dates = expandOccurrences([template({})], '2026-01-01', '2026-04-30').map((o) => o.date);
+    // Then February clamps to the 28th, March is the 31st again, April clamps to the 30th
+    expect(dates).toEqual(['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30']);
+  });
+
+  it('finds the start day again for an item whose next due date has already drifted', () => {
+    // Given an item started on Jan 31 whose stored next due date slid to Mar 28 under the old stepping
+    const dates = expandOccurrences(
+      [template({ start_date: '2026-01-31', next_due_date: '2026-03-28' })],
+      '2026-03-01',
+      '2026-05-31',
+    ).map((o) => o.date);
+    // Then the dates after it return to the end of the month
+    expect(dates).toEqual(['2026-03-28', '2026-04-30', '2026-05-31']);
+  });
+
+  it('skips paused items', () => {
+    expect(expandOccurrences([template({ is_active: 0 })], '2026-01-01', '2026-12-31')).toEqual([]);
+  });
+
+  it('stops at the end date', () => {
+    // Given an item that ends in March
+    const dates = expandOccurrences(
+      [template({ next_due_date: '2026-01-15', end_date: '2026-03-15' })],
+      '2026-01-01',
+      '2026-12-31',
+    ).map((o) => o.date);
+    expect(dates).toEqual(['2026-01-15', '2026-02-15', '2026-03-15']);
+  });
+
+  it('leaves out occurrences before the window but still steps through them', () => {
+    // Given a weekly item whose next due date is before the window
+    const dates = expandOccurrences(
+      [template({ frequency: 'weekly', next_due_date: '2026-01-01' })],
+      '2026-01-10',
+      '2026-01-20',
+    ).map((o) => o.date);
+    expect(dates).toEqual(['2026-01-15']);
+  });
+
+  it('expands a daily item over a long range and sorts across items', () => {
+    // Given a daily item and a yearly one over a full year
+    const occurrences = expandOccurrences(
+      [template({ frequency: 'yearly', next_due_date: '2026-06-01', amount: 5 }), template({ frequency: 'daily', next_due_date: '2026-01-01' })],
+      '2026-01-01',
+      '2026-12-31',
+    );
+    // Then there are 365 daily rows plus the yearly one, in date order
+    expect(occurrences).toHaveLength(366);
+    expect(occurrences.map((o) => o.date)).toEqual([...occurrences.map((o) => o.date)].sort());
   });
 });

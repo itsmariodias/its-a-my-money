@@ -1,8 +1,7 @@
 import { generateExportData, generateExportJson } from './exportData';
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { getMockDb } from '../../__mocks__/expo-sqlite';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { getMockDb } = require('../../__mocks__/expo-sqlite');
 const mockDb = getMockDb() as unknown as SQLiteDatabase;
 
 describe('exportData', () => {
@@ -14,7 +13,8 @@ describe('exportData', () => {
   const mockCategories = [{ id: 1, name: 'Food', type: 'expense', color: '#FF5722', icon: 'restaurant', is_default: 1 }];
   const mockTransactions = [{ id: 1, amount: 50, type: 'expense', category_id: 1, account_id: 1, note: null, date: '2026-03-01', created_at: '2026-03-01' }];
   const mockTransfers = [{ id: 1, from_account_id: 1, to_account_id: 2, amount: 25, note: null, date: '2026-03-01', created_at: '2026-03-01' }];
-  const mockGoal = { id: 1, category_id: 1, target_amount: 10000, currency: 'USD', start_date: '2026-03-01', target_date: '2026-12-31', created_at: '2026-03-01' };
+  const mockGoal = { id: 1, name: 'Japan trip', icon: 'flight', color: '#2196F3', account_id: 1, target_amount: 10000, target_date: '2026-12-31', archived_at: null, created_at: '2026-03-01' };
+  const mockGoalAllocation = { id: 1, goal_id: 1, amount: 300, date: '2026-03-01', transaction_id: 1, note: null, created_at: '2026-03-01' };
 
   it('should return all data with correct structure', async () => {
     // Given: DB has accounts, categories, transactions, transfers, and settings
@@ -25,7 +25,8 @@ describe('exportData', () => {
       .mockResolvedValueOnce(mockTransfers)
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 1, category_id: 1, amount: 200, period: 'monthly', currency: 'USD', created_at: '2026-03-01' }])
-      .mockResolvedValueOnce([mockGoal]);
+      .mockResolvedValueOnce([mockGoal])
+      .mockResolvedValueOnce([mockGoalAllocation]);
 
     (mockDb.getFirstAsync as jest.Mock)
       .mockResolvedValueOnce({ value: 'EUR' })
@@ -48,6 +49,7 @@ describe('exportData', () => {
     expect(result.transfers).toEqual(mockTransfers);
     expect(result.budgets).toEqual([{ id: 1, category_id: 1, amount: 200, period: 'monthly', currency: 'USD', created_at: '2026-03-01' }]);
     expect(result.goals).toEqual([mockGoal]);
+    expect(result.goal_allocations).toEqual([mockGoalAllocation]);
     expect(result.settings).toEqual({
       currency: 'EUR',
       accent_color: '#ff0000',
@@ -91,6 +93,7 @@ describe('exportData', () => {
     expect(parsed).toHaveProperty('transfers');
     expect(parsed).toHaveProperty('budgets');
     expect(parsed).toHaveProperty('goals');
+    expect(parsed).toHaveProperty('goal_allocations');
     expect(parsed).toHaveProperty('settings');
   });
 });

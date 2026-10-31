@@ -2,19 +2,25 @@ import type { RecurringFrequency } from '@/types';
 
 /**
  * Advance a YYYY-MM-DD date string by one frequency unit.
- * Monthly advancement clamps to the last day of the target month.
+ * Monthly, quarterly and yearly advancement clamp to the last day of the target month.
+ *
+ * Pass the schedule's start date as `anchor` when stepping a recurring item: the result goes back
+ * to the anchor's day of the month whenever the target month has it. Without it, the clamped day
+ * sticks — Jan 31 → Feb 28 → Mar 28 — and an item set for the 31st ends up on the 28th for good.
  */
-export function advanceDate(current: string, frequency: RecurringFrequency): string {
-  const [year, month, day] = current.split('-').map(Number);
+export function advanceDate(current: string, frequency: RecurringFrequency, anchor?: string): string {
+  const [year, month, currentDay] = current.split('-').map(Number);
+  // The day of the month the schedule wants; month-based steps clamp it to the target month.
+  const day = anchor ? Number(anchor.slice(8, 10)) : currentDay;
 
   switch (frequency) {
     case 'daily': {
-      const d = new Date(year, month - 1, day + 1);
-      return formatDate(d);
+      const d = new Date(year, month - 1, currentDay + 1);
+      return toISODate(d);
     }
     case 'weekly': {
-      const d = new Date(year, month - 1, day + 7);
-      return formatDate(d);
+      const d = new Date(year, month - 1, currentDay + 7);
+      return toISODate(d);
     }
     case 'monthly': {
       const targetMonth = month === 12 ? 1 : month + 1;
@@ -42,7 +48,8 @@ export function advanceDate(current: string, frequency: RecurringFrequency): str
   }
 }
 
-function formatDate(d: Date): string {
+/** A local Date as a YYYY-MM-DD string. */
+export function toISODate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
@@ -50,7 +57,7 @@ function formatDate(d: Date): string {
 }
 
 export function todayString(): string {
-  return formatDate(new Date());
+  return toISODate(new Date());
 }
 
 /**
@@ -59,5 +66,18 @@ export function todayString(): string {
  */
 export function previousDay(date: string): string {
   const [year, month, day] = date.split('-').map(Number);
-  return formatDate(new Date(year, month - 1, day - 1));
+  return toISODate(new Date(year, month - 1, day - 1));
+}
+
+/** A YYYY-MM-DD date string moved by `days` local calendar days (negative goes back). */
+export function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  return toISODate(new Date(year, month - 1, day + days));
+}
+
+/** Whole calendar days from `from` to `to` (negative when `to` is earlier). DST-safe. */
+export function daysBetween(from: string, to: string): number {
+  const [fy, fm, fd] = from.split('-').map(Number);
+  const [ty, tm, td] = to.split('-').map(Number);
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
 }

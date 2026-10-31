@@ -47,3 +47,5 @@ yarn-error.*
 # Monefy backups
 monefy_*
 Monefy.*
+# Local screenshot seed data generator (README screenshots)
+/scripts/screenshots/

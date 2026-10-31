@@ -73,22 +73,51 @@ export interface BudgetWithDetails extends Budget {
   category_icon: string;
 }
 
+/** A savings bucket inside one account. Its currency is the account's. */
 export interface Goal {
   id: number;
-  category_id: number;
+  name: string;
+  icon: string;
+  color: string;
+  account_id: number;
   target_amount: number;
-  currency: string;
-  /** Spend before this date does not count — a new goal starts empty. */
-  start_date: string;
-  /** Optional deadline. Display only: it never filters which transactions count. */
+  /** Optional deadline. Display only: it drives the countdown badge and the overdue colour. */
   target_date: string | null;
+  /** When the goal was marked complete. Archived goals stop counting as reserved; null = active. */
+  archived_at: string | null;
   created_at: string;
 }
 
+/** The fields the goal form edits. Archiving has its own action. */
+export type GoalFields = Omit<Goal, 'id' | 'created_at' | 'archived_at'>;
+
 export interface GoalWithDetails extends Goal {
-  category_name: string;
-  category_color: string;
-  category_icon: string;
+  account_name: string;
+  account_currency: string;
+  /** Sum of the goal's allocations — the money currently set aside in it. */
+  saved: number;
+}
+
+/**
+ * One movement of money into or out of a goal. Positive reserves (income split, manual add);
+ * negative takes out (release, expense paid from the goal). `transaction_id` is set when the
+ * movement was made as part of saving a transaction, so editing or deleting it follows.
+ */
+export interface GoalAllocation {
+  id: number;
+  goal_id: number;
+  amount: number;
+  date: string;
+  transaction_id: number | null;
+  note: string | null;
+  created_at: string;
+}
+
+/** The part of a transaction that goes into (income) or comes out of (expense) one goal. */
+export interface GoalSplit {
+  goal_id: number;
+  /** Always positive; the transaction type decides the sign of the stored allocation. */
+  amount: number;
 }
 
 export type RecurringKind = 'transaction' | 'transfer';

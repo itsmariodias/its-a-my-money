@@ -14,7 +14,6 @@ import {
 
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
-import AccountIcon from '@/shared/components/AccountIcon';
 import InfoModal from '@/shared/components/InfoModal';
 import { useAccountsDb } from '@/db';
 import { useAccountsStore } from '@/features/accounts/useAccountsStore';
@@ -24,46 +23,11 @@ import { getCurrencyByCode, getCurrencySymbol } from '@/constants/currencies';
 import CurrencyPicker from '@/shared/components/CurrencyPicker';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { sheetStyles } from '@/constants/sheetStyles';
+import ColorIconPicker, { ACCOUNT_ICONS, PRESET_COLORS } from '@/shared/components/ColorIconPicker';
 import type { Account, AccountType } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-
-const PRESET_COLORS = [
-  '#F44336', '#E91E63', '#9C27B0', '#673AB7',
-  '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4',
-  '#009688', '#4CAF50', '#8BC34A', '#CDDC39',
-  '#FFEB3B', '#FFC107', '#FF9800', '#FF5722',
-  '#795548', '#9E9E9E', '#607D8B',
-];
-
-const COLOR_NAMES: Record<string, string> = {
-  '#F44336': 'Red',         '#E91E63': 'Pink',        '#9C27B0': 'Purple',      '#673AB7': 'Deep purple',
-  '#3F51B5': 'Indigo',      '#2196F3': 'Blue',         '#03A9F4': 'Light blue',  '#00BCD4': 'Cyan',
-  '#009688': 'Teal',        '#4CAF50': 'Green',        '#8BC34A': 'Light green', '#CDDC39': 'Lime',
-  '#FFEB3B': 'Yellow',      '#FFC107': 'Amber',        '#FF9800': 'Orange',      '#FF5722': 'Deep orange',
-  '#795548': 'Brown',       '#9E9E9E': 'Grey',         '#607D8B': 'Blue grey',
-};
-
-const PRESET_ICONS: string[] = [
-  // Wallet / bank
-  'account-balance-wallet',
-  'account-balance',
-  'credit-card',
-  'savings',
-  'payments',
-  'currency-exchange',
-  'monetization-on',
-  'business-center',
-  // Card brands (FontAwesome6)
-  'fa6:cc-visa',
-  'fa6:cc-mastercard',
-  'fa6:cc-amex',
-  'fa6:cc-discover',
-  'fa6:paypal',
-  'fa6:apple-pay',
-  'fa6:google-pay',
-  'fa6:cc-stripe',
-];
 
 interface Props {
   isOpen: boolean;
@@ -82,7 +46,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
   const [name, setName] = useState('');
   const [initialBalance, setInitialBalance] = useState('0');
   const [color, setColor] = useState(PRESET_COLORS[0]);
-  const [icon, setIcon] = useState<string>(PRESET_ICONS[0]);
+  const [icon, setIcon] = useState<string>(ACCOUNT_ICONS[0]);
   const [accountType, setAccountType] = useState<AccountType>('cash');
   const [currentValue, setCurrentValue] = useState('');
   const [currentValueTouched, setCurrentValueTouched] = useState(false);
@@ -99,7 +63,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
       setName(account.name);
       setInitialBalance(String(account.initial_balance));
       setColor(account.color ?? PRESET_COLORS[0]);
-      setIcon(account.icon ?? PRESET_ICONS[0]);
+      setIcon(account.icon ?? ACCOUNT_ICONS[0]);
       setAccountType(account.account_type ?? 'cash');
       setCurrentValue(account.current_value != null ? String(account.current_value) : '');
       setCurrency(account.currency || globalCurrency);
@@ -107,7 +71,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
       setName('');
       setInitialBalance('0');
       setColor(PRESET_COLORS[0]);
-      setIcon(PRESET_ICONS[0]);
+      setIcon(ACCOUNT_ICONS[0]);
       setAccountType('cash');
       setCurrentValue('');
       setCurrency(globalCurrency);
@@ -161,6 +125,9 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  // Focused once the sheet has settled. autoFocus fires on mount, before an Android Modal's
+  // window has focus, and the keyboard request is dropped.
+  const focusOnOpenRef = useRef<TextInput>(null);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -169,7 +136,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
     if (isOpen) {
       sheetTranslateY.setValue(SCREEN_HEIGHT);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start(({ finished }) => { if (finished && !account) focusOnOpenRef.current?.focus(); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -267,7 +234,7 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                 placeholder="e.g. Cash, Bank Account"
                 placeholderTextColor={subTextColor}
                 returnKeyType="done"
-                autoFocus={!account}
+                ref={focusOnOpenRef}
               />
 
               {attempted && !name.trim() && (
@@ -327,46 +294,15 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                 </>
               )}
 
-              {/* Color */}
-              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Color</Text>
-              <View style={styles.colorGrid}>
-                {PRESET_COLORS.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    onPress={() => setColor(c)}
-                    style={[styles.colorSwatch, { backgroundColor: c }, color === c && styles.colorSwatchSelected]}
-                    hitSlop={6}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: color === c }}
-                    accessibilityLabel={COLOR_NAMES[c] ?? c}
-                  >
-                    {color === c && <MaterialIcons name="check" size={16} color="#fff" />}
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <ColorIconPicker
+                color={color}
+                icon={icon}
+                onColorChange={setColor}
+                onIconChange={setIcon}
+                icons={ACCOUNT_ICONS}
+                layout="large"
+              />
 
-              {/* Icon */}
-              <Text style={[styles.sectionLabel, { color: subTextColor }]}>Icon</Text>
-              <View style={styles.iconGrid}>
-                {PRESET_ICONS.map((ic) => (
-                  <TouchableOpacity
-                    key={ic}
-                    onPress={() => setIcon(ic)}
-                    style={[styles.iconItem, { backgroundColor: icon === ic ? color : inputBg }]}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: icon === ic }}
-                    accessibilityLabel={ic.replace(/fa6:/g, '').replace(/-/g, ' ')}
-                  >
-                    <View style={styles.iconItemInner}>
-                      <AccountIcon name={ic} size={24} color={icon === ic ? '#fff' : subTextColor} />
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-                <Text style={[styles.saveBtnText, { color: onAccentColor }]}>{account ? 'Save Changes' : 'Create Account'}</Text>
-              </TouchableOpacity>
               {account && onDelete && (
                 <TouchableOpacity
                   style={[styles.deleteBtn, deleteDisabled && { opacity: 0.4 }]}
@@ -379,6 +315,9 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
                 </TouchableOpacity>
               )}
             </ScrollView>
+            <SheetFooter
+              primary={{ label: account ? 'Save Changes' : 'Create Account', onPress: handleSave }}
+            />
           </Animated.View>
         </View>
       </Modal>
@@ -402,8 +341,6 @@ export default function AccountFormSheet({ isOpen, account, onClose, onDelete, d
 
 const localStyles = StyleSheet.create({
   balanceContainer: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, marginBottom: 16 },
-  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
-  iconItem: { width: '22%', aspectRatio: 1, borderRadius: 12 },
   currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16 },
   currencyRowSymbol: { fontSize: 20, fontWeight: '700', width: 28, textAlign: 'center' },
   currencyRowCode: { fontSize: 15, fontWeight: '600' },

@@ -25,6 +25,7 @@ import { sheetStyles } from '@/constants/sheetStyles';
 import { Snackbar } from 'react-native-snackbar';
 import { requestNotificationPermission } from '@/features/backup/notifications';
 import type { BudgetPeriod, BudgetWithDetails, Category } from '@/types';
+import SheetFooter from '@/shared/components/SheetFooter';
 
 const CATEGORY_GRID_3_ROWS = 230;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -146,6 +147,9 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
   const { accentColor, onAccentColor, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(600)).current;
+  // Focused once the sheet has settled. autoFocus fires on mount, before an Android Modal's
+  // window has focus, and the keyboard request is dropped.
+  const focusOnOpenRef = useRef<TextInput>(null);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -154,7 +158,7 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
     if (isOpen) {
       sheetTranslateY.setValue(600);
       backdropOpacity.setValue(1);
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start();
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 14, overshootClamping: true, restSpeedThreshold: 100, restDisplacementThreshold: 40 }).start(({ finished }) => { if (finished && !budget) focusOnOpenRef.current?.focus(); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -222,7 +226,7 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
                   placeholderTextColor={subTextColor}
                   keyboardType="decimal-pad"
                   returnKeyType="done"
-                  autoFocus={editingId == null}
+                  ref={focusOnOpenRef}
                 />
               </View>
               {amountInvalid && (
@@ -235,12 +239,12 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
                 {PERIODS.map((p) => (
                   <TouchableOpacity
                     key={p.key}
-                    style={[localStyles.periodBtn, period === p.key && { backgroundColor: accentColor }]}
+                    style={[styles.periodBtn, period === p.key && { backgroundColor: accentColor }]}
                     onPress={() => setPeriod(p.key)}
                     accessibilityRole="radio"
                     accessibilityState={{ selected: period === p.key }}
                   >
-                    <Text style={[localStyles.periodBtnText, { color: period === p.key ? onAccentColor : subTextColor }]}>
+                    <Text style={[styles.periodBtnText, { color: period === p.key ? onAccentColor : subTextColor }]}>
                       {p.label}
                     </Text>
                   </TouchableOpacity>
@@ -298,18 +302,15 @@ export default function BudgetFormSheet({ isOpen, onClose, budget = null, onDele
                 <Text style={styles.errorText}>Please select a category</Text>
               )}
 
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleSave} accessibilityRole="button">
-                <Text style={[styles.saveBtnText, { color: onAccentColor }]}>
-                  {editingId != null ? 'Save Changes' : 'Save Budget'}
-                </Text>
-              </TouchableOpacity>
-
               {editingId != null && onDelete && (
                 <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} accessibilityRole="button">
                   <Text style={styles.deleteBtnText}>Delete Budget</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
+            <SheetFooter
+              primary={{ label: editingId != null ? 'Save Changes' : 'Save Budget', onPress: handleSave }}
+            />
           </Animated.View>
         </View>
       </Modal>
@@ -340,8 +341,6 @@ const localStyles = StyleSheet.create({
   categoryCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   categoryCircleSelected: { borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
   categoryLabel: { fontSize: 11, textAlign: 'center' },
-  periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-  periodBtnText: { fontWeight: '600', fontSize: 12 },
   currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 20 },
   currencyRowSymbol: { fontSize: 20, fontWeight: '700', width: 28, textAlign: 'center' },
   currencyRowCode: { fontSize: 15, fontWeight: '600' },

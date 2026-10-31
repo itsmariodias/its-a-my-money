@@ -1,16 +1,16 @@
 import { useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
+import DashboardCard from '@/shared/components/DashboardCard';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useGoalsStore } from './useGoalsStore';
-import { useTransactionsStore } from '@/features/transactions/useTransactionsStore';
-import { useAccountsStore } from '@/features/accounts/useAccountsStore';
-import { buildAccountCurrencyMap } from '@/features/accounts/currencyUtils';
+import AccountIcon from '@/shared/components/AccountIcon';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
+import { useUIStore } from '@/shared/store/useUIStore';
 import { formatAmount } from '@/constants/currencies';
 import { todayString } from '@/features/recurring/dateUtils';
-import { goalProgress, goalStatusColor, targetDateLabel } from './goalUtils';
+import { goalProgress, goalStatusColor, isActiveGoal, targetDateLabel } from './goalUtils';
 import type { GoalWithDetails } from '@/types';
 
 interface Props {
@@ -24,40 +24,27 @@ interface GoalRowData {
 }
 
 export default function GoalsDashboardCard({ onPress }: Props) {
-  const goals = useGoalsStore((s) => s.goals);
-  const transactions = useTransactionsStore((s) => s.transactions);
-  const accounts = useAccountsStore((s) => s.accounts);
-  const globalCurrency = useSettingsStore((s) => s.currency);
-  const numberFormat = useSettingsStore((s) => s.numberFormat);
-  const { cardBg, textColor, subColor, borderColor, accentColor } = useAppTheme();
-
-  const accountCurrencyById = useMemo(
-    () => buildAccountCurrencyMap(accounts, globalCurrency),
-    [accounts, globalCurrency],
+  const allGoals = useGoalsStore((s) => s.goals);
+  // Follows the header's account filter, like the rest of the dashboard.
+  const selectedAccountId = useUIStore((s) => s.selectedAccountId);
+  // Completed goals live only in the goals list.
+  const goals = useMemo(
+    () => allGoals.filter((g) => isActiveGoal(g) && (selectedAccountId == null || g.account_id === selectedAccountId)),
+    [allGoals, selectedAccountId],
   );
+  const numberFormat = useSettingsStore((s) => s.numberFormat);
+  const { textColor, subColor, borderColor, accentColor } = useAppTheme();
 
   const today = todayString();
 
   const rows: GoalRowData[] = useMemo(() => {
-    return goals.map((g) => {
-      const { saved, pct } = goalProgress(g, transactions, {
-        currency: g.currency || globalCurrency,
-        accountCurrencyById,
-      });
-      return { goal: g, saved, pct };
-    });
-  }, [goals, transactions, accountCurrencyById, globalCurrency]);
+    return goals.map((g) => ({ goal: g, ...goalProgress(g) }));
+  }, [goals]);
 
   if (goals.length === 0) return null;
 
   return (
-    <TouchableOpacity
-      style={[styles.section, { backgroundColor: cardBg }]}
-      onPress={onPress}
-      activeOpacity={0.8}
-      accessibilityRole="button"
-      accessibilityLabel="Open goals"
-    >
+    <DashboardCard onPress={onPress} accessibilityLabel="Open goals">
       <View style={styles.headerRow}>
         <Text style={[styles.title, { color: textColor }]}>Goals</Text>
         <MaterialIcons name="chevron-right" size={20} color={subColor} />
@@ -67,16 +54,16 @@ export default function GoalsDashboardCard({ onPress }: Props) {
         const color = goalStatusColor(pct, goal.target_date, accentColor, today);
         const barPct = Math.min(100, pct);
         const dateLabel = targetDateLabel(goal.target_date, today);
-        const currency = goal.currency || globalCurrency;
+        const currency = goal.account_currency;
         return (
           <View key={goal.id} style={styles.row}>
             <View style={styles.rowHeader}>
               <View style={styles.rowLeft}>
-                <View style={[styles.iconCircle, { backgroundColor: goal.category_color }]}>
-                  <MaterialIcons name={(goal.category_icon as any) || 'label'} size={14} color="#fff" />
+                <View style={[styles.iconCircle, { backgroundColor: goal.color }]}>
+                  <AccountIcon name={goal.icon} size={14} color="#fff" />
                 </View>
                 <Text style={[styles.rowName, { color: textColor }]} numberOfLines={1}>
-                  {goal.category_name}
+                  {goal.name}
                 </Text>
                 {dateLabel && (
                   <View style={[styles.dateBadge, { backgroundColor: color + '22' }]}>
@@ -90,24 +77,16 @@ export default function GoalsDashboardCard({ onPress }: Props) {
               <View style={[styles.progressFill, { width: `${barPct}%`, backgroundColor: color }]} />
             </View>
             <Text style={[styles.rowAmount, { color: subColor }]}>
-              {formatAmount(saved, currency, undefined, numberFormat)} / {formatAmount(goal.target_amount, currency, undefined, numberFormat)}
+              {formatAmount(saved, currency, undefined, numberFormat)} / {formatAmount(goal.target_amount, currency, undefined, numberFormat)} · {goal.account_name}
             </Text>
           </View>
         );
       })}
-    </TouchableOpacity>
+    </DashboardCard>
   );
 }
 
 const styles = StyleSheet.create({
-  section: {
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   title: { fontSize: 16, fontWeight: '600' },
 

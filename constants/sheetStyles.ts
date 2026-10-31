@@ -30,6 +30,9 @@ export const sheetStyles = StyleSheet.create({
   typeToggle: { flexDirection: 'row', borderRadius: 10, padding: 4, marginBottom: 16 },
   typeBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   typeBtnText: { fontWeight: '600', fontSize: 14 },
+  // Smaller segments for toggles with more than two options (budget period, statement range)
+  periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  periodBtnText: { fontWeight: '600', fontSize: 12 },
 
   // Account picker
   accountScroll: { marginBottom: 20 },
@@ -63,10 +66,12 @@ export const sheetStyles = StyleSheet.create({
   iconItemInner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   // Action buttons
-  saveBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4, marginBottom: 8 },
+  // All three action buttons share one height and an 8px gap. The filled ones carry a transparent
+  // border the same width as the outlined button's, or they come out 3px shorter.
+  saveBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4, marginBottom: 8, borderWidth: 1.5, borderColor: 'transparent' },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   saveAndContinueBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 0, marginBottom: 8, borderWidth: 1.5 },
   saveAndContinueBtnText: { fontSize: 16, fontWeight: '600' },
-  deleteBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 8, marginBottom: 8, backgroundColor: '#F4433620' },
+  deleteBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 0, marginBottom: 8, borderWidth: 1.5, borderColor: 'transparent', backgroundColor: '#F4433620' },
   deleteBtnText: { color: '#F44336', fontSize: 16, fontWeight: '700' },
 });

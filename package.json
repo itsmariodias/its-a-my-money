@@ -1,7 +1,7 @@
 {
   "name": "its-a-my-money",
   "main": "expo-router/entry",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -24,6 +24,7 @@
     "expo-linking": "~8.0.12",
     "expo-local-authentication": "^17.0.9",
     "expo-notifications": "^0.32.17",
+    "expo-print": "~15.0.8",
     "expo-router": "~6.0.24",
     "expo-sharing": "^14.0.8",
     "expo-splash-screen": "~31.0.13",
@@ -47,7 +48,7 @@
     "react-native-tab-view": "^4.3.0",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.5.1",
-    "zustand": "^5.0.15"
+    "zustand": "^5.0.16"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
