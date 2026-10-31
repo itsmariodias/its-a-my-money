@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Text } from '@/shared/components/Themed';
+import DashboardCard from '@/shared/components/DashboardCard';
 import { useAppTheme } from '@/shared/components/useAppTheme';
 import { useGoalsStore } from './useGoalsStore';
 import AccountIcon from '@/shared/components/AccountIcon';
@@ -32,7 +33,7 @@ export default function GoalsDashboardCard({ onPress }: Props) {
     [allGoals, selectedAccountId],
   );
   const numberFormat = useSettingsStore((s) => s.numberFormat);
-  const { cardBg, textColor, subColor, borderColor, accentColor } = useAppTheme();
+  const { textColor, subColor, borderColor, accentColor } = useAppTheme();
 
   const today = todayString();
 
@@ -43,13 +44,7 @@ export default function GoalsDashboardCard({ onPress }: Props) {
   if (goals.length === 0) return null;
 
   return (
-    <TouchableOpacity
-      style={[styles.section, { backgroundColor: cardBg }]}
-      onPress={onPress}
-      activeOpacity={0.8}
-      accessibilityRole="button"
-      accessibilityLabel="Open goals"
-    >
+    <DashboardCard onPress={onPress} accessibilityLabel="Open goals">
       <View style={styles.headerRow}>
         <Text style={[styles.title, { color: textColor }]}>Goals</Text>
         <MaterialIcons name="chevron-right" size={20} color={subColor} />
@@ -87,19 +82,11 @@ export default function GoalsDashboardCard({ onPress }: Props) {
           </View>
         );
       })}
-    </TouchableOpacity>
+    </DashboardCard>
   );
 }
 
 const styles = StyleSheet.create({
-  section: {
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   title: { fontSize: 16, fontWeight: '600' },
 

@@ -27,7 +27,7 @@ export function currentPeriodRange(period: BudgetPeriod, today: Date = new Date(
 }
 
 export function spentInRange(
-  transactions: Pick<Transaction, 'type' | 'category_id' | 'amount' | 'date' | 'account_id'>[],
+  transactions: readonly Pick<Transaction, 'type' | 'category_id' | 'amount' | 'date' | 'account_id'>[],
   categoryId: number,
   start: string,
   end: string,

@@ -62,3 +62,16 @@ export function previousDay(date: string): string {
   const [year, month, day] = date.split('-').map(Number);
   return toISODate(new Date(year, month - 1, day - 1));
 }
+
+/** A YYYY-MM-DD date string moved by `days` local calendar days (negative goes back). */
+export function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  return toISODate(new Date(year, month - 1, day + days));
+}
+
+/** Whole calendar days from `from` to `to` (negative when `to` is earlier). DST-safe. */
+export function daysBetween(from: string, to: string): number {
+  const [fy, fm, fd] = from.split('-').map(Number);
+  const [ty, tm, td] = to.split('-').map(Number);
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
+}

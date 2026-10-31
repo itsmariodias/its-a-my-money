@@ -122,3 +122,21 @@ export function aggregatePortfolio(
   const pnlPct = invested === 0 ? null : (pnl / Math.abs(invested)) * 100;
   return { invested, current, pnl, pnlPct, count };
 }
+
+export interface PnLSlice {
+  kind: 'invested' | 'profit' | 'current' | 'loss';
+  value: number;
+}
+
+/**
+ * How one investment's value splits for a donut. In profit the ring is the current value: what
+ * was put in plus the gain. In loss it is the amount invested: what is left plus what was lost.
+ * Null when there is nothing to split — no gain or loss, or a non-positive invested or current
+ * amount, which a ring cannot show.
+ */
+export function pnlBreakdown({ invested, current, pnl }: PnLResult): PnLSlice[] | null {
+  if (pnl === 0 || invested <= 0 || current <= 0) return null;
+  return pnl > 0
+    ? [{ kind: 'invested', value: invested }, { kind: 'profit', value: pnl }]
+    : [{ kind: 'current', value: current }, { kind: 'loss', value: -pnl }];
+}

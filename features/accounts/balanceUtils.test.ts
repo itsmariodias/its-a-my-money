@@ -3,6 +3,7 @@ import {
   accountFlowAsOf,
   accountBalanceAsOf,
   computePnL,
+  pnlBreakdown,
   aggregatePortfolio,
   totalsByCurrency,
 } from './balanceUtils';
@@ -203,5 +204,32 @@ describe('accountFlowAsOf — cross-currency transfers (to_amount)', () => {
     const dest = cashAccount(2, 0);
     const tfr = transfer(1, 2, 50, '2026-03-01'); // to_amount null
     expect(accountFlowAsOf(dest, [], [tfr])).toBe(50);
+  });
+});
+
+describe('pnlBreakdown', () => {
+  it('splits a gain into invested and profit, summing to the current value', () => {
+    // Given €10,000 invested now worth €11,200
+    const slices = pnlBreakdown({ invested: 10000, current: 11200, pnl: 1200, pnlPct: 12 });
+    // Then the ring is invested + profit
+    expect(slices).toEqual([{ kind: 'invested', value: 10000 }, { kind: 'profit', value: 1200 }]);
+  });
+
+  it('splits a loss into what is left and what was lost, summing to the invested amount', () => {
+    // Given €10,000 invested now worth €8,800
+    const slices = pnlBreakdown({ invested: 10000, current: 8800, pnl: -1200, pnlPct: -12 });
+    // Then the ring is current value + loss, with the loss as a positive slice
+    expect(slices).toEqual([{ kind: 'current', value: 8800 }, { kind: 'loss', value: 1200 }]);
+  });
+
+  it('has nothing to split without a gain or loss', () => {
+    // Given no market value entered, so current equals invested
+    expect(pnlBreakdown({ invested: 5000, current: 5000, pnl: 0, pnlPct: 0 })).toBeNull();
+  });
+
+  it('has nothing to split when a ring cannot show it', () => {
+    // Given a total wipe-out, and money withdrawn past what was put in
+    expect(pnlBreakdown({ invested: 1000, current: 0, pnl: -1000, pnlPct: -100 })).toBeNull();
+    expect(pnlBreakdown({ invested: -200, current: 300, pnl: 500, pnlPct: null })).toBeNull();
   });
 });

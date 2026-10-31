@@ -1,4 +1,4 @@
-import { advanceDate, previousDay } from './dateUtils';
+import { addDays, advanceDate, daysBetween, previousDay } from './dateUtils';
 
 describe('advanceDate', () => {
   describe('daily', () => {
@@ -104,5 +104,22 @@ describe('previousDay', () => {
 
   it('given Mar 1 of a leap year, when stepping back, then returns Feb 29', () => {
     expect(previousDay('2024-03-01')).toBe('2024-02-29');
+  });
+});
+
+describe('addDays', () => {
+  it('moves forward and back across month and year boundaries', () => {
+    expect(addDays('2026-10-31', 1)).toBe('2026-11-01');
+    expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
+    expect(addDays('2026-10-31', 90)).toBe('2027-01-29');
+  });
+});
+
+describe('daysBetween', () => {
+  it('counts calendar days, negative when going back', () => {
+    expect(daysBetween('2026-10-01', '2026-10-31')).toBe(30);
+    expect(daysBetween('2026-03-01', '2026-02-01')).toBe(-28);
+    // Across a DST change (late March in Europe)
+    expect(daysBetween('2026-03-28', '2026-03-30')).toBe(2);
   });
 });

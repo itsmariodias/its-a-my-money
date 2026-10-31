@@ -12,8 +12,12 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 
 **Dashboard**
 - Total balance and period income/expense summary
-- Spending breakdown by category as an animated donut chart — tap a slice to highlight it
+- Charts carousel — swipe between three charts in one card:
+  - **Spending by Category** — animated donut chart; tap a slice to highlight it
+  - **Cash Forecast** — your cash balance over the last 90 days, projected 90 days ahead as a dashed line. The projection adds your scheduled recurring items on their dates, entries you've already dated in the future, and your average day-to-day spending over the last 90 days. Investment accounts are left out, since there's no history of their market value to project from
+  - **Income vs Expenses** — monthly bars for the last 6 months (or the whole year in year view), with average saved per month and savings rate. Tap a month for its in, out, and net. With one account selected, its transfers in and out show as grey caps on the bars
 - Portfolio allocation donut — per-investment-account slices sized by invested amount, with live P&L % beside each
+- Investment breakdown — with a single investment account in view, the donut splits its value into invested vs. profit (or what's left vs. loss), with the return % in the centre
 - Recent transactions list
 - Filter by account or time period (day, month, year)
 - Multi-currency aware — when no account filter is active, aggregates are scoped to your primary currency (no FX conversion); the currency code shows in the balance card
@@ -48,17 +52,22 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Dashboard card with one row per budget: progress bar, percent used, spent vs. limit
 - Color-coded status — green under 80%, amber 80–99%, red at or over 100%
 - Local notification when a transaction pushes a budget over its limit
+- Pace warning — when your spending so far, plus bills and recurring expenses still due, would take a budget over its limit before the period ends, the card says so: "On pace for €620 — over by ~Oct 20"
 - Manage from Settings — add, edit, delete; deleting a category removes its budget too
 
 **Goals**
-- The opposite of a budget — set a target you're spending *toward* rather than a limit to stay under. School fees, a trip, a new laptop
-- Progress fills as you spend in the chosen category, so reaching 100% is the win
-- Optional target date — shows a countdown badge ("4 months left"), turns red if the deadline passes with the goal unmet
-- Counts only from the day the goal is created, so existing spend in the category doesn't retroactively fill it
-- Currency-scoped like budgets — a rupee goal only counts spend on rupee accounts
-- Dashboard card with one row per goal: progress bar, percent reached, saved vs. target
-- Local notification the first time a transaction takes a goal to its target
-- Manage from Settings — add, edit, delete; deleting a category removes its goal too
+- Savings buckets inside an account — set money aside for an emergency fund, a trip, or a new laptop without moving it anywhere
+- Each goal has a name, icon, colour, and target, plus an optional target date with a countdown badge ("5 months left") and a "$375/month to reach it on time" hint
+- Three ways money moves: put part of an income toward goals as you record it, pay an expense from a goal, or add and release money by hand
+- Reserved · Available under your balances (Dashboard, Accounts tab, goals list), so you can see what's actually free to spend. Future-dated income can't be reserved before its day
+- Mark a goal as complete — it keeps its history and frees the money
+- Local notifications when a goal reaches its target, and when spending dips into money set aside for goals
+- Dashboard card with progress for each active goal; manage from Settings or the card
+
+**PDF Statements**
+- Settings → Data → Export Statement — all accounts or one, for the last 12 months, this month, this year, last year, or any custom range
+- A bank-style, print-friendly A4 PDF: per-currency income and spending by category, then each account's opening balance, every transaction and transfer with a running balance, and its closing balance
+- Saved straight to your export folder on Android; opens the share sheet on iOS
 
 **Cloud Backup**
 - Automatic Google Drive backup — daily, weekly, or monthly
@@ -88,6 +97,7 @@ A personal finance app built with Expo. Track your income, expenses, transfers, 
 - Manage budgets
 - Manage goals
 - Export all data as JSON (includes theme preference)
+- Export a PDF statement for any account and date range
 - Import from JSON backup or Monefy CSV
 - Full data reset
 
@@ -150,13 +160,17 @@ Install the resulting APK/IPA on your device, then run `pnpm start` and scan the
 
 <div align="center">
 
-| Dashboard | Accounts | Budgets |
+| Dashboard | Cash forecast | Income vs. expenses |
 | :---: | :---: | :---: |
-| <img src="docs/screenshots/01-dashboard.png" width="250" alt="Dashboard" /> | <img src="docs/screenshots/02-accounts.png" width="250" alt="Accounts" /> | <img src="docs/screenshots/05-budgets.png" width="250" alt="Budgets" /> |
-| **Transactions (grouped)** | **Add transaction** | **Settings** |
-| <img src="docs/screenshots/03-transactions-grouped.png" width="250" alt="Transactions grouped" /> | <img src="docs/screenshots/04-add-transaction.png" width="250" alt="Add transaction" /> | <img src="docs/screenshots/07-settings.png" width="250" alt="Settings" /> |
-| **Cross-currency transfer** | **Theme picker** | |
-| <img src="docs/screenshots/06-transfer-cross-currency.png" width="250" alt="Cross-currency transfer" /> | <img src="docs/screenshots/08-theme-picker.png" width="250" alt="Theme picker" /> | |
+| <img src="docs/screenshots/01-dashboard.png" width="250" alt="Dashboard" /> | <img src="docs/screenshots/09-cash-forecast.png" width="250" alt="Cash forecast" /> | <img src="docs/screenshots/10-income-vs-expenses.png" width="250" alt="Income vs. expenses" /> |
+| **Investment breakdown** | **Budgets & goals** | **Accounts** |
+| <img src="docs/screenshots/11-investment.png" width="250" alt="Investment breakdown" /> | <img src="docs/screenshots/05-budgets.png" width="250" alt="Budgets and goals" /> | <img src="docs/screenshots/02-accounts.png" width="250" alt="Accounts" /> |
+| **Goals** | **Put income toward goals** | **Transactions (grouped)** |
+| <img src="docs/screenshots/12-goals.png" width="250" alt="Goals" /> | <img src="docs/screenshots/13-goal-split.png" width="250" alt="Put income toward goals" /> | <img src="docs/screenshots/03-transactions-grouped.png" width="250" alt="Transactions grouped" /> |
+| **Add transaction** | **Settings** | **Cross-currency transfer** |
+| <img src="docs/screenshots/04-add-transaction.png" width="250" alt="Add transaction" /> | <img src="docs/screenshots/07-settings.png" width="250" alt="Settings" /> | <img src="docs/screenshots/06-transfer-cross-currency.png" width="250" alt="Cross-currency transfer" /> |
+| **Theme picker** | **PDF statement** | |
+| <img src="docs/screenshots/08-theme-picker.png" width="250" alt="Theme picker" /> | <img src="docs/screenshots/14-statement.png" width="250" alt="PDF statement" /> | |
 
 </div>
 

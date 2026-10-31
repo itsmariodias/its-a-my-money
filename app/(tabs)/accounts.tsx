@@ -1,11 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Snackbar } from 'react-native-snackbar';
 import {
   Animated,
   Dimensions,
-  LayoutChangeEvent,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -17,6 +14,8 @@ import { Text } from '@/shared/components/Themed';
 import AccountFormSheet from '@/features/accounts/AccountFormSheet';
 import AccountIcon from '@/shared/components/AccountIcon';
 import DeleteModal from '@/shared/components/DeleteModal';
+import CarouselDots from '@/shared/components/CarouselDots';
+import { useCarousel } from '@/shared/components/useCarousel';
 import {
   getDateRange,
   periodNavLabel,
@@ -293,14 +292,6 @@ export default function AccountsScreen() {
     return totals;
   }, [accounts, reservedMap, availableByAccount]);
 
-  const [carouselIndex, setCarouselIndex] = useState(0);
-  const carouselRef = useRef<ScrollView>(null);
-  const carouselWidth = Dimensions.get('window').width - 32; // matches scrollContent horizontal padding
-  const onCarouselScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const i = Math.round(e.nativeEvent.contentOffset.x / carouselWidth);
-    if (i !== carouselIndex) setCarouselIndex(i);
-  };
-
   const cashAccounts = useMemo(() => accounts.filter((a) => a.account_type !== 'investment'), [accounts]);
   const investmentAccounts = useMemo(() => accounts.filter((a) => a.account_type === 'investment'), [accounts]);
 
@@ -324,29 +315,10 @@ export default function AccountsScreen() {
     return new Map(Object.entries(map));
   }, [showPctChange, accounts, prevBalanceMap]);
 
-  // Pages differ in height (only some currencies have a Reserved line), so the carousel follows
-  // the page in view: each page's content is measured, and the height is interpolated from the
-  // scroll position so it eases between pages mid-swipe instead of jumping.
-  const carouselScrollX = useRef(new Animated.Value(0)).current;
-  const [pageHeights, setPageHeights] = useState<number[]>([]);
-  const onPageLayout = (index: number, e: LayoutChangeEvent) => {
-    const h = e.nativeEvent.layout.height + CAROUSEL_CARD_PADDING * 2;
-    setPageHeights((prev) => {
-      if (prev[index] === h) return prev;
-      const next = [...prev];
-      next[index] = h;
-      return next;
-    });
-  };
-  const allPagesMeasured = currencyTotals.length > 1
-    && currencyTotals.every((_, i) => pageHeights[i] !== undefined);
-  const carouselHeight = allPagesMeasured
-    ? carouselScrollX.interpolate({
-        inputRange: currencyTotals.map((_, i) => i * carouselWidth),
-        outputRange: currencyTotals.map((_, i) => pageHeights[i]),
-        extrapolate: 'clamp',
-      })
-    : undefined;
+  // Pages differ in height (only some currencies have a Reserved line); useCarousel follows the page in view.
+  const carouselWidth = Dimensions.get('window').width - 32; // matches scrollContent horizontal padding
+  const currencyCodes = useMemo(() => currencyTotals.map(([code]) => code), [currencyTotals]);
+  const carousel = useCarousel(currencyCodes, carouselWidth, CAROUSEL_CARD_PADDING);
 
   const handleDeletePress = useCallback(
     (account: Account) => {
@@ -418,51 +390,27 @@ export default function AccountsScreen() {
           </View>
         ) : (
           <View style={styles.carouselWrapper}>
-            <Animated.ScrollView
-              ref={carouselRef}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { x: carouselScrollX } } }],
-                // Height cannot run on the native driver.
-                { useNativeDriver: false, listener: onCarouselScroll }
-              )}
-              scrollEventThrottle={16}
-              decelerationRate="fast"
-              style={carouselHeight !== undefined && { height: carouselHeight }}
-            >
-              {currencyTotals.map(([code, amount], pageIndex) => {
+            <Animated.ScrollView {...carousel.scrollProps}>
+              {currencyTotals.map(([code, amount]) => {
                 const prev = prevCurrencyTotals.get(code);
                 const pct = prev !== undefined && prev !== 0 && amount !== prev
                   ? ((amount - prev) / Math.abs(prev)) * 100
                   : null;
                 return (
                   <View key={code} style={[styles.carouselCard, { backgroundColor: accentColor, width: carouselWidth }]}>
-                    <View onLayout={(e) => onPageLayout(pageIndex, e)}>
+                    <View onLayout={(e) => carousel.onPageLayout(code, e)}>
                     <View style={styles.totalLabelRow}>
                       <Text style={[styles.totalLabel, { color: onAccentColor + 'CC' }]}>Total Balance</Text>
                       <View style={styles.totalHeaderRight}>
                         <Text style={[styles.totalCurrencyTag, { color: onAccentColor + 'CC' }]}>{code}</Text>
-                        <View style={styles.inlineDots}>
-                          {currencyTotals.map(([dCode], i) => (
-                            <TouchableOpacity
-                              key={dCode}
-                              onPress={() => {
-                                carouselRef.current?.scrollTo({ x: i * carouselWidth, animated: true });
-                                setCarouselIndex(i);
-                              }}
-                              hitSlop={8}
-                              accessibilityRole="button"
-                              accessibilityLabel={`Show ${dCode} total`}
-                            >
-                              <View style={[
-                                styles.inlineDot,
-                                { backgroundColor: onAccentColor + (i === carouselIndex ? 'FF' : '55') },
-                              ]} />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
+                        <CarouselDots
+                          index={carousel.index}
+                          onSelect={carousel.goTo}
+                          accessibilityLabels={currencyTotals.map(([dCode]) => `Show ${dCode} total`)}
+                          activeColor={onAccentColor}
+                          inactiveColor={onAccentColor + '55'}
+                          size={5}
+                        />
                       </View>
                     </View>
                     <Text style={[styles.totalAmount, { color: onAccentColor }]}>
@@ -619,16 +567,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  inlineDots: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  inlineDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
   },
   totalLabel: {
     color: 'rgba(255,255,255,0.8)',
