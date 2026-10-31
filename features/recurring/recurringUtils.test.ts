@@ -76,13 +76,26 @@ describe('expandOccurrences', () => {
     next_due_date: '2026-01-31',
     is_active: 1,
     ...overrides,
+    // A new item's first due date is its start date.
+    start_date: overrides.start_date ?? overrides.next_due_date ?? '2026-01-31',
   });
 
-  it('steps a monthly item with month-end clamping', () => {
+  it('steps a monthly item with month-end clamping, back to the 31st after a short month', () => {
     // Given rent due on the 31st
     const dates = expandOccurrences([template({})], '2026-01-01', '2026-04-30').map((o) => o.date);
-    // Then February clamps to the 28th and later months stay clamped (advanceDate carries the day)
-    expect(dates).toEqual(['2026-01-31', '2026-02-28', '2026-03-28', '2026-04-28']);
+    // Then February clamps to the 28th, March is the 31st again, April clamps to the 30th
+    expect(dates).toEqual(['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30']);
+  });
+
+  it('finds the start day again for an item whose next due date has already drifted', () => {
+    // Given an item started on Jan 31 whose stored next due date slid to Mar 28 under the old stepping
+    const dates = expandOccurrences(
+      [template({ start_date: '2026-01-31', next_due_date: '2026-03-28' })],
+      '2026-03-01',
+      '2026-05-31',
+    ).map((o) => o.date);
+    // Then the dates after it return to the end of the month
+    expect(dates).toEqual(['2026-03-28', '2026-04-30', '2026-05-31']);
   });
 
   it('skips paused items', () => {

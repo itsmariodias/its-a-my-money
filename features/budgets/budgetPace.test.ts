@@ -26,6 +26,7 @@ const bill = (overrides: Partial<RecurringTemplate>): RecurringTemplate => ({
   next_due_date: '2026-10-25',
   is_active: 1,
   ...overrides,
+  start_date: overrides.start_date ?? overrides.next_due_date ?? '2026-10-25',
 });
 
 const currencyFilter = { currency: 'EUR', accountCurrencyById: { 1: 'EUR', 2: 'USD' } };

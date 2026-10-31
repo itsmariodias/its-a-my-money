@@ -87,6 +87,58 @@ describe('advanceDate', () => {
       expect(advanceDate('2025-02-28', 'yearly')).toBe('2026-02-28');
     });
   });
+
+  describe('anchored to the start date', () => {
+    // Steps a schedule n times from its start date, the way the recurring check does.
+    const schedule = (start: string, frequency: 'monthly' | 'quarterly' | 'yearly', n: number) => {
+      const dates = [start];
+      for (let i = 1; i < n; i++) dates.push(advanceDate(dates[i - 1], frequency, start));
+      return dates;
+    };
+
+    it('returns to the 31st after a month that is shorter', () => {
+      // Given an item set for Oct 31
+      // Then November clamps to the 30th and December is the 31st again
+      expect(schedule('2026-10-31', 'monthly', 6)).toEqual([
+        '2026-10-31', '2026-11-30', '2026-12-31', '2027-01-31', '2027-02-28', '2027-03-31',
+      ]);
+    });
+
+    it('keeps the 29th and 30th through February', () => {
+      // Given items set for Jan 29 and Jan 30 in a non-leap year
+      // Then both clamp to Feb 28 and come back in March
+      expect(schedule('2027-01-29', 'monthly', 3)).toEqual(['2027-01-29', '2027-02-28', '2027-03-29']);
+      expect(schedule('2027-01-30', 'monthly', 3)).toEqual(['2027-01-30', '2027-02-28', '2027-03-30']);
+    });
+
+    it('returns to the 31st on a quarterly schedule', () => {
+      // Given a quarterly item set for Jan 31
+      // Then April clamps to the 30th and July is the 31st again
+      expect(schedule('2026-01-31', 'quarterly', 3)).toEqual(['2026-01-31', '2026-04-30', '2026-07-31']);
+    });
+
+    it('puts a Feb 29 yearly item back on Feb 29 in the next leap year', () => {
+      // Given a yearly item started on Feb 29, 2024
+      // Then non-leap years use Feb 28 and 2028 is Feb 29 again
+      expect(schedule('2024-02-29', 'yearly', 5)).toEqual([
+        '2024-02-29', '2025-02-28', '2026-02-28', '2027-02-28', '2028-02-29',
+      ]);
+    });
+
+    it('corrects a due date that already drifted', () => {
+      // Given a Jan 31 item whose stored next due date slid to Mar 28 before this fix
+      // When it is stepped with its start date
+      // Then the next one is Apr 30, not Apr 28
+      expect(advanceDate('2026-03-28', 'monthly', '2026-01-31')).toBe('2026-04-30');
+    });
+
+    it('does not change daily or weekly steps', () => {
+      // Given an anchor with a different day of the month
+      // Then daily and weekly still step from the current date
+      expect(advanceDate('2026-02-28', 'daily', '2026-01-31')).toBe('2026-03-01');
+      expect(advanceDate('2026-02-28', 'weekly', '2026-01-31')).toBe('2026-03-07');
+    });
+  });
 });
 
 describe('previousDay', () => {
