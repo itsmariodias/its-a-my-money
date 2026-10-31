@@ -686,14 +686,14 @@ type ListItem =
 interface Section {
   title: string;
   date: string;
-  summary: Array<{ currency: string; net: number }>;
+  summary: { currency: string; net: number }[];
   data: ListItem[];
 }
 
 // ─── TransactionsScreen ───────────────────────────────────────────────────────
 
 export default function TransactionsScreen() {
-  const { isDark, bg, cardBg, inputBg, textColor, subColor: subTextColor, borderColor, accentColor } = useAppTheme();
+  const { bg, cardBg, inputBg, textColor, subColor: subTextColor, borderColor, accentColor } = useAppTheme();
 
   const selectedId = useUIStore((s) => s.selectedAccountId);
   const periodMode = useUIStore((s) => s.periodMode);

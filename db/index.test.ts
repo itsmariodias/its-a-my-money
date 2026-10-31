@@ -1,7 +1,6 @@
 import { useAccountsDb, useBudgetsDb, useCategoriesDb, useGoalsDb, useImportDb, useRecurringDb, useSettingsDb, useTransactionsDb, useTransfersDb, type ExportData } from '@/db';
+import { getMockDb } from '../__mocks__/expo-sqlite';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { getMockDb } = require('../__mocks__/expo-sqlite');
 const mockDb = getMockDb();
 
 beforeEach(() => {

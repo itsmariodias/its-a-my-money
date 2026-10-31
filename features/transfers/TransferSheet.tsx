@@ -165,7 +165,7 @@ export default function TransferSheet({ isOpen, onClose, transfer = null, onDele
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount, toAmount, fromAccountId, toAccountId, isCrossCurrency, saveTransfer, transfer, accounts]);
 
-  const { isDark, cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
+  const { cardBg: bg, textColor, subColor: subTextColor, inputBg, borderColor } = useAppTheme();
 
   const sheetTranslateY = useRef(new Animated.Value(600)).current;
   // Focused once the sheet has settled. autoFocus fires on mount, before an Android Modal's

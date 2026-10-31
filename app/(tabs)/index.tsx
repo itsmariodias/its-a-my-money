@@ -131,7 +131,7 @@ function DonutSlice({ fraction, cumulativeStart, color, resetKey, index }: Donut
 }
 
 export default function DashboardScreen() {
-  const { isDark, accentColor, onAccentColor, bg, cardBg, textColor, subColor: subTextColor, borderColor } = useAppTheme();
+  const { accentColor, onAccentColor, bg, cardBg, textColor, subColor: subTextColor } = useAppTheme();
 
   const selectedId = useUIStore((s) => s.selectedAccountId);
   const periodMode = useUIStore((s) => s.periodMode);
