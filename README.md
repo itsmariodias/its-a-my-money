@@ -1,5 +1,14 @@
 # It's a My Money! 💰
 
+[![CI](https://github.com/itsmariodias/its-a-my-money/actions/workflows/ci.yml/badge.svg)](https://github.com/itsmariodias/its-a-my-money/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/itsmariodias/its-a-my-money)](https://github.com/itsmariodias/its-a-my-money/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/itsmariodias/its-a-my-money/total)](https://github.com/itsmariodias/its-a-my-money/releases)
+[![License: GPL v3](https://img.shields.io/github/license/itsmariodias/its-a-my-money)](LICENSE)
+![Platform: Android](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)
+![Expo SDK 54](https://img.shields.io/badge/Expo-SDK%2054-000020?logo=expo&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
+[![Built with Claude Code](https://img.shields.io/badge/built%20with-Claude%20Code-D97757?logo=claude&logoColor=white)](https://claude.ai/code)
+
 A personal finance app built with Expo. Track your income, expenses, transfers, and account balances — all data stored locally on your device. Cloud backup is opt-in and only stores data in your own Google Drive.
 
 > **Platform support:** Android is fully supported. iOS is **not yet supported** — if you'd like to help test or contribute to iOS support, check the [issues](https://github.com/itsmariodias/its-a-my-money/issues) or open a new one!
