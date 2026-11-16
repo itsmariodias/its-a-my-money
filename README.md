@@ -1,6 +1,6 @@
 # It's a My Money! 💰
 
-[![build](https://img.shields.io/github/actions/workflow/status/itsmariodias/its-a-my-money/ci.yml?branch=main)](https://github.com/itsmariodias/its-a-my-money/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/itsmariodias/its-a-my-money/ci.yml?branch=main&label=CI)](https://github.com/itsmariodias/its-a-my-money/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/itsmariodias/its-a-my-money)](https://github.com/itsmariodias/its-a-my-money/releases/latest)
 [![downloads](https://img.shields.io/github/downloads/itsmariodias/its-a-my-money/total)](https://github.com/itsmariodias/its-a-my-money/releases)
 [![license](https://img.shields.io/github/license/itsmariodias/its-a-my-money)](LICENSE)
