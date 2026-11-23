@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/images/icon.svg" alt="It's a My Money! logo" width="160" />
+<img src="docs/logo.svg" alt="It's a My Money! logo" width="128" />
 
 # It's a My Money! 💰
 
