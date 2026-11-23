@@ -1,3 +1,7 @@
+<div align="center">
+
+<img src="assets/images/icon.svg" alt="It's a My Money! logo" width="160" />
+
 # It's a My Money! 💰
 
 [![CI](https://img.shields.io/github/actions/workflow/status/itsmariodias/its-a-my-money/ci.yml?branch=main&label=CI)](https://github.com/itsmariodias/its-a-my-money/actions/workflows/ci.yml)
@@ -7,6 +11,8 @@
 [![platform](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)](https://github.com/itsmariodias/its-a-my-money/releases/latest)
 [![expo](https://img.shields.io/github/package-json/dependency-version/itsmariodias/its-a-my-money/expo?logo=expo&logoColor=white&color=000020)](https://docs.expo.dev/versions/v54.0.0/)
 [![typescript](https://img.shields.io/github/package-json/dependency-version/itsmariodias/its-a-my-money/dev/typescript?logo=typescript&logoColor=white&color=3178C6)](https://www.typescriptlang.org/)
+
+</div>
 
 A personal finance app built with Expo. Track your income, expenses, transfers, and account balances — all data stored locally on your device. Cloud backup is opt-in and only stores data in your own Google Drive.
 
